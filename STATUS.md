@@ -1,8 +1,8 @@
 # STATUS.md
 
 - 项目：数据运维工作台
-- 当前阶段：设计收口完成，待用户确认后进入开发
-- 当前状态：design-review
-- 当前 owner：斯维因
+- 当前阶段：MVP 全部完成，最终验收通过
+- 当前状态：delivered
+- 当前 owner：李琪
 - 正式共享目录：`/root/.openclaw/workspace/projects/data-ops-workbench`
-- 最近更新：2026-03-20 斯维因完成 5 份正式文档收口
+- 最近更新：2026-03-20 MVP 全链路验收通过
