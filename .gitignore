@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+backend/.venv/
+
+# Node
+frontend/node_modules/
+
+# Runtime data
+data/workbench.db
+data/uploads/
+logs/
+temp/
+backups/
