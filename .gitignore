@@ -12,3 +12,11 @@ data/uploads/
 logs/
 temp/
 backups/
+
+# PyInstaller build artifacts
+backend/build/
+backend/dist/
+dist/
+
+# Spec warning file
+*.manifest
