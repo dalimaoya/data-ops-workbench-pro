@@ -4,7 +4,7 @@ import { Card, Row, Col, Statistic, List, Tag, Button, Space, Typography, Empty 
 import {
   DatabaseOutlined, TableOutlined, ExportOutlined, ImportOutlined,
   EditOutlined, WarningOutlined, PlusOutlined, SettingOutlined,
-  ToolOutlined, FileTextOutlined, HistoryOutlined,
+  ToolOutlined, FileTextOutlined, HistoryOutlined, RightOutlined,
 } from '@ant-design/icons';
 import { getDashboardStats, getRecentOperations, getAlerts } from '../api/dashboard';
 import type { DashboardStats, RecentOperation, Alert } from '../api/dashboard';
@@ -47,6 +47,19 @@ export default function Home() {
     { label: '版本回退', icon: <HistoryOutlined />, path: '/version-rollback' },
   ];
 
+  const handleAlertAction = (alert: Alert) => {
+    if (alert.type === 'structure_changed') {
+      navigate(`/table-config/detail/${alert.target_id}`);
+    } else if (alert.type === 'import_failed') {
+      // Navigate to data maintenance browse page for the related table
+      if (alert.table_config_id) {
+        navigate(`/data-maintenance/browse/${alert.table_config_id}`);
+      } else {
+        navigate(`/data-maintenance`);
+      }
+    }
+  };
+
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
@@ -61,10 +74,10 @@ export default function Home() {
         </Text>
       </div>
 
-      {/* 基础统计 */}
-      <Row gutter={16} style={{ marginBottom: 24 }}>
+      {/* 第一行：基础统计 */}
+      <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={5}>
-          <Card hoverable onClick={() => navigate('/datasource')}>
+          <Card hoverable onClick={() => navigate('/datasource')} size="small">
             <Statistic
               title="数据源"
               value={stats?.datasource_count ?? 0}
@@ -73,7 +86,7 @@ export default function Home() {
           </Card>
         </Col>
         <Col span={5}>
-          <Card hoverable onClick={() => navigate('/table-config')}>
+          <Card hoverable onClick={() => navigate('/table-config')} size="small">
             <Statistic
               title="已纳管表"
               value={stats?.table_count ?? 0}
@@ -82,7 +95,7 @@ export default function Home() {
           </Card>
         </Col>
         <Col span={5}>
-          <Card>
+          <Card size="small">
             <Statistic
               title="今日导出"
               value={stats?.today_export ?? 0}
@@ -92,7 +105,7 @@ export default function Home() {
           </Card>
         </Col>
         <Col span={5}>
-          <Card>
+          <Card size="small">
             <Statistic
               title="今日导入"
               value={stats?.today_import ?? 0}
@@ -102,7 +115,7 @@ export default function Home() {
           </Card>
         </Col>
         <Col span={4}>
-          <Card>
+          <Card size="small">
             <Statistic
               title="今日回写"
               value={stats?.today_writeback ?? 0}
@@ -113,100 +126,110 @@ export default function Home() {
         </Col>
       </Row>
 
-      <Row gutter={16}>
-        {/* 最近操作 */}
-        <Col span={12}>
-          <Card
-            title="最近操作"
-            style={{ marginBottom: 16 }}
-            bodyStyle={{ padding: operations.length ? '0' : undefined }}
-          >
-            {operations.length > 0 ? (
-              <List
-                dataSource={operations}
-                renderItem={(item) => (
-                  <List.Item style={{ padding: '8px 16px' }}>
-                    <List.Item.Meta
-                      title={
-                        <Space>
-                          <Text>{item.operation_module}</Text>
-                          <Text type="secondary">·</Text>
-                          <Text>{item.operation_type}</Text>
-                          <Tag color={statusColor(item.operation_status)}>
-                            {item.operation_status}
-                          </Tag>
-                        </Space>
-                      }
-                      description={
-                        <Space>
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            {item.target_name}
-                          </Text>
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            {item.operator_user} · {item.created_at?.replace('T', ' ').slice(0, 19)}
-                          </Text>
-                        </Space>
-                      }
-                    />
-                  </List.Item>
-                )}
-              />
-            ) : (
-              <Empty description="暂无操作记录" />
-            )}
-          </Card>
-        </Col>
+      {/* 第二行：快捷入口 */}
+      <Card title="快捷入口" size="small" style={{ marginBottom: 16 }}>
+        <Space wrap>
+          {shortcuts.map((s) => (
+            <Button
+              key={s.path}
+              icon={s.icon}
+              onClick={() => navigate(s.path)}
+            >
+              {s.label}
+            </Button>
+          ))}
+        </Space>
+      </Card>
 
-        <Col span={12}>
-          {/* 待处理提醒 */}
-          <Card
-            title={
-              <Space>
-                <WarningOutlined style={{ color: '#faad14' }} />
-                待处理提醒
-              </Space>
-            }
-            style={{ marginBottom: 16 }}
-          >
-            {alerts.length > 0 ? (
-              <List
-                dataSource={alerts}
-                renderItem={(item) => (
-                  <List.Item>
-                    <List.Item.Meta
-                      title={
-                        <Space>
-                          <Tag color={item.level === 'error' ? 'red' : 'orange'}>
-                            {item.title}
-                          </Tag>
-                        </Space>
-                      }
-                      description={item.message}
-                    />
-                  </List.Item>
-                )}
-              />
-            ) : (
-              <Empty description="暂无待处理提醒" />
-            )}
-          </Card>
-
-          {/* 快捷入口 */}
-          <Card title="快捷入口">
-            <Space wrap>
-              {shortcuts.map((s) => (
-                <Button
-                  key={s.path}
-                  icon={s.icon}
-                  onClick={() => navigate(s.path)}
-                >
-                  {s.label}
-                </Button>
-              ))}
+      {/* 第三行：待处理提醒 */}
+      {alerts.length > 0 && (
+        <Card
+          title={
+            <Space>
+              <WarningOutlined style={{ color: '#faad14' }} />
+              待处理提醒
+              <Tag color="orange">{alerts.length}</Tag>
             </Space>
-          </Card>
-        </Col>
-      </Row>
+          }
+          size="small"
+          style={{ marginBottom: 16 }}
+        >
+          <List
+            dataSource={alerts}
+            renderItem={(item) => (
+              <List.Item
+                actions={[
+                  <Button
+                    key="action"
+                    type="link"
+                    size="small"
+                    onClick={() => handleAlertAction(item)}
+                    icon={<RightOutlined />}
+                  >
+                    去处理
+                  </Button>
+                ]}
+              >
+                <List.Item.Meta
+                  title={
+                    <Space>
+                      <Tag color={item.level === 'error' ? 'red' : 'orange'}>
+                        {item.title}
+                      </Tag>
+                    </Space>
+                  }
+                  description={
+                    <Space>
+                      <Text>{item.message}</Text>
+                      {item.created_at && (
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {item.created_at?.replace('T', ' ').slice(0, 19)}
+                        </Text>
+                      )}
+                    </Space>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        </Card>
+      )}
+
+      {/* 第四行（整行宽度）：最近操作 */}
+      <Card
+        title="最近操作"
+        size="small"
+        bodyStyle={{ padding: operations.length ? '0' : undefined }}
+      >
+        {operations.length > 0 ? (
+          <List
+            dataSource={operations}
+            renderItem={(item) => (
+              <List.Item style={{ padding: '10px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 12 }}>
+                  <Tag color={statusColor(item.operation_status)} style={{ flexShrink: 0 }}>
+                    {item.operation_status === 'success' ? '成功' : item.operation_status === 'failed' ? '失败' : item.operation_status}
+                  </Tag>
+                  <Text strong style={{ flexShrink: 0 }}>
+                    {item.operation_type}
+                  </Text>
+                  <Text style={{ flex: 1 }}>
+                    {item.readable_desc || item.operation_message || item.target_name || '-'}
+                  </Text>
+                  <Text type="secondary" style={{ flexShrink: 0, fontSize: 12 }}>
+                    {item.operator_user}
+                  </Text>
+                  <Text type="secondary" style={{ flexShrink: 0, fontSize: 12 }}>
+                    {item.created_at?.replace('T', ' ').slice(0, 19)}
+                  </Text>
+                </div>
+              </List.Item>
+            )}
+          />
+        ) : (
+          <Empty description="暂无操作记录" />
+        )}
+      </Card>
     </div>
   );
 }
