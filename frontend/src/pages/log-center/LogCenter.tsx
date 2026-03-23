@@ -11,6 +11,7 @@ import { listDatasources } from '../../api/datasource';
 import { listExportTasks, downloadExportTask, retryImportValidation, type ExportTaskItem } from '../../api/dataMaintenance';
 import { useNavigate as useLogNavigate } from 'react-router-dom';
 import { formatBeijingTime } from '../../utils/formatTime';
+import { useTranslation } from 'react-i18next';
 
 const { RangePicker } = DatePicker;
 
@@ -623,6 +624,7 @@ function ExportTaskTab() {
 
 // ─── Main Component ───
 export default function LogCenter() {
+  const { t } = useTranslation();
   const [dsOptions, setDsOptions] = useState<{ value: number; label: string }[]>([]);
   const logNav = useLogNavigate();
 
@@ -646,7 +648,7 @@ export default function LogCenter() {
   ];
 
   return (
-    <Card title="日志中心">
+    <Card title={t('logCenter.title')}>
       <Tabs items={items} />
     </Card>
   );

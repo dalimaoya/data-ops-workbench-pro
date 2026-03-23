@@ -10,21 +10,10 @@ import {
   testExistingDatasource,
 } from '../../api/datasource';
 import type { Datasource } from '../../api/datasource';
-
-const dbTypeOptions = [
-  { label: '全部', value: '' },
-  { label: 'MySQL', value: 'mysql' },
-  { label: 'PostgreSQL', value: 'postgresql' },
-  { label: 'SQL Server', value: 'sqlserver' },
-];
-
-const statusOptions = [
-  { label: '全部', value: '' },
-  { label: '启用', value: 'enabled' },
-  { label: '禁用', value: 'disabled' },
-];
+import { useTranslation } from 'react-i18next';
 
 export default function DatasourceList() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [data, setData] = useState<Datasource[]>([]);
   const [total, setTotal] = useState(0);
@@ -34,6 +23,19 @@ export default function DatasourceList() {
   const [keyword, setKeyword] = useState('');
   const [dbType, setDbType] = useState('');
   const [status, setStatus] = useState('');
+
+  const dbTypeOptions = [
+    { label: t('common.all'), value: '' },
+    { label: 'MySQL', value: 'mysql' },
+    { label: 'PostgreSQL', value: 'postgresql' },
+    { label: 'SQL Server', value: 'sqlserver' },
+  ];
+
+  const statusOptions = [
+    { label: t('common.all'), value: '' },
+    { label: t('common.enabled'), value: 'enabled' },
+    { label: t('common.disabled'), value: 'disabled' },
+  ];
 
   const fetchData = async () => {
     setLoading(true);
@@ -49,7 +51,7 @@ export default function DatasourceList() {
       setData(listRes.data);
       setTotal(countRes.data.total);
     } catch {
-      message.error('获取数据源列表失败');
+      message.error(t('datasource.listFailed'));
     } finally {
       setLoading(false);
     }
@@ -61,12 +63,12 @@ export default function DatasourceList() {
 
   const handleDelete = async (id: number) => {
     await deleteDatasource(id);
-    message.success('删除成功');
+    message.success(t('datasource.deleteSuccess'));
     fetchData();
   };
 
   const handleTest = async (id: number) => {
-    const hide = message.loading('测试连接中...', 0);
+    const hide = message.loading(t('datasource.testing'), 0);
     try {
       const res = await testExistingDatasource(id);
       if (res.data.success) {
@@ -76,38 +78,38 @@ export default function DatasourceList() {
       }
       fetchData();
     } catch {
-      message.error('测试连接请求失败');
+      message.error(t('datasource.testFailed'));
     } finally {
       hide();
     }
   };
 
   const columns: ColumnsType<Datasource> = [
-    { title: '数据源名称', dataIndex: 'datasource_name', width: 160 },
+    { title: t('datasource.name'), dataIndex: 'datasource_name', width: 160 },
     {
-      title: '数据库类型', dataIndex: 'db_type', width: 120,
+      title: t('datasource.dbType'), dataIndex: 'db_type', width: 120,
       render: (v: string) => <Tag color={v === 'mysql' ? 'blue' : v === 'postgresql' ? 'green' : 'orange'}>{v.toUpperCase()}</Tag>,
     },
-    { title: '主机地址', dataIndex: 'host', width: 160 },
-    { title: '端口', dataIndex: 'port', width: 80 },
-    { title: '库名', dataIndex: 'database_name', width: 120 },
+    { title: t('datasource.host'), dataIndex: 'host', width: 160 },
+    { title: t('datasource.port'), dataIndex: 'port', width: 80 },
+    { title: t('datasource.databaseName'), dataIndex: 'database_name', width: 120 },
     {
-      title: '连接状态', dataIndex: 'last_test_status', width: 100,
-      render: (v: string) => v ? <Tag color={v === 'success' ? 'green' : 'red'}>{v === 'success' ? '成功' : '失败'}</Tag> : <Tag>未测试</Tag>,
+      title: t('datasource.connectionStatus'), dataIndex: 'last_test_status', width: 100,
+      render: (v: string) => v ? <Tag color={v === 'success' ? 'green' : 'red'}>{v === 'success' ? t('datasource.connectionSuccess') : t('datasource.connectionFailed')}</Tag> : <Tag>{t('datasource.connectionNotTested')}</Tag>,
     },
     {
-      title: '启用状态', dataIndex: 'status', width: 90,
-      render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'default'}>{v === 'enabled' ? '启用' : '禁用'}</Tag>,
+      title: t('common.status'), dataIndex: 'status', width: 90,
+      render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'default'}>{v === 'enabled' ? t('common.enabled') : t('common.disabled')}</Tag>,
     },
-    { title: '备注', dataIndex: 'remark', width: 150, ellipsis: true },
+    { title: t('common.remark'), dataIndex: 'remark', width: 150, ellipsis: true },
     {
-      title: '操作', width: 240, fixed: 'right',
+      title: t('common.operation'), width: 240, fixed: 'right',
       render: (_, record) => (
         <Space>
-          <Button size="small" onClick={() => navigate(`/datasource/edit/${record.id}`)}>编辑</Button>
-          <Button size="small" onClick={() => handleTest(record.id)}>测试</Button>
-          <Popconfirm title="确认删除？" onConfirm={() => handleDelete(record.id)}>
-            <Button size="small" danger>删除</Button>
+          <Button size="small" onClick={() => navigate(`/datasource/edit/${record.id}`)}>{t('common.edit')}</Button>
+          <Button size="small" onClick={() => handleTest(record.id)}>{t('common.test')}</Button>
+          <Popconfirm title={t('common.confirmDelete')} onConfirm={() => handleDelete(record.id)}>
+            <Button size="small" danger>{t('common.delete')}</Button>
           </Popconfirm>
         </Space>
       ),
@@ -116,39 +118,39 @@ export default function DatasourceList() {
 
   return (
     <Card
-      title="数据源管理"
-      extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/datasource/create')}>新建数据源</Button>}
+      title={t('datasource.title')}
+      extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/datasource/create')}>{t('datasource.createNew')}</Button>}
     >
       <Space wrap style={{ marginBottom: 16 }}>
         <Input
-          placeholder="搜索数据源名称"
+          placeholder={t('datasource.searchPlaceholder')}
           value={keyword}
           onChange={e => setKeyword(e.target.value)}
           onPressEnter={handleSearch}
           style={{ width: 200 }}
           prefix={<SearchOutlined />}
         />
-        <Select options={dbTypeOptions} value={dbType} onChange={setDbType} style={{ width: 140 }} placeholder="数据库类型" />
-        <Select options={statusOptions} value={status} onChange={setStatus} style={{ width: 120 }} placeholder="状态" />
-        <Button icon={<SearchOutlined />} type="primary" onClick={handleSearch}>查询</Button>
-        <Button icon={<ReloadOutlined />} onClick={() => { setKeyword(''); setDbType(''); setStatus(''); setPage(1); setTimeout(fetchData, 0); }}>重置</Button>
+        <Select options={dbTypeOptions} value={dbType} onChange={setDbType} style={{ width: 140 }} placeholder={t('datasource.dbType')} />
+        <Select options={statusOptions} value={status} onChange={setStatus} style={{ width: 120 }} placeholder={t('common.status')} />
+        <Button icon={<SearchOutlined />} type="primary" onClick={handleSearch}>{t('common.search')}</Button>
+        <Button icon={<ReloadOutlined />} onClick={() => { setKeyword(''); setDbType(''); setStatus(''); setPage(1); setTimeout(fetchData, 0); }}>{t('common.reset')}</Button>
       </Space>
 
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={data}
-          loading={loading}
-          scroll={{ x: 1200 }}
-          pagination={{
-            current: page,
-            pageSize,
-            total,
-            showSizeChanger: true,
-            showTotal: t => `共 ${t} 条`,
-            onChange: (p, ps) => { setPage(p); setPageSize(ps); },
-          }}
-        />
+      <Table
+        rowKey="id"
+        columns={columns}
+        dataSource={data}
+        loading={loading}
+        scroll={{ x: 1200 }}
+        pagination={{
+          current: page,
+          pageSize,
+          total,
+          showSizeChanger: true,
+          showTotal: t_count => t('common.total', { count: t_count }),
+          onChange: (p, ps) => { setPage(p); setPageSize(ps); },
+        }}
+      />
     </Card>
   );
 }

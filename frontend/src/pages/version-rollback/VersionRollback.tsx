@@ -15,11 +15,13 @@ import {
 } from '../../api/backupVersion';
 import { listDatasources } from '../../api/datasource';
 import { formatBeijingTime } from '../../utils/formatTime';
+import { useTranslation } from 'react-i18next';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
 
 export default function VersionRollback() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<BackupVersion[]>([]);
   const [total, setTotal] = useState(0);
@@ -66,7 +68,7 @@ export default function VersionRollback() {
       setData(res.data.items);
       setTotal(res.data.total);
     } catch {
-      message.error('加载备份版本列表失败');
+      message.error(t('versionRollback.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -81,7 +83,7 @@ export default function VersionRollback() {
       const res = await getBackupVersionDetail(record.id);
       setDetail(res.data);
     } catch {
-      message.error('加载版本详情失败');
+      message.error(t('versionRollback.detailLoadFailed'));
     } finally {
       setDetailLoading(false);
     }
@@ -150,24 +152,24 @@ export default function VersionRollback() {
 
   return (
     <>
-      <Card title="版本回退" style={{ marginBottom: 16 }}>
+      <Card title={t('versionRollback.title')} style={{ marginBottom: 16 }}>
         <Row gutter={[16, 12]}>
           <Col>
             <Select
-              placeholder="数据源" allowClear style={{ width: 180 }}
+              placeholder={t('common.datasource')} allowClear style={{ width: 180 }}
               options={dsOptions}
               value={datasourceId}
               onChange={v => { setDatasourceId(v); setPage(1); }}
             />
           </Col>
           <Col>
-            <Input placeholder="表名" allowClear style={{ width: 160 }}
+            <Input placeholder={t('common.tableName')} allowClear style={{ width: 160 }}
               value={tableName}
               onChange={e => { setTableName(e.target.value); setPage(1); }}
             />
           </Col>
           <Col>
-            <Input placeholder="操作人" allowClear style={{ width: 120 }}
+            <Input placeholder={t('common.operator')} allowClear style={{ width: 120 }}
               value={operatorUser}
               onChange={e => { setOperatorUser(e.target.value); setPage(1); }}
             />
@@ -179,12 +181,12 @@ export default function VersionRollback() {
             />
           </Col>
           <Col>
-            <Button type="primary" onClick={() => { setPage(1); fetchData(); }}>查询</Button>
+            <Button type="primary" onClick={() => { setPage(1); fetchData(); }}>{t('common.search')}</Button>
           </Col>
           <Col>
             <Button onClick={() => {
               setDatasourceId(undefined); setTableName(''); setOperatorUser(''); setTimeRange(null); setPage(1);
-            }}>重置</Button>
+            }}>{t('common.reset')}</Button>
           </Col>
         </Row>
       </Card>
@@ -207,7 +209,7 @@ export default function VersionRollback() {
 
       {/* Detail Modal */}
       <Modal
-        title="备份版本详情" open={detailVisible} width={700}
+        title={t('versionRollback.detailTitle')} open={detailVisible} width={700}
         onCancel={() => setDetailVisible(false)} footer={null}
         loading={detailLoading}
       >
@@ -254,14 +256,14 @@ export default function VersionRollback() {
         title={
           <Space>
             <ExclamationCircleOutlined style={{ color: '#faad14' }} />
-            <span>确认回退</span>
+            <span>{t('versionRollback.confirmRollback')}</span>
           </Space>
         }
         open={!!rollbackTarget}
         onCancel={() => setRollbackTarget(null)}
         onOk={confirmRollback}
         confirmLoading={rollbackLoading}
-        okText="确认回退"
+        okText={t('versionRollback.confirmRollback')}
         okButtonProps={{ danger: true }}
       >
         {rollbackTarget && (

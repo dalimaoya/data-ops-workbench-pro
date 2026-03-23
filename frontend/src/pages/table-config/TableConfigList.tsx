@@ -7,8 +7,10 @@ import {
   type TableConfig,
 } from '../../api/tableConfig';
 import { listDatasources, type Datasource } from '../../api/datasource';
+import { useTranslation } from 'react-i18next';
 
 export default function TableConfigList() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [data, setData] = useState<TableConfig[]>([]);
   const [total, setTotal] = useState(0);
@@ -53,43 +55,43 @@ export default function TableConfigList() {
 
   const handleDelete = async (id: number) => {
     await deleteTableConfig(id);
-    message.success('已删除');
+    message.success(t('tableConfig.deleted'));
     fetchData();
   };
 
   const columns = [
-    { title: '数据源', dataIndex: 'datasource_name', width: 140 },
-    { title: '库/Schema', dataIndex: 'db_name', width: 120, render: (_: string, r: TableConfig) => r.db_name || r.schema_name || '-' },
-    { title: '表名', dataIndex: 'table_name', width: 160 },
-    { title: '表别名', dataIndex: 'table_alias', width: 130 },
-    { title: '字段数', dataIndex: 'field_count', width: 80 },
-    { title: '主键', dataIndex: 'primary_key_fields', width: 120 },
-    { title: '版本', dataIndex: 'config_version', width: 70 },
+    { title: t('common.datasource'), dataIndex: 'datasource_name', width: 140 },
+    { title: t('tableConfig.dbSchema'), dataIndex: 'db_name', width: 120, render: (_: string, r: TableConfig) => r.db_name || r.schema_name || '-' },
+    { title: t('common.tableName'), dataIndex: 'table_name', width: 160 },
+    { title: t('tableConfig.tableAlias'), dataIndex: 'table_alias', width: 130 },
+    { title: t('tableConfig.fieldCount'), dataIndex: 'field_count', width: 80 },
+    { title: t('fieldConfig.primaryKey'), dataIndex: 'primary_key_fields', width: 120 },
+    { title: t('tableConfig.configVersion'), dataIndex: 'config_version', width: 70 },
     {
-      title: '结构状态', dataIndex: 'structure_check_status', width: 100,
+      title: t('tableConfig.structureStatus'), dataIndex: 'structure_check_status', width: 100,
       render: (v: string) => {
-        const map: Record<string, { color: string; text: string }> = {
-          normal: { color: 'green', text: '正常' },
-          changed: { color: 'red', text: '已变化' },
-          error: { color: 'orange', text: '检查失败' },
+        const map: Record<string, { color: string; textKey: string }> = {
+          normal: { color: 'green', textKey: 'tableConfig.structureNormal' },
+          changed: { color: 'red', textKey: 'tableConfig.structureChanged' },
+          error: { color: 'orange', textKey: 'tableConfig.structureError' },
         };
-        const info = map[v] || { color: 'default', text: v || '未检查' };
-        return <Tag color={info.color}>{info.text}</Tag>;
+        const info = map[v] || { color: 'default', textKey: '' };
+        return <Tag color={info.color}>{info.textKey ? t(info.textKey) : (v || t('tableConfig.structureUnchecked'))}</Tag>;
       },
     },
     {
-      title: '状态', dataIndex: 'status', width: 80,
-      render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'default'}>{v === 'enabled' ? '启用' : '禁用'}</Tag>,
+      title: t('common.status'), dataIndex: 'status', width: 80,
+      render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'default'}>{v === 'enabled' ? t('common.enabled') : t('common.disabled')}</Tag>,
     },
     {
-      title: '操作', width: 280, fixed: 'right' as const,
+      title: t('common.operation'), width: 280, fixed: 'right' as const,
       render: (_: unknown, r: TableConfig) => (
         <Space size="small">
-          <Button type="link" size="small" onClick={() => navigate(`/table-config/detail/${r.id}`)}>配置</Button>
-          <Button type="link" size="small" onClick={() => navigate(`/table-config/fields/${r.id}`)}>字段</Button>
-          <Button type="link" size="small" onClick={() => handleCheckStructure(r.id)}>检查结构</Button>
-          <Popconfirm title="确认删除？" onConfirm={() => handleDelete(r.id)}>
-            <Button type="link" size="small" danger>删除</Button>
+          <Button type="link" size="small" onClick={() => navigate(`/table-config/detail/${r.id}`)}>{t('tableConfig.configure')}</Button>
+          <Button type="link" size="small" onClick={() => navigate(`/table-config/fields/${r.id}`)}>{t('tableConfig.fields')}</Button>
+          <Button type="link" size="small" onClick={() => handleCheckStructure(r.id)}>{t('tableConfig.checkStructure')}</Button>
+          <Popconfirm title={t('common.confirmDelete')} onConfirm={() => handleDelete(r.id)}>
+            <Button type="link" size="small" danger>{t('common.delete')}</Button>
           </Popconfirm>
         </Space>
       ),
@@ -97,28 +99,28 @@ export default function TableConfigList() {
   ];
 
   return (
-    <Card title="表配置管理" extra={
+    <Card title={t('tableConfig.title')} extra={
       <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/table-config/create')}>
-        新增纳管表
+        {t('tableConfig.createNew')}
       </Button>
     }>
       <Space wrap style={{ marginBottom: 16 }}>
         <Select
-          allowClear placeholder="数据源" style={{ width: 200 }}
+          allowClear placeholder={t('common.datasource')} style={{ width: 200 }}
           options={datasources.map(d => ({ label: d.datasource_name, value: d.id }))}
           onChange={v => setFilters(f => ({ ...f, datasource_id: v }))}
         />
         <Select
-          allowClear placeholder="状态" style={{ width: 120 }}
-          options={[{ label: '启用', value: 'enabled' }, { label: '禁用', value: 'disabled' }]}
+          allowClear placeholder={t('common.status')} style={{ width: 120 }}
+          options={[{ label: t('common.enabled'), value: 'enabled' }, { label: t('common.disabled'), value: 'disabled' }]}
           onChange={v => setFilters(f => ({ ...f, status: v }))}
         />
         <Input
-          placeholder="搜索表名" prefix={<SearchOutlined />} style={{ width: 200 }}
+          placeholder={t('tableConfig.searchTable')} prefix={<SearchOutlined />} style={{ width: 200 }}
           onPressEnter={e => setFilters(f => ({ ...f, keyword: (e.target as HTMLInputElement).value }))}
           allowClear onChange={e => { if (!e.target.value) setFilters(f => ({ ...f, keyword: undefined })); }}
         />
-        <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新</Button>
+        <Button icon={<ReloadOutlined />} onClick={fetchData}>{t('common.refresh')}</Button>
       </Space>
 
       <Table

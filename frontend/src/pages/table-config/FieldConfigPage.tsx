@@ -7,8 +7,10 @@ import {
   getTableConfig, listFields, updateField, batchUpdateFields, syncFields,
   type TableConfig as TC, type FieldConfig,
 } from '../../api/tableConfig';
+import { useTranslation } from 'react-i18next';
 
 export default function FieldConfigPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const tcId = Number(id);
@@ -40,8 +42,8 @@ export default function FieldConfigPage() {
     try {
       await updateField(fieldId, { [key]: value ? 1 : 0 });
       setFields(prev => prev.map(f => f.id === fieldId ? { ...f, [key]: value ? 1 : 0 } : f));
-    } catch (e: any) {
-      message.error('更新失败');
+    } catch {
+      message.error(t('common.failed'));
     }
   };
 
@@ -60,33 +62,33 @@ export default function FieldConfigPage() {
     if (!editingId) return;
     try {
       await updateField(editingId, editingValues);
-      message.success('已保存');
+      message.success(t('common.success'));
       setEditingId(null);
       fetchData();
-    } catch (e: any) {
-      message.error('保存失败');
+    } catch {
+      message.error(t('common.failed'));
     }
   };
 
   const handleBatchUpdate = async (updates: Partial<FieldConfig>) => {
-    if (selectedRowKeys.length === 0) { message.warning('请先选择字段'); return; }
+    if (selectedRowKeys.length === 0) { message.warning(t('fieldConfig.batchSelected', { count: 0 })); return; }
     try {
       await batchUpdateFields(selectedRowKeys, updates);
-      message.success('批量更新成功');
+      message.success(t('fieldConfig.batchUpdateSuccess'));
       setSelectedRowKeys([]);
       fetchData();
-    } catch (e: any) {
-      message.error('批量更新失败');
+    } catch {
+      message.error(t('common.failed'));
     }
   };
 
   const handleSyncFields = async () => {
     try {
       await syncFields(tcId);
-      message.success('字段已重新同步');
+      message.success(t('tableDetail.fieldsSynced'));
       fetchData();
     } catch (e: any) {
-      message.error(e?.response?.data?.detail || '同步失败');
+      message.error(e?.response?.data?.detail || t('common.failed'));
     }
   };
 
@@ -100,43 +102,43 @@ export default function FieldConfigPage() {
   });
 
   const columns = [
-    { title: '#', dataIndex: 'field_order_no', width: 50 },
-    { title: '字段名', dataIndex: 'field_name', width: 140 },
+    { title: t('fieldConfig.order'), dataIndex: 'field_order_no', width: 50 },
+    { title: t('fieldConfig.fieldName'), dataIndex: 'field_name', width: 140 },
     {
-      title: '别名', dataIndex: 'field_alias', width: 140,
+      title: t('fieldConfig.alias'), dataIndex: 'field_alias', width: 140,
       render: (v: string, r: FieldConfig) => editingId === r.id ? (
         <Input size="small" value={editingValues.field_alias || ''} onChange={e => setEditingValues(p => ({ ...p, field_alias: e.target.value }))} />
       ) : v || '-',
     },
-    { title: '类型', dataIndex: 'db_data_type', width: 110 },
-    { title: '示例', dataIndex: 'sample_value', width: 120, ellipsis: true, render: (v: string) => v || '-' },
-    boolCol('展示', 'is_displayed'),
-    boolCol('可编辑', 'is_editable'),
-    boolCol('必填', 'is_required'),
+    { title: t('fieldConfig.dbType'), dataIndex: 'db_data_type', width: 110 },
+    { title: t('fieldConfig.sampleValue'), dataIndex: 'sample_value', width: 120, ellipsis: true, render: (v: string) => v || '-' },
+    boolCol(t('fieldConfig.displayed'), 'is_displayed'),
+    boolCol(t('fieldConfig.editable'), 'is_editable'),
+    boolCol(t('fieldConfig.required'), 'is_required'),
     {
-      title: '主键', dataIndex: 'is_primary_key', width: 60,
+      title: t('fieldConfig.primaryKey'), dataIndex: 'is_primary_key', width: 60,
       render: (v: number) => v ? <Tag color="blue">PK</Tag> : '-',
     },
     {
-      title: '系统字段', dataIndex: 'is_system_field', width: 80,
-      render: (v: number) => v ? <Tag color="orange">系统</Tag> : '-',
+      title: t('fieldConfig.systemField'), dataIndex: 'is_system_field', width: 80,
+      render: (v: number) => v ? <Tag color="orange">{t('fieldConfig.systemField')}</Tag> : '-',
     },
-    boolCol('导出', 'include_in_export'),
-    boolCol('导入', 'include_in_import'),
+    boolCol(t('fieldConfig.includeExport'), 'include_in_export'),
+    boolCol(t('fieldConfig.includeImport'), 'include_in_import'),
     {
-      title: '长度限制', dataIndex: 'max_length', width: 90,
+      title: t('fieldConfig.maxLength'), dataIndex: 'max_length', width: 90,
       render: (v: number | null, r: FieldConfig) => editingId === r.id ? (
         <InputNumber size="small" value={editingValues.max_length} onChange={val => setEditingValues(p => ({ ...p, max_length: val ?? undefined }))} style={{ width: 70 }} />
       ) : (v || '-'),
     },
     {
-      title: '枚举值', dataIndex: 'enum_options_json', width: 130, ellipsis: true,
+      title: t('fieldConfig.enumOptions'), dataIndex: 'enum_options_json', width: 130, ellipsis: true,
       render: (v: string, r: FieldConfig) => editingId === r.id ? (
-        <Input size="small" value={editingValues.enum_options_json || ''} onChange={e => setEditingValues(p => ({ ...p, enum_options_json: e.target.value }))} placeholder='["选项1","选项2"]' />
+        <Input size="small" value={editingValues.enum_options_json || ''} onChange={e => setEditingValues(p => ({ ...p, enum_options_json: e.target.value }))} placeholder={t('fieldConfig.enumPlaceholder')} />
       ) : (v || '-'),
     },
     {
-      title: '可编辑角色', dataIndex: 'editable_roles', width: 160,
+      title: t('fieldConfig.editableRoles'), dataIndex: 'editable_roles', width: 160,
       render: (v: string, r: FieldConfig) => {
         if (editingId === r.id) {
           const currentRoles = (editingValues as any).editable_roles
@@ -144,37 +146,34 @@ export default function FieldConfigPage() {
             : [];
           return (
             <Select
-              mode="multiple"
-              size="small"
-              style={{ width: '100%' }}
-              placeholder="所有角色"
+              mode="multiple" size="small" style={{ width: '100%' }}
+              placeholder={t('fieldConfig.allRoles')}
               value={currentRoles}
               onChange={(vals: string[]) => setEditingValues(p => ({ ...p, editable_roles: vals.length > 0 ? vals.join(',') : '' }))}
               options={[
-                { value: 'admin', label: '管理员' },
-                { value: 'operator', label: '操作员' },
+                { value: 'admin', label: t('role.admin') },
+                { value: 'operator', label: t('role.operator') },
               ]}
             />
           );
         }
-        if (!v) return <span style={{ color: '#999' }}>所有角色</span>;
-        const roleMap: Record<string, string> = { admin: '管理员', operator: '操作员' };
+        if (!v) return <span style={{ color: '#999' }}>{t('fieldConfig.allRoles')}</span>;
         return v.split(',').filter(Boolean).map(role => (
           <Tag key={role} color={role === 'admin' ? 'blue' : 'green'} style={{ marginRight: 2 }}>
-            {roleMap[role] || role}
+            {t(`role.${role}`)}
           </Tag>
         ));
       },
     },
     {
-      title: '操作', width: 100, fixed: 'right' as const,
+      title: t('common.operation'), width: 100, fixed: 'right' as const,
       render: (_: unknown, r: FieldConfig) => editingId === r.id ? (
         <Space size="small">
-          <Button type="link" size="small" onClick={handleSaveInline}>保存</Button>
-          <Button type="link" size="small" onClick={() => setEditingId(null)}>取消</Button>
+          <Button type="link" size="small" onClick={handleSaveInline}>{t('common.save')}</Button>
+          <Button type="link" size="small" onClick={() => setEditingId(null)}>{t('common.cancel')}</Button>
         </Space>
       ) : (
-        <Button type="link" size="small" onClick={() => handleInlineEdit(r)}>编辑</Button>
+        <Button type="link" size="small" onClick={() => handleInlineEdit(r)}>{t('common.edit')}</Button>
       ),
     },
   ];
@@ -183,41 +182,41 @@ export default function FieldConfigPage() {
 
   return (
     <Card
-        title={`字段配置 — ${tc?.table_alias || tc?.table_name || ''}`}
-        extra={
-          <Space>
-            <Button size="small" onClick={handleSyncFields}>从数据库重新同步</Button>
-            <Button size="small" onClick={() => navigate(`/table-config/detail/${tcId}`)}>返回表配置</Button>
-            <Button size="small" onClick={() => navigate('/table-config')}>返回列表</Button>
+      title={`${t('fieldConfig.title')} — ${tc?.table_alias || tc?.table_name || ''}`}
+      extra={
+        <Space>
+          <Button size="small" onClick={handleSyncFields}>{t('fieldConfig.syncFromDb')}</Button>
+          <Button size="small" onClick={() => navigate(`/table-config/detail/${tcId}`)}>{t('fieldConfig.backToConfig')}</Button>
+          <Button size="small" onClick={() => navigate('/table-config')}>{t('fieldConfig.backToList')}</Button>
+        </Space>
+      }
+    >
+      {selectedRowKeys.length > 0 && (
+        <div style={{ marginBottom: 12, padding: '8px 12px', background: '#f5f5f5', borderRadius: 4 }}>
+          <Space wrap>
+            <span>{t('fieldConfig.batchSelected', { count: selectedRowKeys.length })}</span>
+            <Button size="small" onClick={() => handleBatchUpdate({ is_displayed: 1 } as any)}>{t('fieldConfig.batchShowAll')}</Button>
+            <Button size="small" onClick={() => handleBatchUpdate({ is_displayed: 0 } as any)}>{t('fieldConfig.batchHideAll')}</Button>
+            <Button size="small" onClick={() => handleBatchUpdate({ is_editable: 1 } as any)}>{t('fieldConfig.batchEditableAll')}</Button>
+            <Button size="small" onClick={() => handleBatchUpdate({ is_editable: 0 } as any)}>{t('fieldConfig.batchReadonlyAll')}</Button>
+            <Button size="small" onClick={() => handleBatchUpdate({ include_in_export: 1 } as any)}>{t('fieldConfig.batchExportAll')}</Button>
+            <Button size="small" onClick={() => handleBatchUpdate({ include_in_import: 1 } as any)}>{t('fieldConfig.batchImportAll')}</Button>
+            <Button size="small" onClick={() => setSelectedRowKeys([])}>{t('fieldConfig.cancelSelection')}</Button>
           </Space>
-        }
-      >
-        {selectedRowKeys.length > 0 && (
-          <div style={{ marginBottom: 12, padding: '8px 12px', background: '#f5f5f5', borderRadius: 4 }}>
-            <Space wrap>
-              <span>已选 {selectedRowKeys.length} 项:</span>
-              <Button size="small" onClick={() => handleBatchUpdate({ is_displayed: 1 } as any)}>全部展示</Button>
-              <Button size="small" onClick={() => handleBatchUpdate({ is_displayed: 0 } as any)}>全部隐藏</Button>
-              <Button size="small" onClick={() => handleBatchUpdate({ is_editable: 1 } as any)}>全部可编辑</Button>
-              <Button size="small" onClick={() => handleBatchUpdate({ is_editable: 0 } as any)}>全部只读</Button>
-              <Button size="small" onClick={() => handleBatchUpdate({ include_in_export: 1 } as any)}>全部参与导出</Button>
-              <Button size="small" onClick={() => handleBatchUpdate({ include_in_import: 1 } as any)}>全部参与导入</Button>
-              <Button size="small" onClick={() => setSelectedRowKeys([])}>取消选择</Button>
-            </Space>
-          </div>
-        )}
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={fields}
-          size="small"
-          pagination={false}
-          scroll={{ x: 1600 }}
-          rowSelection={{
-            selectedRowKeys,
-            onChange: keys => setSelectedRowKeys(keys as number[]),
-          }}
-        />
+        </div>
+      )}
+      <Table
+        rowKey="id"
+        columns={columns}
+        dataSource={fields}
+        size="small"
+        pagination={false}
+        scroll={{ x: 1600 }}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: keys => setSelectedRowKeys(keys as number[]),
+        }}
+      />
     </Card>
   );
 }

@@ -1,4 +1,8 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { ConfigProvider } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
+import enUS from 'antd/locale/en_US';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from './context/AuthContext';
 import MainLayout from './layouts/MainLayout';
 import Login from './pages/Login';
@@ -35,37 +39,47 @@ function RequireRole({ roles, children }: { roles: string[]; children: React.JSX
   return children;
 }
 
+const antdLocaleMap: Record<string, typeof zhCN> = {
+  zh: zhCN,
+  en: enUS,
+};
+
 function App() {
+  const { i18n } = useTranslation();
+  const antdLocale = antdLocaleMap[i18n.language] || zhCN;
+
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route
-        element={
-          <RequireAuth>
-            <MainLayout />
-          </RequireAuth>
-        }
-      >
-        <Route path="/" element={<Home />} />
-        <Route path="/datasource" element={<RequireRole roles={['admin']}><DatasourceList /></RequireRole>} />
-        <Route path="/datasource/create" element={<RequireRole roles={['admin']}><DatasourceForm /></RequireRole>} />
-        <Route path="/datasource/edit/:id" element={<RequireRole roles={['admin']}><DatasourceForm /></RequireRole>} />
-        <Route path="/table-config" element={<TableConfigList />} />
-        <Route path="/table-config/create" element={<TableConfigCreate />} />
-        <Route path="/table-config/detail/:id" element={<TableConfigDetail />} />
-        <Route path="/table-config/fields/:id" element={<FieldConfigPage />} />
-        <Route path="/data-maintenance" element={<MaintenanceList />} />
-        <Route path="/data-maintenance/browse/:id" element={<DataBrowse />} />
-        <Route path="/data-maintenance/import/:id" element={<ImportPage />} />
-        <Route path="/data-maintenance/diff/:taskId" element={<DiffPreview />} />
-        <Route path="/log-center" element={<LogCenter />} />
-        <Route path="/version-rollback" element={<RequireRole roles={['admin']}><VersionRollback /></RequireRole>} />
-        <Route path="/approval-center" element={<RequireRole roles={['admin']}><ApprovalCenter /></RequireRole>} />
-        <Route path="/user-management" element={<RequireRole roles={['admin']}><UserManagement /></RequireRole>} />
-        <Route path="/about" element={<About />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
+    <ConfigProvider locale={antdLocale}>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route
+          element={
+            <RequireAuth>
+              <MainLayout />
+            </RequireAuth>
+          }
+        >
+          <Route path="/" element={<Home />} />
+          <Route path="/datasource" element={<RequireRole roles={['admin']}><DatasourceList /></RequireRole>} />
+          <Route path="/datasource/create" element={<RequireRole roles={['admin']}><DatasourceForm /></RequireRole>} />
+          <Route path="/datasource/edit/:id" element={<RequireRole roles={['admin']}><DatasourceForm /></RequireRole>} />
+          <Route path="/table-config" element={<TableConfigList />} />
+          <Route path="/table-config/create" element={<TableConfigCreate />} />
+          <Route path="/table-config/detail/:id" element={<TableConfigDetail />} />
+          <Route path="/table-config/fields/:id" element={<FieldConfigPage />} />
+          <Route path="/data-maintenance" element={<MaintenanceList />} />
+          <Route path="/data-maintenance/browse/:id" element={<DataBrowse />} />
+          <Route path="/data-maintenance/import/:id" element={<ImportPage />} />
+          <Route path="/data-maintenance/diff/:taskId" element={<DiffPreview />} />
+          <Route path="/log-center" element={<LogCenter />} />
+          <Route path="/version-rollback" element={<RequireRole roles={['admin']}><VersionRollback /></RequireRole>} />
+          <Route path="/approval-center" element={<RequireRole roles={['admin']}><ApprovalCenter /></RequireRole>} />
+          <Route path="/user-management" element={<RequireRole roles={['admin']}><UserManagement /></RequireRole>} />
+          <Route path="/about" element={<About />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </ConfigProvider>
   );
 }
 
