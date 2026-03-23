@@ -1,5 +1,6 @@
 """Audit utility: record system operation logs."""
 
+from typing import Optional
 from sqlalchemy.orm import Session
 from app.models import SystemOperationLog
 
@@ -9,14 +10,14 @@ def log_operation(
     module: str,
     op_type: str,
     status: str,
-    target_id: int | None = None,
-    target_code: str | None = None,
-    target_name: str | None = None,
-    message: str | None = None,
-    request_method: str | None = None,
-    request_path: str | None = None,
+    target_id: Optional[int] = None,
+    target_code: Optional[str] = None,
+    target_name: Optional[str] = None,
+    message: Optional[str] = None,
+    request_method: Optional[str] = None,
+    request_path: Optional[str] = None,
     operator: str = "admin",
-    operator_ip: str | None = None,
+    operator_ip: Optional[str] = None,
 ):
     """Write a system_operation_log row."""
     log = SystemOperationLog(

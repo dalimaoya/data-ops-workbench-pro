@@ -1,6 +1,7 @@
 """Authentication endpoints: login, me."""
 
 from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -20,14 +21,14 @@ class LoginResponse(BaseModel):
     token: str
     username: str
     role: str
-    display_name: str | None
+    display_name: Optional[str]
 
 
 class UserInfo(BaseModel):
     id: int
     username: str
     role: str
-    display_name: str | None
+    display_name: Optional[str]
     status: str
 
 

@@ -21,7 +21,7 @@ from app.models import UserAccount
 router = APIRouter(prefix="/api/backup-versions", tags=["版本回退"])
 
 
-def _qualified_table(db_type: str, table_name: str, schema: str | None) -> str:
+def _qualified_table(db_type: str, table_name: str, schema: Optional[str]) -> str:
     if db_type == "postgresql":
         sch = schema or "public"
         return f'"{sch}"."{table_name}"'
@@ -38,8 +38,8 @@ def _gen_batch(prefix: str) -> str:
     return f"{prefix}_{ts}_{rand}"
 
 
-def _log_operation(db: Session, module: str, op_type: str, target_id: int | None,
-                   target_name: str | None, status: str, message: str | None = None,
+def _log_operation(db: Session, module: str, op_type: str, target_id: Optional[int],
+                   target_name: Optional[str], status: str, message: Optional[str] = None,
                    operator: str = "admin"):
     log = SystemOperationLog(
         operation_type=op_type,
