@@ -8,6 +8,7 @@ import {
   type SystemLog, type ExportLog, type ImportLog, type WritebackLogItem,
 } from '../../api/logs';
 import { listDatasources } from '../../api/datasource';
+import { formatBeijingTime } from '../../utils/formatTime';
 
 const { RangePicker } = DatePicker;
 
@@ -94,7 +95,7 @@ function SystemLogTab({ dsOptions: _dsOptions }: { dsOptions: { value: number; l
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const columns: ColumnsType<SystemLog> = [
-    { title: '时间', dataIndex: 'created_at', width: 180 },
+    { title: '时间', dataIndex: 'created_at', width: 180, render: (v: string) => formatBeijingTime(v) },
     { title: '模块', dataIndex: 'operation_module', width: 120 },
     { title: '操作类型', dataIndex: 'operation_type', width: 120 },
     { title: '目标', dataIndex: 'target_name', width: 180 },
@@ -190,7 +191,7 @@ function ExportLogTab({ dsOptions }: { dsOptions: { value: number; label: string
     { title: '字段数', dataIndex: 'field_count', width: 80 },
     { title: '文件名', dataIndex: 'file_name', width: 200, ellipsis: true },
     { title: '操作人', dataIndex: 'operator_user', width: 100 },
-    { title: '时间', dataIndex: 'created_at', width: 180 },
+    { title: '时间', dataIndex: 'created_at', width: 180, render: (v: string) => formatBeijingTime(v) },
   ];
 
   return (
@@ -252,7 +253,7 @@ function ImportLogTab({ dsOptions }: { dsOptions: { value: number; label: string
     { title: '校验状态', dataIndex: 'validation_status', width: 100, render: v => statusTag(v) },
     { title: '导入状态', dataIndex: 'import_status', width: 100, render: v => statusTag(v) },
     { title: '操作人', dataIndex: 'operator_user', width: 100 },
-    { title: '时间', dataIndex: 'created_at', width: 180 },
+    { title: '时间', dataIndex: 'created_at', width: 180, render: (v: string) => formatBeijingTime(v) },
   ];
 
   return (
@@ -321,7 +322,7 @@ function WritebackLogTab({ dsOptions }: { dsOptions: { value: number; label: str
     { title: '成功数', dataIndex: 'success_row_count', width: 80 },
     { title: '失败数', dataIndex: 'failed_row_count', width: 80 },
     { title: '备份版本号', dataIndex: 'backup_version_no', width: 200 },
-    { title: '操作时间', dataIndex: 'started_at', width: 180 },
+    { title: '操作时间', dataIndex: 'started_at', width: 180, render: (v: string) => formatBeijingTime(v) },
     { title: '状态', dataIndex: 'writeback_status', width: 100, render: v => statusTag(v) },
   ];
 

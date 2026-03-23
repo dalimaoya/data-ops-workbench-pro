@@ -14,6 +14,7 @@ import {
   type BackupVersionDetail,
 } from '../../api/backupVersion';
 import { listDatasources } from '../../api/datasource';
+import { formatBeijingTime } from '../../utils/formatTime';
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
@@ -110,7 +111,7 @@ export default function VersionRollback() {
     { title: '数据源', dataIndex: 'datasource_name', width: 150 },
     { title: '表名', dataIndex: 'table_name', width: 150,
       render: (v, r) => r.table_alias ? `${r.table_alias}（${v}）` : v },
-    { title: '备份时间', dataIndex: 'backup_time', width: 180 },
+    { title: '备份时间', dataIndex: 'backup_time', width: 180, render: (v: string) => formatBeijingTime(v) },
     { title: '触发类型', dataIndex: 'trigger_type', width: 140,
       render: v => {
         const map: Record<string, string> = {
@@ -224,10 +225,10 @@ export default function VersionRollback() {
             </Descriptions.Item>
             <Descriptions.Item label="触发类型">{detail.trigger_type}</Descriptions.Item>
             <Descriptions.Item label="关联批次">{detail.related_writeback_batch_no || '-'}</Descriptions.Item>
-            <Descriptions.Item label="备份开始">{detail.backup_started_at || '-'}</Descriptions.Item>
-            <Descriptions.Item label="备份结束">{detail.backup_finished_at || '-'}</Descriptions.Item>
+            <Descriptions.Item label="备份开始">{formatBeijingTime(detail.backup_started_at)}</Descriptions.Item>
+            <Descriptions.Item label="备份结束">{formatBeijingTime(detail.backup_finished_at)}</Descriptions.Item>
             <Descriptions.Item label="操作人">{detail.operator_user}</Descriptions.Item>
-            <Descriptions.Item label="创建时间">{detail.created_at}</Descriptions.Item>
+            <Descriptions.Item label="创建时间">{formatBeijingTime(detail.created_at)}</Descriptions.Item>
             {detail.remark && (
               <Descriptions.Item label="备注" span={2}>{detail.remark}</Descriptions.Item>
             )}
@@ -268,7 +269,7 @@ export default function VersionRollback() {
             <Descriptions column={1} size="small" style={{ marginBottom: 16 }}>
               <Descriptions.Item label="目标表">{rollbackTarget.table_alias || rollbackTarget.table_name}</Descriptions.Item>
               <Descriptions.Item label="版本号">{rollbackTarget.backup_version_no}</Descriptions.Item>
-              <Descriptions.Item label="备份时间">{rollbackTarget.backup_time}</Descriptions.Item>
+              <Descriptions.Item label="备份时间">{formatBeijingTime(rollbackTarget.backup_time)}</Descriptions.Item>
               <Descriptions.Item label="备份记录数">{rollbackTarget.record_count} 条</Descriptions.Item>
             </Descriptions>
             <div style={{

@@ -134,9 +134,16 @@ export default function DataBrowse() {
           <Descriptions.Item label="表名">{(tableInfo as { table_name?: string }).table_name || '-'}</Descriptions.Item>
           <Descriptions.Item label="配置版本">v{String((tableInfo as { config_version?: number }).config_version || 0)}</Descriptions.Item>
           <Descriptions.Item label="结构状态">
-            <Tag color={(tableInfo as { structure_check_status?: string }).structure_check_status === 'normal' ? 'green' : 'red'}>
-              {(tableInfo as { structure_check_status?: string }).structure_check_status || '-'}
-            </Tag>
+            {(() => {
+              const status = (tableInfo as { structure_check_status?: string }).structure_check_status;
+              const map: Record<string, { color: string; text: string }> = {
+                normal: { color: 'green', text: '正常' },
+                changed: { color: 'red', text: '已变化' },
+                error: { color: 'orange', text: '检查失败' },
+              };
+              const info = map[status || ''] || { color: 'default', text: status || '-' };
+              return <Tag color={info.color}>{info.text}</Tag>;
+            })()}
           </Descriptions.Item>
         </Descriptions>
       </Card>

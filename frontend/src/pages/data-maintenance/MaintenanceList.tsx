@@ -4,6 +4,7 @@ import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { listMaintenanceTables } from '../../api/dataMaintenance';
 import type { MaintenanceTable } from '../../api/dataMaintenance';
+import { formatBeijingTime } from '../../utils/formatTime';
 
 export default function MaintenanceList() {
   const [data, setData] = useState<MaintenanceTable[]>([]);
@@ -50,14 +51,14 @@ export default function MaintenanceList() {
         const map: Record<string, { color: string; text: string }> = {
           normal: { color: 'green', text: '正常' },
           changed: { color: 'red', text: '已变化' },
-          error: { color: 'orange', text: '异常' },
+          error: { color: 'orange', text: '检查失败' },
         };
         const s = map[v] || { color: 'default', text: v || '未知' };
         return <Tag color={s.color}>{s.text}</Tag>;
       },
     },
     { title: '更新人', dataIndex: 'updated_by', key: 'updated_by', width: 80 },
-    { title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', width: 180 },
+    { title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', width: 180, render: (v: string) => formatBeijingTime(v) },
     {
       title: '操作',
       key: 'action',
