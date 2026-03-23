@@ -208,7 +208,7 @@ start.bat
 ### 启动后
 
 - 访问地址：**http://localhost:8580**
-- 默认管理员账号：`admin` / `admin123`
+- 默认管理员账号：`admin` / `dalimaoya`
 - API 文档：**http://localhost:8580/docs**
 
 ---

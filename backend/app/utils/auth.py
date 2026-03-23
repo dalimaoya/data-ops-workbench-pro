@@ -93,7 +93,7 @@ def init_default_admin(db: Session):
     if not existing:
         admin = UserAccount(
             username="admin",
-            password_hash=hash_password("admin123"),
+            password_hash=hash_password("dalimaoya"),
             role="admin",
             display_name="管理员",
             status="enabled",
