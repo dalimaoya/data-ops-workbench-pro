@@ -346,21 +346,71 @@ def export_template(
         conn.close()
 
     # Generate Excel with openpyxl
+    from openpyxl.styles import Protection as CellProtection
+    from openpyxl.worksheet.protection import SheetProtection
+
     batch_no = _gen_batch("EXP")
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "数据"
 
-    # Row 1: Header (field aliases)
-    for i, f in enumerate(export_fields, 1):
-        ws.cell(row=1, column=i, value=f.field_alias or f.field_name)
-        # Bold header
-        ws.cell(row=1, column=i).font = openpyxl.styles.Font(bold=True)
+    RESERVED_BLANK_ROWS = 50  # 预留空白行数
+    locked_cell = CellProtection(locked=True)
+    unlocked_cell = CellProtection(locked=False)
 
-    # Row 2+: Data
+    # Build editable field set for quick lookup
+    editable_field_names = set(f.field_name for f in export_fields if f.is_editable)
+
+    data_row_count = len(raw_rows)
+    total_rows = 1 + data_row_count + RESERVED_BLANK_ROWS  # header + data + blank
+    total_cols = len(export_fields)
+
+    # Row 1: Header (field aliases) — always locked
+    for i, f in enumerate(export_fields, 1):
+        cell = ws.cell(row=1, column=i, value=f.field_alias or f.field_name)
+        cell.font = openpyxl.styles.Font(bold=True)
+        cell.protection = locked_cell
+
+    # Row 2+: Data rows
     for row_idx, raw in enumerate(raw_rows, 2):
-        for col_idx, val in enumerate(raw, 1):
-            ws.cell(row=row_idx, column=col_idx, value=str(val) if val is not None else "")
+        for col_idx, (val, ef) in enumerate(zip(raw, export_fields), 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=str(val) if val is not None else "")
+            if ef.field_name in pk_set:
+                # 已有数据行的主键列 — 锁定
+                cell.protection = locked_cell
+            elif ef.field_name in editable_field_names:
+                # 可编辑字段 — 解锁
+                cell.protection = unlocked_cell
+            else:
+                # 非可编辑、非主键字段 — 锁定
+                cell.protection = locked_cell
+
+    # Reserved blank rows (for future new-row support)
+    blank_start = 2 + data_row_count
+    for row_idx in range(blank_start, blank_start + RESERVED_BLANK_ROWS):
+        for col_idx, ef in enumerate(export_fields, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value="")
+            if ef.field_name in pk_set:
+                # 空白行的主键列 — 解锁（预留新增行）
+                cell.protection = unlocked_cell
+            elif ef.field_name in editable_field_names:
+                cell.protection = unlocked_cell
+            else:
+                cell.protection = locked_cell
+
+    # Enable worksheet protection (防误操作，不设密码)
+    ws.protection = SheetProtection(
+        sheet=True,
+        formatColumns=False,
+        formatRows=False,
+        formatCells=False,
+        insertRows=False,
+        deleteRows=True,     # 禁止删除行
+        deleteColumns=True,  # 禁止删除列
+        insertColumns=True,  # 禁止插入列
+        sort=False,
+        autoFilter=False,
+    )
 
     # Hidden meta sheet
     meta_ws = wb.create_sheet("_meta")
@@ -371,6 +421,7 @@ def export_template(
         "export_time": datetime.utcnow().isoformat(),
         "export_batch_no": batch_no,
         "field_codes": [f.field_name for f in export_fields],
+        "field_aliases": [f.field_alias or f.field_name for f in export_fields],
         "primary_key_fields": list(pk_set),
         "structure_hash": tc.structure_version_hash,
     }
@@ -525,6 +576,27 @@ async def import_template(
     export_fields = [f for f in fields if f.include_in_export]
     field_alias_to_name = {f.field_alias or f.field_name: f.field_name for f in export_fields}
     field_name_map = {f.field_name: f for f in fields}
+
+    # ── 4.1 列数校验 ──
+    expected_aliases = meta.get("field_aliases") or [f.field_alias or f.field_name for f in export_fields]
+    expected_col_count = len(expected_aliases)
+    actual_col_count = len(header_row)
+    if actual_col_count != expected_col_count:
+        raise HTTPException(
+            400,
+            f"列数不匹配：模板定义 {expected_col_count} 列，上传文件 {actual_col_count} 列。请使用平台导出的原始模板。",
+        )
+
+    # ── 4.2 列名逐列校验 ──
+    mismatched_cols: List[str] = []
+    for idx, (expected, actual) in enumerate(zip(expected_aliases, header_row)):
+        if expected != actual:
+            mismatched_cols.append(f"第{idx+1}列 期望「{expected}」实际「{actual}」")
+    if mismatched_cols:
+        raise HTTPException(
+            400,
+            f"列名不匹配：{'; '.join(mismatched_cols)}。请勿修改表头，使用平台导出的原始模板。",
+        )
 
     # ── 5. Field completeness check ──
     mapped_cols: Dict[int, str] = {}  # col_index -> field_name
@@ -716,6 +788,36 @@ async def import_template(
             raise HTTPException(500, f"查询原始数据失败: {str(e)}")
         finally:
             conn.close()
+
+        # ── 7.1 主键不可变校验 ──
+        # 从原始导出数据中提取主键值，与上传数据对比
+        # 如果上传数据中的主键行在DB中找不到，可能是用户修改了主键
+        # 构建 DB 中所有主键集合用于校验
+        db_all_pk_set = set(db_pk_map.keys())
+
+        pk_modified_errors: List[dict] = []
+        for row in data_rows:
+            if row["errors"]:
+                continue
+            pk_key = row["pk_key"]
+            if pk_key not in db_all_pk_set:
+                # 主键值在数据库中不存在 — 可能是用户篡改了主键
+                pk_modified_errors.append({
+                    "row": row["row_num"],
+                    "field": ",".join(pk_fields),
+                    "type": "pk_modified",
+                    "value": pk_key,
+                    "message": f"第{row['row_num']}行 主键值「{pk_key}」在数据库中不存在，疑似主键被修改（首版不支持新增记录）",
+                })
+
+        if pk_modified_errors:
+            # 主键被修改是严重错误，直接阻断
+            errors.extend(pk_modified_errors)
+            for e in pk_modified_errors:
+                matching_row = next((r for r in data_rows if r["row_num"] == e["row"]), None)
+                if matching_row:
+                    matching_row["errors"].append(e)
+                    failed_count += 1
 
         # Compare
         editable_fields = [f for f in fields if f.is_editable and f.include_in_import]
