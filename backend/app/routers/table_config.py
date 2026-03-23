@@ -244,7 +244,7 @@ def create_table_config(body: TableConfigCreate, db: Session = Depends(get_db), 
         pass  # sample_value is optional, don't block creation
 
     # Auto-create field configs
-    _auto_generate_fields(db, row.id, columns, body.primary_key_fields)
+    _auto_generate_fields(db, row.id, columns, body.primary_key_fields, operator_name=user.username)
 
     log_operation(db, "纳管表配置", "创建纳管表", "success",
                   target_id=row.id, target_code=row.table_config_code,
@@ -497,7 +497,7 @@ def sync_fields(tc_id: int, db: Session = Depends(get_db), user: UserAccount = D
         col["sample_value"] = sample_map.get(col["field_name"])
 
     # Merge fields: preserve existing custom configs, add new, update changed
-    _merge_fields(db, tc_id, columns, row.primary_key_fields)
+    _merge_fields(db, tc_id, columns, row.primary_key_fields, operator_name=user.username)
 
     # Update hash
     new_hash = compute_structure_hash(columns)
