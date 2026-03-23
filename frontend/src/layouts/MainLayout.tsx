@@ -183,7 +183,7 @@ export default function MainLayout() {
         }}>
           <img src="/logo.png" alt="logo" style={{ width: collapsed ? 48 : '85%', objectFit: 'contain' }} />
           {!collapsed && (
-            <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 16, textAlign: 'center', letterSpacing: 2 }}>
+            <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 22, textAlign: 'center', letterSpacing: 4, whiteSpace: 'nowrap' }}>
               数据运维工作台
             </span>
           )}
