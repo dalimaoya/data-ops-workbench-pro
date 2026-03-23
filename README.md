@@ -224,6 +224,59 @@ docker run -d -p 8580:8580 -v ./data:/app/data -v ./backups:/app/backups data-op
 
 ---
 
+## 独立打包
+
+可以使用 PyInstaller 将整个项目打包为独立发布包，用户无需安装 Python 或 Node.js 即可运行。
+
+### Linux 打包
+
+```bash
+chmod +x build.sh
+./build.sh
+```
+
+### Windows 打包
+
+> **注意：** Windows 打包必须在 Windows 环境下执行（PyInstaller 生成的可执行文件是平台相关的）。
+
+**前置条件：**
+- Python 3.9+（已加入 PATH）
+- Node.js 18+（仅首次构建前端时需要；如 `backend/web/` 已有构建产物则不需要）
+- pnpm 或 npm（前端包管理器）
+
+**步骤：**
+```cmd
+build.bat
+```
+
+构建脚本会自动完成：
+1. 创建 Python 虚拟环境并安装后端依赖
+2. 安装 PyInstaller
+3. 构建前端（如尚未构建）
+4. PyInstaller 打包后端为独立可执行文件
+5. 组装发布目录 `dist\data-ops-workbench\`
+
+**打包产物结构：**
+```
+dist\data-ops-workbench\
+├── start.bat          # Windows 启动脚本
+├── start.sh           # Linux/macOS 启动脚本
+├── server\app\        # 可执行文件及所有依赖
+├── data\              # 运行时数据目录
+├── backups\           # 备份存储目录
+├── logs\              # 日志目录
+└── README.md
+```
+
+**使用打包产物：**
+```cmd
+cd dist\data-ops-workbench
+start.bat
+```
+浏览器访问 `http://localhost:8580` 即可使用。
+
+---
+
 ## 目录结构
 
 ```

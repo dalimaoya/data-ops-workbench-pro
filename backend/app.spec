@@ -89,6 +89,7 @@ for optional_mod in ['psycopg2']:
 hiddenimports = list(set(app_hiddenimports + extra_hiddenimports))
 
 # Data files: include the web/ directory (frontend build output)
+# Use os.path.join for cross-platform path separators (Linux / vs Windows \)
 datas = []
 web_dir = os.path.join(SPECPATH, 'web')
 if os.path.isdir(web_dir):
@@ -98,7 +99,7 @@ else:
 
 a = Analysis(
     ['app_entry.py'],
-    pathex=[os.path.dirname(os.path.abspath(SPECPATH))],
+    pathex=[SPECPATH],
     binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,
