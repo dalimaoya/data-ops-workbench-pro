@@ -10,8 +10,9 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import (
     SystemOperationLog, TemplateExportLog, ImportTaskLog, WritebackLog,
-    DatasourceConfig, TableConfig,
+    DatasourceConfig, TableConfig, UserAccount,
 )
+from app.utils.auth import get_current_user
 
 router = APIRouter(prefix="/api/logs", tags=["日志中心"])
 
@@ -31,6 +32,7 @@ def list_system_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
 ):
     """系统操作日志查询（支持按模块/类型/操作人/时间范围/状态筛选，分页）。"""
     q = db.query(SystemOperationLog)
@@ -92,6 +94,7 @@ def list_export_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
 ):
     """模板导出日志查询。"""
     q = db.query(TemplateExportLog)
@@ -168,6 +171,7 @@ def list_import_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
 ):
     """模板导入日志查询。"""
     q = db.query(ImportTaskLog)
@@ -249,6 +253,7 @@ def list_writeback_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
 ):
     """回写日志查询。"""
     q = db.query(WritebackLog)

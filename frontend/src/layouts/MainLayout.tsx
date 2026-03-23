@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Dropdown, Button, Space, Tag } from 'antd';
+import { Layout, Menu, Dropdown, Button, Space, Tag, Modal, Form, Input, message } from 'antd';
 import {
   DatabaseOutlined,
   TableOutlined,
@@ -8,23 +8,33 @@ import {
   FileTextOutlined,
   HistoryOutlined,
   HomeOutlined,
-  SettingOutlined,
   UserOutlined,
   LogoutOutlined,
   InfoCircleOutlined,
+  TeamOutlined,
+  KeyOutlined,
+  EditOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
+import { changeMyPassword, updateMyProfile } from '../api/users';
 
 const { Sider, Content, Header } = Layout;
 
-const menuItems = [
+interface MenuItem {
+  key: string;
+  icon: React.ReactNode;
+  label: string;
+  roles?: string[]; // undefined = all roles
+}
+
+const allMenuItems: MenuItem[] = [
   { key: '/', icon: <HomeOutlined />, label: '首页' },
-  { key: '/datasource', icon: <DatabaseOutlined />, label: '数据源管理' },
+  { key: '/datasource', icon: <DatabaseOutlined />, label: '数据源管理', roles: ['admin'] },
   { key: '/table-config', icon: <TableOutlined />, label: '表配置管理' },
   { key: '/data-maintenance', icon: <ToolOutlined />, label: '数据维护' },
   { key: '/log-center', icon: <FileTextOutlined />, label: '日志中心' },
-  { key: '/version-rollback', icon: <HistoryOutlined />, label: '版本回退' },
-  { key: '/system-settings', icon: <SettingOutlined />, label: '系统设置' },
+  { key: '/version-rollback', icon: <HistoryOutlined />, label: '版本回退', roles: ['admin'] },
+  { key: '/user-management', icon: <TeamOutlined />, label: '用户管理', roles: ['admin'] },
   { key: '/about', icon: <InfoCircleOutlined />, label: '关于' },
 ];
 
@@ -38,7 +48,24 @@ export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, login, token } = useAuth();
+
+  // Password modal
+  const [pwdOpen, setPwdOpen] = useState(false);
+  const [pwdForm] = Form.useForm();
+  const [pwdLoading, setPwdLoading] = useState(false);
+
+  // Profile modal
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileForm] = Form.useForm();
+  const [profileLoading, setProfileLoading] = useState(false);
+
+  const userRole = user?.role || '';
+
+  // Filter menu items by role
+  const menuItems = allMenuItems
+    .filter(item => !item.roles || item.roles.includes(userRole))
+    .map(({ key, icon, label }) => ({ key, icon, label }));
 
   const selectedKey = menuItems
     .filter(i => location.pathname.startsWith(i.key) && i.key !== '/')
@@ -48,6 +75,49 @@ export default function MainLayout() {
   const handleLogout = () => {
     logout();
     navigate('/login', { replace: true });
+  };
+
+  const handleChangePassword = async () => {
+    try {
+      const values = await pwdForm.validateFields();
+      setPwdLoading(true);
+      await changeMyPassword(values.old_password, values.new_password);
+      message.success('密码修改成功，请重新登录');
+      setPwdOpen(false);
+      pwdForm.resetFields();
+      // Force re-login
+      setTimeout(() => {
+        logout();
+        navigate('/login', { replace: true });
+      }, 1000);
+    } catch (err: any) {
+      if (err?.response?.data?.detail) {
+        message.error(err.response.data.detail);
+      }
+    } finally {
+      setPwdLoading(false);
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    try {
+      const values = await profileForm.validateFields();
+      setProfileLoading(true);
+      await updateMyProfile(values.display_name);
+      message.success('显示名修改成功');
+      setProfileOpen(false);
+      profileForm.resetFields();
+      // Update local user info
+      if (user && token) {
+        login(token, { ...user, display_name: values.display_name });
+      }
+    } catch (err: any) {
+      if (err?.response?.data?.detail) {
+        message.error(err.response.data.detail);
+      }
+    } finally {
+      setProfileLoading(false);
+    }
   };
 
   const userMenuItems = [
@@ -61,6 +131,30 @@ export default function MainLayout() {
         </Space>
       ),
       disabled: true,
+    },
+    { type: 'divider' as const },
+    {
+      key: 'change-password',
+      label: (
+        <Space>
+          <KeyOutlined />
+          修改密码
+        </Space>
+      ),
+      onClick: () => setPwdOpen(true),
+    },
+    {
+      key: 'change-name',
+      label: (
+        <Space>
+          <EditOutlined />
+          修改显示名
+        </Space>
+      ),
+      onClick: () => {
+        profileForm.setFieldsValue({ display_name: user?.display_name || '' });
+        setProfileOpen(true);
+      },
     },
     { type: 'divider' as const },
     {
@@ -117,6 +211,59 @@ export default function MainLayout() {
           <Outlet />
         </Content>
       </Layout>
+
+      {/* 修改密码弹窗 */}
+      <Modal
+        title="修改密码"
+        open={pwdOpen}
+        onOk={handleChangePassword}
+        onCancel={() => { setPwdOpen(false); pwdForm.resetFields(); }}
+        confirmLoading={pwdLoading}
+        destroyOnClose
+      >
+        <Form form={pwdForm} layout="vertical">
+          <Form.Item name="old_password" label="旧密码" rules={[{ required: true, message: '请输入旧密码' }]}>
+            <Input.Password placeholder="请输入旧密码" />
+          </Form.Item>
+          <Form.Item name="new_password" label="新密码" rules={[{ required: true, message: '请输入新密码' }, { min: 4, message: '密码至少4位' }]}>
+            <Input.Password placeholder="请输入新密码" />
+          </Form.Item>
+          <Form.Item
+            name="confirm_password"
+            label="确认新密码"
+            dependencies={['new_password']}
+            rules={[
+              { required: true, message: '请确认新密码' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || getFieldValue('new_password') === value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('两次输入的密码不一致'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="请再次输入新密码" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 修改显示名弹窗 */}
+      <Modal
+        title="修改显示名"
+        open={profileOpen}
+        onOk={handleUpdateProfile}
+        onCancel={() => { setProfileOpen(false); profileForm.resetFields(); }}
+        confirmLoading={profileLoading}
+        destroyOnClose
+      >
+        <Form form={profileForm} layout="vertical">
+          <Form.Item name="display_name" label="显示名" rules={[{ required: true, message: '请输入显示名' }]}>
+            <Input placeholder="请输入新的显示名" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Layout>
   );
 }

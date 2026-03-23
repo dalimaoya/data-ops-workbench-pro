@@ -8,17 +8,20 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import FieldConfig, TableConfig
+from app.models import FieldConfig, TableConfig, UserAccount
 from app.schemas.table_config import FieldConfigOut, FieldConfigUpdate, FieldConfigBatchUpdate
-from app.utils.auth import get_current_user
-from app.models import UserAccount
+from app.utils.auth import get_current_user, require_role
 
 router = APIRouter(prefix="/api/field-config", tags=["字段配置"])
 
 
 # ── List fields for a table config ──
 @router.get("/{table_config_id}", response_model=List[FieldConfigOut])
-def list_fields(table_config_id: int, db: Session = Depends(get_db)):
+def list_fields(
+    table_config_id: int,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
+):
     tc = db.query(TableConfig).filter(
         TableConfig.id == table_config_id, TableConfig.is_deleted == 0
     ).first()
@@ -35,7 +38,11 @@ def list_fields(table_config_id: int, db: Session = Depends(get_db)):
 
 # ── Get single field ──
 @router.get("/detail/{field_id}", response_model=FieldConfigOut)
-def get_field(field_id: int, db: Session = Depends(get_db)):
+def get_field(
+    field_id: int,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
+):
     row = db.query(FieldConfig).filter(
         FieldConfig.id == field_id, FieldConfig.is_deleted == 0
     ).first()
@@ -46,7 +53,12 @@ def get_field(field_id: int, db: Session = Depends(get_db)):
 
 # ── Update single field ──
 @router.put("/{field_id}", response_model=FieldConfigOut)
-def update_field(field_id: int, body: FieldConfigUpdate, db: Session = Depends(get_db)):
+def update_field(
+    field_id: int,
+    body: FieldConfigUpdate,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
     row = db.query(FieldConfig).filter(
         FieldConfig.id == field_id, FieldConfig.is_deleted == 0
     ).first()
@@ -55,7 +67,7 @@ def update_field(field_id: int, body: FieldConfigUpdate, db: Session = Depends(g
     updates = body.model_dump(exclude_unset=True)
     for k, v in updates.items():
         setattr(row, k, v)
-    row.updated_by = "admin"
+    row.updated_by = user.username
     row.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(row)
@@ -64,7 +76,11 @@ def update_field(field_id: int, body: FieldConfigUpdate, db: Session = Depends(g
 
 # ── Batch update fields ──
 @router.put("/batch/update")
-def batch_update_fields(body: FieldConfigBatchUpdate, db: Session = Depends(get_db)):
+def batch_update_fields(
+    body: FieldConfigBatchUpdate,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
     updates = body.updates.model_dump(exclude_unset=True)
     if not updates:
         raise HTTPException(400, "没有需要更新的字段")
@@ -76,7 +92,7 @@ def batch_update_fields(body: FieldConfigBatchUpdate, db: Session = Depends(get_
         if row:
             for k, v in updates.items():
                 setattr(row, k, v)
-            row.updated_by = "admin"
+            row.updated_by = user.username
             row.updated_at = datetime.utcnow()
             count += 1
     db.commit()
@@ -85,7 +101,11 @@ def batch_update_fields(body: FieldConfigBatchUpdate, db: Session = Depends(get_
 
 # ── Delete field ──
 @router.delete("/{field_id}")
-def delete_field(field_id: int, db: Session = Depends(get_db)):
+def delete_field(
+    field_id: int,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
     row = db.query(FieldConfig).filter(
         FieldConfig.id == field_id, FieldConfig.is_deleted == 0
     ).first()

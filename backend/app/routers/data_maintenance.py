@@ -1208,7 +1208,7 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
             "failed": fail_count,
             "backup_table": backup_table_name,
             "backup_record_count": backup_count,
-            "operator_user": "admin",
+            "operator_user": _get_username(user),
             "started_at": started_at.isoformat(),
             "finished_at": finished_at.isoformat(),
             "failed_details": failed_details[:50],

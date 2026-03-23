@@ -104,8 +104,8 @@ def create_datasource(body: DatasourceCreate, db: Session = Depends(get_db), use
         connect_timeout_seconds=body.connect_timeout_seconds,
         status=body.status,
         remark=body.remark,
-        created_by="admin",
-        updated_by="admin",
+        created_by=user.username,
+        updated_by=user.username,
     )
     db.add(row)
     db.flush()
@@ -131,7 +131,7 @@ def update_datasource(ds_id: int, body: DatasourceUpdate, db: Session = Depends(
         updates["password_encrypted"] = encrypt_password(updates.pop("password"))
     for k, v in updates.items():
         setattr(row, k, v)
-    row.updated_by = "admin"
+    row.updated_by = user.username
     row.updated_at = datetime.utcnow()
     log_operation(db, "数据源管理", "编辑数据源", "success",
                   target_id=row.id, target_code=row.datasource_code,

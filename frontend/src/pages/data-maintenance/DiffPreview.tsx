@@ -4,10 +4,13 @@ import { Card, Table, Tag, Space, Button, Descriptions, message, Modal, Result }
 import { ArrowLeftOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { getImportDiff, executeWriteback } from '../../api/dataMaintenance';
 import type { DiffResponse, WritebackResult } from '../../api/dataMaintenance';
+import { useAuth } from '../../context/AuthContext';
 
 export default function DiffPreview() {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canWriteback = user?.role === 'admin' || user?.role === 'operator';
   const tid = Number(taskId);
 
   const [loading, setLoading] = useState(false);
@@ -165,15 +168,17 @@ export default function DiffPreview() {
           <Space>
             <Button onClick={() => navigate(-1)}>返回校验结果</Button>
             <Button onClick={() => navigate(`/data-maintenance/browse/${diffData?.table_config_id}`)}>取消本次操作</Button>
-            <Button
-              type="primary"
-              icon={<CheckCircleOutlined />}
-              loading={writingBack}
-              disabled={!diffData || diffData.failed_rows > 0}
-              onClick={handleWriteback}
-            >
-              确认写入
-            </Button>
+            {canWriteback && (
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                loading={writingBack}
+                disabled={!diffData || diffData.failed_rows > 0}
+                onClick={handleWriteback}
+              >
+                确认写入
+              </Button>
+            )}
             {diffData && diffData.failed_rows > 0 && (
               <span style={{ color: '#ff4d4f', fontSize: 12 }}>存在失败项，无法写入</span>
             )}
