@@ -34,7 +34,7 @@ export default function ImportPage() {
       }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
-      message.error(err?.response?.data?.detail || '上传失败');
+      message.error(err?.response?.data?.detail || t('importPage.uploadFailed'));
     } finally {
       setUploading(false);
     }
@@ -77,27 +77,27 @@ export default function ImportPage() {
 
           {/* Validation status */}
           {result.validation_status === 'failed' && (
-            <Alert type="error" message="校验失败，请修正后重新上传" style={{ marginBottom: 16 }} />
+            <Alert type="error" message={t('importPage.validationFailed')} style={{ marginBottom: 16 }} />
           )}
           {result.validation_status === 'partial' && (
-            <Alert type="warning" message="部分记录校验失败，通过的记录可继续操作" style={{ marginBottom: 16 }} />
+            <Alert type="warning" message={t('importPage.validationPartial')} style={{ marginBottom: 16 }} />
           )}
           {result.validation_status === 'success' && (
-            <Alert type="success" message="全部校验通过" style={{ marginBottom: 16 }} />
+            <Alert type="success" message={t('importPage.validationSuccess')} style={{ marginBottom: 16 }} />
           )}
 
           {/* Error details */}
           {result.errors.length > 0 && (
-            <Card title="错误明细" size="small" style={{ marginBottom: 16 }}>
+            <Card title={t('importPage.errorDetails')} size="small" style={{ marginBottom: 16 }}>
               <div style={{ maxHeight: 300, overflow: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr style={{ background: '#fafafa' }}>
-                      <th style={{ padding: '8px', borderBottom: '1px solid #eee', textAlign: 'left' }}>行号</th>
-                      <th style={{ padding: '8px', borderBottom: '1px solid #eee', textAlign: 'left' }}>字段</th>
-                      <th style={{ padding: '8px', borderBottom: '1px solid #eee', textAlign: 'left' }}>类型</th>
-                      <th style={{ padding: '8px', borderBottom: '1px solid #eee', textAlign: 'left' }}>当前值</th>
-                      <th style={{ padding: '8px', borderBottom: '1px solid #eee', textAlign: 'left' }}>说明</th>
+                      <th style={{ padding: '8px', borderBottom: '1px solid #eee', textAlign: 'left' }}>{t('importPage.errorRow')}</th>
+                      <th style={{ padding: '8px', borderBottom: '1px solid #eee', textAlign: 'left' }}>{t('importPage.errorField')}</th>
+                      <th style={{ padding: '8px', borderBottom: '1px solid #eee', textAlign: 'left' }}>{t('importPage.errorType')}</th>
+                      <th style={{ padding: '8px', borderBottom: '1px solid #eee', textAlign: 'left' }}>{t('importPage.errorValue')}</th>
+                      <th style={{ padding: '8px', borderBottom: '1px solid #eee', textAlign: 'left' }}>{t('importPage.errorMessage')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -119,7 +119,7 @@ export default function ImportPage() {
           <Space>
             {result.validation_status !== 'failed' && result.passed > 0 && (
               <Button type="primary" onClick={() => navigate(`/data-maintenance/diff/${result.task_id}`)}>
-                查看差异预览
+                {t('importPage.viewDiffPreview')}
               </Button>
             )}
             <Button onClick={() => { setResult(null); setFile(null); }}>{t('importPage.reUpload')}</Button>
@@ -156,8 +156,8 @@ export default function ImportPage() {
 
       {file && (
         <Descriptions style={{ marginTop: 16 }} column={2} size="small" bordered>
-          <Descriptions.Item label="文件名">{file.name}</Descriptions.Item>
-          <Descriptions.Item label="大小">{(file.size / 1024).toFixed(1)} KB</Descriptions.Item>
+          <Descriptions.Item label={t('importPage.fileName')}>{file.name}</Descriptions.Item>
+          <Descriptions.Item label={t('importPage.fileSize')}>{(file.size / 1024).toFixed(1)} KB</Descriptions.Item>
         </Descriptions>
       )}
 
@@ -165,7 +165,7 @@ export default function ImportPage() {
         <Space>
           <Button onClick={() => navigate(`/data-maintenance/browse/${tableConfigId}`)}>{t('common.back')}</Button>
           <Button type="primary" onClick={handleUpload} loading={uploading} disabled={!file}>
-            开始校验
+            {t('importPage.startValidation')}
           </Button>
         </Space>
       </div>

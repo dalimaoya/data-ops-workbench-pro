@@ -15,26 +15,27 @@ import type { UserItem } from '../../api/users';
 import { formatBeijingTime } from '../../utils/formatTime';
 import { useTranslation } from 'react-i18next';
 
-const roleOptions = [
-  { label: '管理员', value: 'admin' },
-  { label: '操作员', value: 'operator' },
-  { label: '只读用户', value: 'readonly' },
-];
-
-const roleLabels: Record<string, string> = {
-  admin: '管理员',
-  operator: '操作员',
-  readonly: '只读用户',
-};
-
-const roleColors: Record<string, string> = {
-  admin: 'red',
-  operator: 'blue',
-  readonly: 'default',
-};
-
 export default function UserManagement() {
   const { t } = useTranslation();
+
+  const roleOptions = [
+    { label: t('role.admin'), value: 'admin' },
+    { label: t('role.operator'), value: 'operator' },
+    { label: t('role.readonly'), value: 'readonly' },
+  ];
+
+  const roleLabels: Record<string, string> = {
+    admin: t('role.admin'),
+    operator: t('role.operator'),
+    readonly: t('role.readonly'),
+  };
+
+  const roleColors: Record<string, string> = {
+    admin: 'red',
+    operator: 'blue',
+    readonly: 'default',
+  };
+
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -69,7 +70,7 @@ export default function UserManagement() {
       const res = await listUsers();
       setUsers(res.data);
     } catch {
-      message.error('获取用户列表失败');
+      message.error(t('userManagement.listFailed'));
     } finally {
       setLoading(false);
     }
@@ -82,7 +83,7 @@ export default function UserManagement() {
       const values = await createForm.validateFields();
       setCreateLoading(true);
       await createUser(values);
-      message.success('用户创建成功');
+      message.success(t('userManagement.createSuccess'));
       setCreateOpen(false);
       createForm.resetFields();
       fetchUsers();
@@ -101,7 +102,7 @@ export default function UserManagement() {
       const values = await editForm.validateFields();
       setEditLoading(true);
       await updateUser(editingUser.id, values);
-      message.success('用户信息已更新');
+      message.success(t('userManagement.updateSuccess'));
       setEditOpen(false);
       editForm.resetFields();
       setEditingUser(null);
@@ -119,10 +120,10 @@ export default function UserManagement() {
     const newStatus = record.status === 'enabled' ? 'disabled' : 'enabled';
     try {
       await updateUserStatus(record.id, newStatus);
-      message.success(newStatus === 'enabled' ? '用户已启用' : '用户已禁用');
+      message.success(newStatus === 'enabled' ? t('userManagement.enabledSuccess') : t('userManagement.disabledSuccess'));
       fetchUsers();
     } catch (err: any) {
-      message.error(err?.response?.data?.detail || '操作失败');
+      message.error(err?.response?.data?.detail || t('common.failed'));
     }
   };
 
@@ -132,7 +133,7 @@ export default function UserManagement() {
       const values = await resetForm.validateFields();
       setResetLoading(true);
       await resetUserPassword(resetUser.id, values.new_password);
-      message.success('密码已重置');
+      message.success(t('userManagement.resetSuccess'));
       setResetOpen(false);
       resetForm.resetFields();
       setResetUser(null);
@@ -154,7 +155,7 @@ export default function UserManagement() {
       setAllDatasources(res.data.all_datasources);
       setSelectedDsIds(res.data.datasource_ids);
     } catch {
-      message.error('获取权限信息失败');
+      message.error(t('userManagement.permLoadFailed'));
     } finally {
       setPermLoading(false);
     }
@@ -165,38 +166,38 @@ export default function UserManagement() {
     setPermSaveLoading(true);
     try {
       await setUserDatasourcePermissions(permUser.id, selectedDsIds);
-      message.success('数据源权限已更新');
+      message.success(t('userManagement.permUpdateSuccess'));
       setPermOpen(false);
     } catch (err: any) {
-      message.error(err?.response?.data?.detail || '保存失败');
+      message.error(err?.response?.data?.detail || t('common.failed'));
     } finally {
       setPermSaveLoading(false);
     }
   };
 
   const columns = [
-    { title: '用户名', dataIndex: 'username', key: 'username', width: 120 },
-    { title: '显示名', dataIndex: 'display_name', key: 'display_name', width: 120 },
+    { title: t('userManagement.username'), dataIndex: 'username', key: 'username', width: 120 },
+    { title: t('userManagement.displayName'), dataIndex: 'display_name', key: 'display_name', width: 120 },
     {
-      title: '角色', dataIndex: 'role', key: 'role', width: 100,
+      title: t('userManagement.roleLabel'), dataIndex: 'role', key: 'role', width: 100,
       render: (role: string) => (
         <Tag color={roleColors[role] || 'default'}>{roleLabels[role] || role}</Tag>
       ),
     },
     {
-      title: '状态', dataIndex: 'status', key: 'status', width: 80,
+      title: t('common.status'), dataIndex: 'status', key: 'status', width: 80,
       render: (status: string) => (
         <Tag color={status === 'enabled' ? 'green' : 'red'}>
-          {status === 'enabled' ? '正常' : '已禁用'}
+          {status === 'enabled' ? t('userManagement.statusNormal') : t('userManagement.statusDisabled')}
         </Tag>
       ),
     },
     {
-      title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 180,
+      title: t('userManagement.createdAt'), dataIndex: 'created_at', key: 'created_at', width: 180,
       render: (val: string) => formatBeijingTime(val),
     },
     {
-      title: '操作', key: 'action', width: 340,
+      title: t('common.operation'), key: 'action', width: 340,
       render: (_: unknown, record: UserItem) => (
         <Space size="small" wrap>
           <Button
@@ -211,14 +212,14 @@ export default function UserManagement() {
               setEditOpen(true);
             }}
           >
-            编辑
+            {t('common.edit')}
           </Button>
           <Button
             size="small"
             icon={<DatabaseOutlined />}
             onClick={() => handleOpenPermissions(record)}
           >
-            数据源权限
+            {t('userManagement.datasourcePermission')}
           </Button>
           <Button
             size="small"
@@ -228,11 +229,11 @@ export default function UserManagement() {
               setResetOpen(true);
             }}
           >
-            重置密码
+            {t('userManagement.resetPassword')}
           </Button>
           {record.username !== 'admin' && (
             <Popconfirm
-              title={record.status === 'enabled' ? '确认禁用该用户？' : '确认启用该用户？'}
+              title={record.status === 'enabled' ? t('userManagement.confirmDisable') : t('userManagement.confirmEnable')}
               onConfirm={() => handleToggleStatus(record)}
             >
               <Button
@@ -240,7 +241,7 @@ export default function UserManagement() {
                 danger={record.status === 'enabled'}
                 icon={record.status === 'enabled' ? <StopOutlined /> : <CheckCircleOutlined />}
               >
-                {record.status === 'enabled' ? '禁用' : '启用'}
+                {record.status === 'enabled' ? t('common.disable') : t('common.enable')}
               </Button>
             </Popconfirm>
           )}
@@ -255,7 +256,7 @@ export default function UserManagement() {
         title={t('userManagement.title')}
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
-            新增用户
+            {t('userManagement.createUser')}
           </Button>
         }
       >
@@ -269,9 +270,9 @@ export default function UserManagement() {
         />
       </Card>
 
-      {/* 新增用户弹窗 */}
+      {/* Create user modal */}
       <Modal
-        title="新增用户"
+        title={t('userManagement.createUser')}
         open={createOpen}
         onOk={handleCreate}
         onCancel={() => { setCreateOpen(false); createForm.resetFields(); }}
@@ -279,24 +280,24 @@ export default function UserManagement() {
         destroyOnClose
       >
         <Form form={createForm} layout="vertical">
-          <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
-            <Input placeholder="请输入用户名" />
+          <Form.Item name="username" label={t('userManagement.username')} rules={[{ required: true, message: t('userManagement.usernameRequired') }]}>
+            <Input placeholder={t('userManagement.usernamePlaceholder')} />
           </Form.Item>
-          <Form.Item name="display_name" label="显示名">
-            <Input placeholder="请输入显示名（可选）" />
+          <Form.Item name="display_name" label={t('userManagement.displayName')}>
+            <Input placeholder={t('userManagement.displayNamePlaceholder')} />
           </Form.Item>
-          <Form.Item name="password" label="密码" rules={[{ required: true, message: '请输入密码' }, { min: 4, message: '密码至少4位' }]}>
-            <Input.Password placeholder="请输入密码" />
+          <Form.Item name="password" label={t('userManagement.passwordLabel')} rules={[{ required: true, message: t('userManagement.passwordRequired') }, { min: 4, message: t('userManagement.passwordMinLength') }]}>
+            <Input.Password placeholder={t('userManagement.passwordPlaceholder')} />
           </Form.Item>
-          <Form.Item name="role" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
-            <Select options={roleOptions} placeholder="请选择角色" />
+          <Form.Item name="role" label={t('userManagement.roleLabel')} rules={[{ required: true, message: t('userManagement.roleRequired') }]}>
+            <Select options={roleOptions} placeholder={t('userManagement.rolePlaceholder')} />
           </Form.Item>
         </Form>
       </Modal>
 
-      {/* 编辑用户弹窗 */}
+      {/* Edit user modal */}
       <Modal
-        title={`编辑用户 - ${editingUser?.username || ''}`}
+        title={`${t('userManagement.editUser')} - ${editingUser?.username || ''}`}
         open={editOpen}
         onOk={handleEdit}
         onCancel={() => { setEditOpen(false); editForm.resetFields(); setEditingUser(null); }}
@@ -304,18 +305,18 @@ export default function UserManagement() {
         destroyOnClose
       >
         <Form form={editForm} layout="vertical">
-          <Form.Item name="display_name" label="显示名">
-            <Input placeholder="请输入显示名" />
+          <Form.Item name="display_name" label={t('userManagement.displayName')}>
+            <Input placeholder={t('userManagement.displayNamePlaceholder')} />
           </Form.Item>
-          <Form.Item name="role" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
-            <Select options={roleOptions} placeholder="请选择角色" />
+          <Form.Item name="role" label={t('userManagement.roleLabel')} rules={[{ required: true, message: t('userManagement.roleRequired') }]}>
+            <Select options={roleOptions} placeholder={t('userManagement.rolePlaceholder')} />
           </Form.Item>
         </Form>
       </Modal>
 
-      {/* 重置密码弹窗 */}
+      {/* Reset password modal */}
       <Modal
-        title={`重置密码 - ${resetUser?.username || ''}`}
+        title={`${t('userManagement.resetPasswordTitle')} - ${resetUser?.username || ''}`}
         open={resetOpen}
         onOk={handleResetPassword}
         onCancel={() => { setResetOpen(false); resetForm.resetFields(); setResetUser(null); }}
@@ -325,17 +326,17 @@ export default function UserManagement() {
         <Form form={resetForm} layout="vertical">
           <Form.Item
             name="new_password"
-            label="新密码"
-            rules={[{ required: true, message: '请输入新密码' }, { min: 4, message: '密码至少4位' }]}
+            label={t('userManagement.newPassword')}
+            rules={[{ required: true, message: t('userManagement.newPasswordRequired') }, { min: 4, message: t('userManagement.passwordMinLength') }]}
           >
-            <Input.Password placeholder="请输入新密码" />
+            <Input.Password placeholder={t('userManagement.newPasswordPlaceholder')} />
           </Form.Item>
         </Form>
       </Modal>
 
-      {/* 数据源权限弹窗 (v2.2) */}
+      {/* Datasource permission modal (v2.2) */}
       <Modal
-        title={`数据源权限 - ${permUser?.display_name || permUser?.username || ''}`}
+        title={`${t('userManagement.datasourcePermissionTitle')} - ${permUser?.display_name || permUser?.username || ''}`}
         open={permOpen}
         onOk={handleSavePermissions}
         onCancel={() => { setPermOpen(false); setPermUser(null); }}
@@ -348,7 +349,7 @@ export default function UserManagement() {
           <div>
             {permUser?.role === 'admin' && (
               <div style={{ marginBottom: 12, color: '#999' }}>
-                管理员默认可访问所有数据源，无需单独授权。
+                {t('userManagement.adminPermHint')}
               </div>
             )}
             <Checkbox.Group
@@ -363,7 +364,7 @@ export default function UserManagement() {
                 </Checkbox>
               ))}
               {allDatasources.length === 0 && (
-                <div style={{ color: '#999' }}>暂无数据源</div>
+                <div style={{ color: '#999' }}>{t('userManagement.noDatasource')}</div>
               )}
             </Checkbox.Group>
           </div>

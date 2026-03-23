@@ -26,9 +26,13 @@ export default function DatasourceList() {
 
   const dbTypeOptions = [
     { label: t('common.all'), value: '' },
-    { label: 'MySQL', value: 'mysql' },
-    { label: 'PostgreSQL', value: 'postgresql' },
-    { label: 'SQL Server', value: 'sqlserver' },
+    { label: t('datasource.dbTypeMySQL'), value: 'mysql' },
+    { label: t('datasource.dbTypePostgreSQL'), value: 'postgresql' },
+    { label: t('datasource.dbTypeSQLServer'), value: 'sqlserver' },
+    { label: t('datasource.dbTypeOracle'), value: 'oracle' },
+    { label: t('datasource.dbTypeDM'), value: 'dm' },
+    { label: t('datasource.dbTypeKingbase'), value: 'kingbase' },
+    { label: t('datasource.dbTypeSQLite'), value: 'sqlite' },
   ];
 
   const statusOptions = [

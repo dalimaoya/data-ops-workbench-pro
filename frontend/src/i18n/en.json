@@ -38,7 +38,9 @@
     "datasource": "Datasource",
     "operator": "Operator",
     "time": "Time",
-    "type": "Type"
+    "type": "Type",
+    "langZh": "中文",
+    "langEn": "English"
   },
 
   "menu": {
@@ -185,7 +187,14 @@
     "listFailed": "Failed to load datasource list",
     "testFailed": "Connection test failed",
     "fillFormFirst": "Please fill in required fields first",
-    "saveChanges": "Save Changes"
+    "saveChanges": "Save Changes",
+    "dbTypeMySQL": "MySQL",
+    "dbTypePostgreSQL": "PostgreSQL",
+    "dbTypeSQLServer": "SQL Server",
+    "dbTypeOracle": "Oracle",
+    "dbTypeDM": "DM (Dameng)",
+    "dbTypeKingbase": "KingbaseES",
+    "dbTypeSQLite": "SQLite"
   },
 
   "tableConfig": {
@@ -633,6 +642,17 @@
     "frontend": "Frontend",
     "backend": "Backend",
     "database": "Database",
-    "templateEngine": "Template Engine"
+    "templateEngine": "Template Engine",
+    "manualOverviewTitle": "1. System Overview",
+    "manualOverviewDesc": "Data Ops Workbench is a lightweight data revision platform that helps O&M and business staff view, modify, add and delete result data tables through standardized workflows without direct database access. All operations are traceable and reversible.",
+    "roleDescription": "Role Description",
+    "roleColumn": "Role",
+    "permissionColumn": "Permissions",
+    "adminPerm": "All features",
+    "operatorPerm": "Data maintenance (view/edit/export/import/writeback/delete), log viewing",
+    "readonlyPerm": "Data viewing, template export, log viewing",
+    "productPositioning": "Product Positioning",
+    "productPositioningDesc": "Data Ops Workbench is not a database development tool, nor a traditional data entry platform. It focuses on one thing: ",
+    "productPositioningHighlight": "Making data modification safe, controlled, and traceable."
   }
 }

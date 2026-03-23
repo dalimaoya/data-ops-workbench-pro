@@ -195,7 +195,7 @@ export default function Home() {
   };
 
   const dbTypeLabel = (tp: string) => {
-    const map: Record<string, string> = { mysql: 'MySQL', postgresql: 'PostgreSQL', sqlserver: 'SQL Server', oracle: 'Oracle', dm: '达梦', kingbase: '金仓' };
+    const map: Record<string, string> = { mysql: 'MySQL', postgresql: 'PostgreSQL', sqlserver: 'SQL Server', oracle: 'Oracle', dm: t('datasource.dbTypeDM'), kingbase: t('datasource.dbTypeKingbase'), sqlite: 'SQLite' };
     return map[tp] || tp;
   };
 

@@ -98,44 +98,44 @@ export default function VersionRollback() {
     setRollbackLoading(true);
     try {
       const res = await rollbackVersion(rollbackTarget.id);
-      message.success(res.data.message || '回退成功');
+      message.success(res.data.message || t('versionRollback.rollbackSuccess'));
       setRollbackTarget(null);
       fetchData();
     } catch (err: any) {
-      message.error(err?.response?.data?.detail || '回退失败');
+      message.error(err?.response?.data?.detail || t('versionRollback.rollbackFailed'));
     } finally {
       setRollbackLoading(false);
     }
   };
 
   const columns: ColumnsType<BackupVersion> = [
-    { title: '版本号', dataIndex: 'backup_version_no', width: 200 },
-    { title: '数据源', dataIndex: 'datasource_name', width: 150 },
-    { title: '表名', dataIndex: 'table_name', width: 150,
+    { title: t('versionRollback.versionNo'), dataIndex: 'backup_version_no', width: 200 },
+    { title: t('common.datasource'), dataIndex: 'datasource_name', width: 150 },
+    { title: t('common.tableName'), dataIndex: 'table_name', width: 150,
       render: (v, r) => r.table_alias ? `${r.table_alias}（${v}）` : v },
-    { title: '备份时间', dataIndex: 'backup_time', width: 180, render: (v: string) => formatBeijingTime(v) },
-    { title: '触发类型', dataIndex: 'trigger_type', width: 140,
+    { title: t('versionRollback.backupTime'), dataIndex: 'backup_time', width: 180, render: (v: string) => formatBeijingTime(v) },
+    { title: t('versionRollback.triggerType'), dataIndex: 'trigger_type', width: 140,
       render: v => {
         const map: Record<string, string> = {
-          'triggered_by_writeback': '回写触发',
-          'triggered_by_rollback': '回退前备份',
+          'triggered_by_writeback': t('versionRollback.triggerWriteback'),
+          'triggered_by_rollback': t('versionRollback.triggerRollback'),
         };
         return map[v] || v;
       },
     },
-    { title: '关联批次', dataIndex: 'related_writeback_batch_no', width: 200 },
-    { title: '操作人', dataIndex: 'operator_user', width: 100 },
-    { title: '记录数', dataIndex: 'record_count', width: 100 },
+    { title: t('versionRollback.relatedBatch'), dataIndex: 'related_writeback_batch_no', width: 200 },
+    { title: t('common.operator'), dataIndex: 'operator_user', width: 100 },
+    { title: t('versionRollback.recordCount'), dataIndex: 'record_count', width: 100 },
     {
-      title: '可回退', dataIndex: 'can_rollback', width: 80,
-      render: v => v ? <Tag color="green">是</Tag> : <Tag color="default">否</Tag>,
+      title: t('versionRollback.canRollback'), dataIndex: 'can_rollback', width: 80,
+      render: v => v ? <Tag color="green">{t('common.yes')}</Tag> : <Tag color="default">{t('common.no')}</Tag>,
     },
     {
-      title: '操作', fixed: 'right', width: 160,
+      title: t('common.operation'), fixed: 'right', width: 160,
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" onClick={() => handleViewDetail(record)}>
-            详情
+            {t('common.detail')}
           </Button>
           <Button
             type="link" size="small"
@@ -143,7 +143,7 @@ export default function VersionRollback() {
             onClick={() => handleRollback(record)}
             icon={<RollbackOutlined />}
           >
-            回退
+            {t('versionRollback.rollback')}
           </Button>
         </Space>
       ),
@@ -201,7 +201,7 @@ export default function VersionRollback() {
           pagination={{
             current: page, pageSize, total,
             showSizeChanger: true, pageSizeOptions: ['20', '50', '100'],
-            showTotal: t => `共 ${t} 条`,
+            showTotal: (total) => t('common.total', { count: total }),
             onChange: (p, ps) => { setPage(p); setPageSize(ps); },
           }}
         />
@@ -215,31 +215,31 @@ export default function VersionRollback() {
       >
         {detail && (
           <Descriptions column={2} bordered size="small">
-            <Descriptions.Item label="版本号">{detail.backup_version_no}</Descriptions.Item>
-            <Descriptions.Item label="数据源">{detail.datasource_name}</Descriptions.Item>
-            <Descriptions.Item label="原表名">{detail.table_name}</Descriptions.Item>
-            <Descriptions.Item label="备份表名">{detail.backup_table_name}</Descriptions.Item>
-            <Descriptions.Item label="记录数">{detail.record_count}</Descriptions.Item>
-            <Descriptions.Item label="存储状态">
+            <Descriptions.Item label={t('versionRollback.versionNo')}>{detail.backup_version_no}</Descriptions.Item>
+            <Descriptions.Item label={t('common.datasource')}>{detail.datasource_name}</Descriptions.Item>
+            <Descriptions.Item label={t('versionRollback.originalTable')}>{detail.table_name}</Descriptions.Item>
+            <Descriptions.Item label={t('versionRollback.backupTableName')}>{detail.backup_table_name}</Descriptions.Item>
+            <Descriptions.Item label={t('versionRollback.recordCount')}>{detail.record_count}</Descriptions.Item>
+            <Descriptions.Item label={t('versionRollback.storageStatus')}>
               <Tag color={detail.storage_status === 'valid' ? 'green' : 'red'}>
                 {detail.storage_status}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="触发类型">{detail.trigger_type}</Descriptions.Item>
-            <Descriptions.Item label="关联批次">{detail.related_writeback_batch_no || '-'}</Descriptions.Item>
-            <Descriptions.Item label="备份开始">{formatBeijingTime(detail.backup_started_at)}</Descriptions.Item>
-            <Descriptions.Item label="备份结束">{formatBeijingTime(detail.backup_finished_at)}</Descriptions.Item>
-            <Descriptions.Item label="操作人">{detail.operator_user}</Descriptions.Item>
-            <Descriptions.Item label="创建时间">{formatBeijingTime(detail.created_at)}</Descriptions.Item>
+            <Descriptions.Item label={t('versionRollback.triggerType')}>{detail.trigger_type}</Descriptions.Item>
+            <Descriptions.Item label={t('versionRollback.relatedBatch')}>{detail.related_writeback_batch_no || '-'}</Descriptions.Item>
+            <Descriptions.Item label={t('versionRollback.backupStarted')}>{formatBeijingTime(detail.backup_started_at)}</Descriptions.Item>
+            <Descriptions.Item label={t('versionRollback.backupFinished')}>{formatBeijingTime(detail.backup_finished_at)}</Descriptions.Item>
+            <Descriptions.Item label={t('common.operator')}>{detail.operator_user}</Descriptions.Item>
+            <Descriptions.Item label={t('versionRollback.createdAt')}>{formatBeijingTime(detail.created_at)}</Descriptions.Item>
             {detail.remark && (
-              <Descriptions.Item label="备注" span={2}>{detail.remark}</Descriptions.Item>
+              <Descriptions.Item label={t('common.remark')} span={2}>{detail.remark}</Descriptions.Item>
             )}
             {detail.writeback_info && (
               <>
-                <Descriptions.Item label="回写批次" span={2}>
+                <Descriptions.Item label={t('versionRollback.writebackBatch')} span={2}>
                   {detail.writeback_info.writeback_batch_no}
                   {' — '}
-                  成功 {detail.writeback_info.success_row_count} / 失败 {detail.writeback_info.failed_row_count}
+                  {t('versionRollback.writebackSuccess')} {detail.writeback_info.success_row_count} / {t('versionRollback.writebackFailed')} {detail.writeback_info.failed_row_count}
                   {' — '}
                   <Tag color={detail.writeback_info.writeback_status === 'success' ? 'green' : 'red'}>
                     {detail.writeback_info.writeback_status}
@@ -269,20 +269,20 @@ export default function VersionRollback() {
         {rollbackTarget && (
           <>
             <Descriptions column={1} size="small" style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="目标表">{rollbackTarget.table_alias || rollbackTarget.table_name}</Descriptions.Item>
-              <Descriptions.Item label="版本号">{rollbackTarget.backup_version_no}</Descriptions.Item>
-              <Descriptions.Item label="备份时间">{formatBeijingTime(rollbackTarget.backup_time)}</Descriptions.Item>
-              <Descriptions.Item label="备份记录数">{rollbackTarget.record_count} 条</Descriptions.Item>
+              <Descriptions.Item label={t('versionRollback.targetTable')}>{rollbackTarget.table_alias || rollbackTarget.table_name}</Descriptions.Item>
+              <Descriptions.Item label={t('versionRollback.versionNo')}>{rollbackTarget.backup_version_no}</Descriptions.Item>
+              <Descriptions.Item label={t('versionRollback.backupTime')}>{formatBeijingTime(rollbackTarget.backup_time)}</Descriptions.Item>
+              <Descriptions.Item label={t('versionRollback.backupRecordCount')}>{t('versionRollback.records', { count: rollbackTarget.record_count })}</Descriptions.Item>
             </Descriptions>
             <div style={{
               padding: '12px 16px', background: '#fff7e6', border: '1px solid #ffd591',
               borderRadius: 6, marginTop: 8,
             }}>
-              <Text type="warning" strong>⚠️ 风险提示</Text>
+              <Text type="warning" strong>{t('versionRollback.riskWarning')}</Text>
               <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
-                <li>回退将清空目标表当前所有数据，并用备份版本的数据替换</li>
-                <li>系统会在回退前自动备份当前数据</li>
-                <li>请确认此操作不可逆，确认后将立即执行</li>
+                <li>{t('versionRollback.riskTip1')}</li>
+                <li>{t('versionRollback.riskTip2')}</li>
+                <li>{t('versionRollback.riskTip3')}</li>
               </ul>
             </div>
           </>

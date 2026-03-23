@@ -8,22 +8,24 @@ import {
 } from '../../api/datasource';
 import { useTranslation } from 'react-i18next';
 
-const dbTypeOptions = [
-  { label: 'MySQL', value: 'mysql' },
-  { label: 'PostgreSQL', value: 'postgresql' },
-  { label: 'SQL Server', value: 'sqlserver' },
-  { label: 'Oracle', value: 'oracle' },
-  { label: '达梦 (DM)', value: 'dm' },
-  { label: '人大金仓 (KingbaseES)', value: 'kingbase' },
+const dbTypeKeys: { key: string; value: string }[] = [
+  { key: 'dbTypeMySQL', value: 'mysql' },
+  { key: 'dbTypePostgreSQL', value: 'postgresql' },
+  { key: 'dbTypeSQLServer', value: 'sqlserver' },
+  { key: 'dbTypeOracle', value: 'oracle' },
+  { key: 'dbTypeDM', value: 'dm' },
+  { key: 'dbTypeKingbase', value: 'kingbase' },
+  { key: 'dbTypeSQLite', value: 'sqlite' },
 ];
 
 const defaultPorts: Record<string, number> = {
   mysql: 3306, postgresql: 5432, sqlserver: 1433,
-  oracle: 1521, dm: 5236, kingbase: 54321,
+  oracle: 1521, dm: 5236, kingbase: 54321, sqlite: 0,
 };
 
 export default function DatasourceForm() {
   const { t } = useTranslation();
+  const dbTypeOptions = dbTypeKeys.map(d => ({ label: t(`datasource.${d.key}`), value: d.value }));
   const { id } = useParams<{ id: string }>();
   const isEdit = !!id;
   const navigate = useNavigate();

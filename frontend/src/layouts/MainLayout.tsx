@@ -176,7 +176,7 @@ export default function MainLayout() {
   const languageMenuItems = [
     {
       key: 'zh',
-      label: '中文',
+      label: t('common.langZh'),
       onClick: () => handleLanguageChange('zh'),
     },
     {
@@ -434,7 +434,7 @@ export default function MainLayout() {
             {/* Language Switcher */}
             <Dropdown menu={{ items: languageMenuItems, selectedKeys: [i18n.language] }} placement="bottomRight">
               <Button type="text" icon={<GlobalOutlined />}>
-                {i18n.language === 'zh' ? '中文' : 'EN'}
+                {i18n.language === 'zh' ? t('common.langZh') : t('common.langEn')}
               </Button>
             </Dropdown>
 

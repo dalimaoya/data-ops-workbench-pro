@@ -140,7 +140,7 @@ def _quote_col(db_type: str, col: str) -> str:
     """Quote a column name for the given DB type."""
     if db_type == "sqlserver":
         return f"[{col}]"
-    elif db_type == "mysql":
+    elif db_type in ("mysql", "sqlite"):
         return f"`{col}`"
     elif db_type in ("oracle", "dm"):
         return f'"{col.upper()}"'
@@ -166,7 +166,7 @@ def _exec(cur, db_type: str, sql: str, params: list) -> None:
         import re
         converted = re.sub(r'%s', lambda m: _repl(m), sql)
         cur.execute(converted, params)
-    elif db_type in ("sqlserver", "dm"):
+    elif db_type in ("sqlserver", "dm", "sqlite"):
         converted = sql.replace("%s", "?")
         cur.execute(converted, params)
     else:
@@ -181,6 +181,8 @@ def _cast_to_text(db_type: str, col_expr: str) -> str:
         return f"CAST({col_expr} AS TEXT)"
     elif db_type in ("oracle", "dm"):
         return f"TO_CHAR({col_expr})"
+    elif db_type == "sqlite":
+        return f"CAST({col_expr} AS TEXT)"
     return f"CAST({col_expr} AS CHAR)"
 
 
@@ -198,6 +200,8 @@ def _create_backup_table(cur, db_type: str, source_qt: str, backup_table_name: s
         cur.execute(f'CREATE TABLE "{backup_table_name.upper()}" AS SELECT * FROM {source_qt}')
     elif db_type == "dm":
         cur.execute(f'CREATE TABLE "{backup_table_name.upper()}" AS SELECT * FROM {source_qt}')
+    elif db_type == "sqlite":
+        cur.execute(f"CREATE TABLE `{backup_table_name}` AS SELECT * FROM {source_qt}")
 
 
 def _drop_table_if_exists(cur, db_type: str, table_qt: str) -> None:

@@ -66,6 +66,16 @@ def _get_kingbase_conn(host, port, user, password, database, timeout=10):
     return psycopg2.connect(dsn)
 
 
+def _get_sqlite_conn(host, port, user, password, database, timeout=10):
+    """SQLite 使用文件路径连接。database 或 host 作为文件路径。"""
+    import sqlite3
+    db_path = database or host
+    if not db_path:
+        raise ValueError("SQLite 需要指定数据库文件路径")
+    conn = sqlite3.connect(db_path, timeout=timeout)
+    return conn
+
+
 def _connect(db_type, host, port, user, password, database=None, schema=None, charset="utf8", timeout=10):
     if db_type == "mysql":
         return _get_mysql_conn(host, port, user, password, database, charset, timeout)
@@ -79,6 +89,8 @@ def _connect(db_type, host, port, user, password, database=None, schema=None, ch
         return _get_dm_conn(host, port, user, password, database, timeout)
     elif db_type == "kingbase":
         return _get_kingbase_conn(host, port, user, password, database, timeout)
+    elif db_type == "sqlite":
+        return _get_sqlite_conn(host, port, user, password, database, timeout)
     else:
         raise ValueError(f"不支持的数据库类型: {db_type}")
 
@@ -146,6 +158,9 @@ def list_tables(db_type: str, host: str, port: int, user: str, password: str,
                     "SELECT TABLE_NAME, COMMENTS FROM ALL_TAB_COMMENTS WHERE OWNER = ? ORDER BY TABLE_NAME",
                     (sch.upper(),)
                 )
+        elif db_type == "sqlite":
+            sql = "SELECT name, NULL FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            cur.execute(sql)
 
         rows = cur.fetchall()
         result = []
@@ -254,6 +269,22 @@ def list_columns(db_type: str, host: str, port: int, user: str, password: str,
                 ORDER BY col.COLUMN_ID
             """
             cur.execute(sql, (owner, table_name.upper()))
+        elif db_type == "sqlite":
+            # SQLite uses PRAGMA table_info to get column info
+            cur.execute(f"PRAGMA table_info(`{table_name}`)")
+            sqlite_rows = cur.fetchall()
+            result = []
+            for r in sqlite_rows:
+                # PRAGMA table_info returns: cid, name, type, notnull, dflt_value, pk
+                result.append({
+                    "field_name": r[1],
+                    "db_data_type": r[2] or "TEXT",
+                    "is_nullable": not bool(r[3]),
+                    "column_default": str(r[4]) if r[4] is not None else None,
+                    "ordinal_position": r[0] + 1,
+                    "is_primary_key": bool(r[5]),
+                })
+            return result
 
         rows = cur.fetchall()
         result = []
@@ -292,6 +323,8 @@ def fetch_sample_data(db_type: str, host: str, port: int, user: str, password: s
         elif db_type == "dm":
             owner = (schema or user).upper()
             qualified = f'"{owner}"."{table_name.upper()}"'
+        elif db_type == "sqlite":
+            qualified = f'`{table_name}`'
 
         if db_type == "sqlserver":
             cur.execute(f"SELECT TOP {limit} * FROM {qualified}")

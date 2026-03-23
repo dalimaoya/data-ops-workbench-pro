@@ -26,23 +26,24 @@ function FilterBar({
   onReset: () => void;
   extraFields?: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <Row gutter={[16, 12]} style={{ marginBottom: 16 }}>
       <Col>
-        <Select placeholder="数据源" allowClear style={{ width: 180 }}
+        <Select placeholder={t('common.datasource')} allowClear style={{ width: 180 }}
           options={dsOptions} value={filters.datasource_id}
           onChange={v => setFilters({ ...filters, datasource_id: v })}
         />
       </Col>
       <Col>
-        <Input placeholder="表名" allowClear style={{ width: 140 }}
+        <Input placeholder={t('common.tableName')} allowClear style={{ width: 140 }}
           value={filters.table_name}
           onChange={e => setFilters({ ...filters, table_name: e.target.value })}
         />
       </Col>
       {extraFields}
       <Col>
-        <Input placeholder="操作人" allowClear style={{ width: 120 }}
+        <Input placeholder={t('common.operator')} allowClear style={{ width: 120 }}
           value={filters.operator_user}
           onChange={e => setFilters({ ...filters, operator_user: e.target.value })}
         />
@@ -52,8 +53,8 @@ function FilterBar({
           onChange={v => setFilters({ ...filters, timeRange: v })}
         />
       </Col>
-      <Col><Button type="primary" onClick={onSearch}>查询</Button></Col>
-      <Col><Button onClick={onReset}>重置</Button></Col>
+      <Col><Button type="primary" onClick={onSearch}>{t('common.search')}</Button></Col>
+      <Col><Button onClick={onReset}>{t('common.reset')}</Button></Col>
     </Row>
   );
 }
@@ -66,18 +67,9 @@ const statusTag = (s: string) => {
   return <Tag color={colorMap[s] || 'default'}>{s}</Tag>;
 };
 
-const changeTypeTag = (s: string) => {
-  const map: Record<string, { color: string; text: string }> = {
-    update: { color: 'orange', text: '更新' },
-    insert: { color: 'green', text: '新增' },
-    delete: { color: 'red', text: '删除' },
-  };
-  const info = map[s] || { color: 'default', text: s };
-  return <Tag color={info.color}>{info.text}</Tag>;
-};
-
 // ─── System Logs Tab ───
 function SystemLogTab({ dsOptions: _dsOptions }: { dsOptions: { value: number; label: string }[] }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<SystemLog[]>([]);
   const [total, setTotal] = useState(0);
@@ -101,46 +93,52 @@ function SystemLogTab({ dsOptions: _dsOptions }: { dsOptions: { value: number; l
       const res = await listSystemLogs(params);
       setData(res.data.items);
       setTotal(res.data.total);
-    } catch { message.error('加载系统日志失败'); }
+    } catch { message.error(t('logCenter.loadFailed.system')); }
     finally { setLoading(false); }
   }, [page, pageSize, filters]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const moduleOptions = [
+    { value: t('logCenter.moduleOptions.datasource'), label: t('logCenter.moduleOptions.datasource') },
+    { value: t('logCenter.moduleOptions.tableConfig'), label: t('logCenter.moduleOptions.tableConfig') },
+    { value: t('logCenter.moduleOptions.dataMaintenance'), label: t('logCenter.moduleOptions.dataMaintenance') },
+  ];
+
   const columns: ColumnsType<SystemLog> = [
-    { title: '时间', dataIndex: 'created_at', width: 180, render: (v: string) => formatBeijingTime(v) },
-    { title: '模块', dataIndex: 'operation_module', width: 120 },
-    { title: '操作类型', dataIndex: 'operation_type', width: 120 },
-    { title: '目标', dataIndex: 'target_name', width: 180 },
-    { title: '状态', dataIndex: 'operation_status', width: 90, render: v => statusTag(v) },
-    { title: '操作人', dataIndex: 'operator_user', width: 100 },
-    { title: '详情', dataIndex: 'operation_message', ellipsis: true },
+    { title: t('common.time'), dataIndex: 'created_at', width: 180, render: (v: string) => formatBeijingTime(v) },
+    { title: t('logCenter.module'), dataIndex: 'operation_module', width: 120 },
+    { title: t('logCenter.operationType'), dataIndex: 'operation_type', width: 120 },
+    { title: t('logCenter.target'), dataIndex: 'target_name', width: 180 },
+    { title: t('common.status'), dataIndex: 'operation_status', width: 90, render: v => statusTag(v) },
+    { title: t('common.operator'), dataIndex: 'operator_user', width: 100 },
+    { title: t('logCenter.details'), dataIndex: 'operation_message', ellipsis: true },
   ];
 
   return (
     <>
       <Row gutter={[16, 12]} style={{ marginBottom: 16 }}>
         <Col>
-          <Select placeholder="模块" allowClear style={{ width: 150 }}
-            options={['数据源管理','纳管表配置','数据维护'].map(v => ({ value: v, label: v }))}
+          <Select placeholder={t('logCenter.module')} allowClear style={{ width: 150 }}
+            options={moduleOptions}
             value={filters.operation_module || undefined}
             onChange={v => setFilters({ ...filters, operation_module: v })}
           />
         </Col>
         <Col>
-          <Input placeholder="操作类型" allowClear style={{ width: 140 }}
+          <Input placeholder={t('logCenter.operationType')} allowClear style={{ width: 140 }}
             value={filters.operation_type}
             onChange={e => setFilters({ ...filters, operation_type: e.target.value })}
           />
         </Col>
         <Col>
-          <Input placeholder="操作人" allowClear style={{ width: 120 }}
+          <Input placeholder={t('common.operator')} allowClear style={{ width: 120 }}
             value={filters.operator_user}
             onChange={e => setFilters({ ...filters, operator_user: e.target.value })}
           />
         </Col>
         <Col>
-          <Select placeholder="状态" allowClear style={{ width: 120 }}
+          <Select placeholder={t('common.status')} allowClear style={{ width: 120 }}
             options={['success','failed','warning'].map(v => ({ value: v, label: v }))}
             value={filters.operation_status}
             onChange={v => setFilters({ ...filters, operation_status: v })}
@@ -151,13 +149,13 @@ function SystemLogTab({ dsOptions: _dsOptions }: { dsOptions: { value: number; l
             onChange={v => setFilters({ ...filters, timeRange: v })}
           />
         </Col>
-        <Col><Button type="primary" onClick={() => { setPage(1); fetchData(); }}>查询</Button></Col>
-        <Col><Button onClick={() => { setFilters(defaultFilters); setPage(1); }}>重置</Button></Col>
+        <Col><Button type="primary" onClick={() => { setPage(1); fetchData(); }}>{t('common.search')}</Button></Col>
+        <Col><Button onClick={() => { setFilters(defaultFilters); setPage(1); }}>{t('common.reset')}</Button></Col>
       </Row>
       <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
         scroll={{ x: 900 }}
         pagination={{ current: page, pageSize, total, showSizeChanger: true,
-          pageSizeOptions: ['20','50','100'], showTotal: t => `共 ${t} 条`,
+          pageSizeOptions: ['20','50','100'], showTotal: (total) => t('common.total', { count: total }),
           onChange: (p, ps) => { setPage(p); setPageSize(ps); },
         }}
       />
@@ -167,6 +165,7 @@ function SystemLogTab({ dsOptions: _dsOptions }: { dsOptions: { value: number; l
 
 // ─── Export Logs Tab ───
 function ExportLogTab({ dsOptions }: { dsOptions: { value: number; label: string }[] }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ExportLog[]>([]);
   const [total, setTotal] = useState(0);
@@ -189,22 +188,22 @@ function ExportLogTab({ dsOptions }: { dsOptions: { value: number; label: string
       const res = await listExportLogs(params);
       setData(res.data.items);
       setTotal(res.data.total);
-    } catch { message.error('加载导出日志失败'); }
+    } catch { message.error(t('logCenter.loadFailed.export')); }
     finally { setLoading(false); }
   }, [page, pageSize, filters]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const columns: ColumnsType<ExportLog> = [
-    { title: '批次号', dataIndex: 'export_batch_no', width: 200 },
-    { title: '数据源', dataIndex: 'datasource_name', width: 150 },
-    { title: '表名', dataIndex: 'table_name', width: 140, render: (v, r) => r.table_alias ? `${r.table_alias}（${v}）` : v },
-    { title: '导出类型', dataIndex: 'export_type', width: 100 },
-    { title: '行数', dataIndex: 'row_count', width: 80 },
-    { title: '字段数', dataIndex: 'field_count', width: 80 },
-    { title: '文件名', dataIndex: 'file_name', width: 200, ellipsis: true },
-    { title: '操作人', dataIndex: 'operator_user', width: 100 },
-    { title: '时间', dataIndex: 'created_at', width: 180, render: (v: string) => formatBeijingTime(v) },
+    { title: t('logCenter.batchNo'), dataIndex: 'export_batch_no', width: 200 },
+    { title: t('common.datasource'), dataIndex: 'datasource_name', width: 150 },
+    { title: t('common.tableName'), dataIndex: 'table_name', width: 140, render: (v, r) => r.table_alias ? `${r.table_alias}（${v}）` : v },
+    { title: t('logCenter.exportType'), dataIndex: 'export_type', width: 100 },
+    { title: t('logCenter.rowCount'), dataIndex: 'row_count', width: 80 },
+    { title: t('logCenter.fieldCount'), dataIndex: 'field_count', width: 80 },
+    { title: t('logCenter.fileName'), dataIndex: 'file_name', width: 200, ellipsis: true },
+    { title: t('common.operator'), dataIndex: 'operator_user', width: 100 },
+    { title: t('common.time'), dataIndex: 'created_at', width: 180, render: (v: string) => formatBeijingTime(v) },
   ];
 
   return (
@@ -216,7 +215,7 @@ function ExportLogTab({ dsOptions }: { dsOptions: { value: number; label: string
       <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
         scroll={{ x: 1200 }}
         pagination={{ current: page, pageSize, total, showSizeChanger: true,
-          pageSizeOptions: ['20','50','100'], showTotal: t => `共 ${t} 条`,
+          pageSizeOptions: ['20','50','100'], showTotal: (total) => t('common.total', { count: total }),
           onChange: (p, ps) => { setPage(p); setPageSize(ps); },
         }}
       />
@@ -226,6 +225,7 @@ function ExportLogTab({ dsOptions }: { dsOptions: { value: number; label: string
 
 // ─── Import Logs Tab ───
 function ImportLogTab({ dsOptions, onRetryNavigate }: { dsOptions: { value: number; label: string }[]; onRetryNavigate?: (taskId: number) => void }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ImportLog[]>([]);
   const [total, setTotal] = useState(0);
@@ -249,7 +249,7 @@ function ImportLogTab({ dsOptions, onRetryNavigate }: { dsOptions: { value: numb
       const res = await listImportLogs(params);
       setData(res.data.items);
       setTotal(res.data.total);
-    } catch { message.error('加载导入日志失败'); }
+    } catch { message.error(t('logCenter.loadFailed.import')); }
     finally { setLoading(false); }
   }, [page, pageSize, filters]);
 
@@ -262,14 +262,13 @@ function ImportLogTab({ dsOptions, onRetryNavigate }: { dsOptions: { value: numb
     try {
       const res = await retryImportValidation(taskId);
       const result = res.data;
-      message.success('重新校验完成');
+      message.success(t('logCenter.retrySuccess'));
       fetchData();
-      // Navigate to diff preview of the new task
       if (onRetryNavigate && result.task_id) {
         onRetryNavigate(result.task_id);
       }
     } catch (e: any) {
-      const msg = e?.response?.data?.detail || '重新校验失败';
+      const msg = e?.response?.data?.detail || t('logCenter.retryFailed');
       message.error(msg);
     } finally {
       setRetrying(null);
@@ -277,19 +276,19 @@ function ImportLogTab({ dsOptions, onRetryNavigate }: { dsOptions: { value: numb
   };
 
   const columns: ColumnsType<ImportLog> = [
-    { title: '批次号', dataIndex: 'import_batch_no', width: 200 },
-    { title: '数据源', dataIndex: 'datasource_name', width: 150 },
-    { title: '表名', dataIndex: 'table_name', width: 140, render: (v, r) => r.table_alias ? `${r.table_alias}（${v}）` : v },
-    { title: '文件名', dataIndex: 'import_file_name', width: 200, ellipsis: true },
-    { title: '总行数', dataIndex: 'total_row_count', width: 80 },
-    { title: '通过', dataIndex: 'passed_row_count', width: 80 },
-    { title: '失败', dataIndex: 'failed_row_count', width: 80 },
-    { title: '校验状态', dataIndex: 'validation_status', width: 100, render: v => statusTag(v) },
-    { title: '导入状态', dataIndex: 'import_status', width: 100, render: v => statusTag(v) },
-    { title: '操作人', dataIndex: 'operator_user', width: 100 },
-    { title: '时间', dataIndex: 'created_at', width: 180, render: (v: string) => formatBeijingTime(v) },
+    { title: t('logCenter.batchNo'), dataIndex: 'import_batch_no', width: 200 },
+    { title: t('common.datasource'), dataIndex: 'datasource_name', width: 150 },
+    { title: t('common.tableName'), dataIndex: 'table_name', width: 140, render: (v, r) => r.table_alias ? `${r.table_alias}（${v}）` : v },
+    { title: t('logCenter.fileName'), dataIndex: 'import_file_name', width: 200, ellipsis: true },
+    { title: t('logCenter.totalRows'), dataIndex: 'total_row_count', width: 80 },
+    { title: t('logCenter.passedCount'), dataIndex: 'passed_row_count', width: 80 },
+    { title: t('logCenter.failedCount'), dataIndex: 'failed_row_count', width: 80 },
+    { title: t('logCenter.validationStatus'), dataIndex: 'validation_status', width: 100, render: v => statusTag(v) },
+    { title: t('logCenter.importStatus'), dataIndex: 'import_status', width: 100, render: v => statusTag(v) },
+    { title: t('common.operator'), dataIndex: 'operator_user', width: 100 },
+    { title: t('common.time'), dataIndex: 'created_at', width: 180, render: (v: string) => formatBeijingTime(v) },
     {
-      title: '操作', width: 100, fixed: 'right',
+      title: t('common.operation'), width: 100, fixed: 'right',
       render: (_: unknown, record: ImportLog) => {
         if (record.validation_status === 'failed' || record.validation_status === 'partial') {
           return (
@@ -299,7 +298,7 @@ function ImportLogTab({ dsOptions, onRetryNavigate }: { dsOptions: { value: numb
               loading={retrying === record.id}
               onClick={() => handleRetry(record.id)}
             >
-              重新校验
+              {t('logCenter.retry')}
             </Button>
           );
         }
@@ -315,7 +314,7 @@ function ImportLogTab({ dsOptions, onRetryNavigate }: { dsOptions: { value: numb
         onReset={() => { setFilters(defaultFilters); setPage(1); }}
         extraFields={
           <Col>
-            <Select placeholder="校验状态" allowClear style={{ width: 130 }}
+            <Select placeholder={t('logCenter.validationStatus')} allowClear style={{ width: 130 }}
               options={['success','failed','partial'].map(v => ({ value: v, label: v }))}
               value={filters.validation_status}
               onChange={v => setFilters({ ...filters, validation_status: v })}
@@ -326,7 +325,7 @@ function ImportLogTab({ dsOptions, onRetryNavigate }: { dsOptions: { value: numb
       <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
         scroll={{ x: 1400 }}
         pagination={{ current: page, pageSize, total, showSizeChanger: true,
-          pageSizeOptions: ['20','50','100'], showTotal: t => `共 ${t} 条`,
+          pageSizeOptions: ['20','50','100'], showTotal: (total) => t('common.total', { count: total }),
           onChange: (p, ps) => { setPage(p); setPageSize(ps); },
         }}
       />
@@ -340,6 +339,7 @@ function FieldChangeModal({
 }: {
   writebackLogId: number; open: boolean; onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<FieldChangeItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -347,6 +347,16 @@ function FieldChangeModal({
   const [pageSize, setPageSize] = useState(50);
   const [fieldNameFilter, setFieldNameFilter] = useState('');
   const [changeTypeFilter, setChangeTypeFilter] = useState<string | undefined>();
+
+  const changeTypeTag = (s: string) => {
+    const map: Record<string, { color: string; label: string }> = {
+      update: { color: 'orange', label: t('logCenter.changeUpdate') },
+      insert: { color: 'green', label: t('logCenter.changeInsert') },
+      delete: { color: 'red', label: t('logCenter.changeDelete') },
+    };
+    const info = map[s] || { color: 'default', label: s };
+    return <Tag color={info.color}>{info.label}</Tag>;
+  };
 
   const fetchData = useCallback(async () => {
     if (!open || !writebackLogId) return;
@@ -359,7 +369,7 @@ function FieldChangeModal({
       setData(res.data.items);
       setTotal(res.data.total);
     } catch {
-      message.error('加载变更明细失败');
+      message.error(t('logCenter.loadFailed.fieldChange'));
     } finally {
       setLoading(false);
     }
@@ -375,22 +385,22 @@ function FieldChangeModal({
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const columns: ColumnsType<FieldChangeItem> = [
-    { title: '行主键', dataIndex: 'row_pk_value', width: 180 },
-    { title: '字段名', dataIndex: 'field_name', width: 150 },
+    { title: t('logCenter.rowPkValue'), dataIndex: 'row_pk_value', width: 180 },
+    { title: t('logCenter.fieldNameCol'), dataIndex: 'field_name', width: 150 },
     {
-      title: '原值', dataIndex: 'old_value', ellipsis: true,
+      title: t('logCenter.oldValue'), dataIndex: 'old_value', ellipsis: true,
       render: (v: string | null) => v !== null ? <span style={{ color: '#999' }}>{v}</span> : <span style={{ color: '#ccc', fontStyle: 'italic' }}>NULL</span>,
     },
     {
-      title: '新值', dataIndex: 'new_value', ellipsis: true,
+      title: t('logCenter.newValue'), dataIndex: 'new_value', ellipsis: true,
       render: (v: string | null) => v !== null ? <span style={{ color: '#1890ff', fontWeight: 500 }}>{v}</span> : <span style={{ color: '#ccc', fontStyle: 'italic' }}>NULL</span>,
     },
-    { title: '变更类型', dataIndex: 'change_type', width: 90, render: v => changeTypeTag(v) },
+    { title: t('logCenter.changeTypeCol'), dataIndex: 'change_type', width: 90, render: v => changeTypeTag(v) },
   ];
 
   return (
     <Modal
-      title="变更明细"
+      title={t('logCenter.changeDetailTitle')}
       open={open}
       onCancel={onClose}
       footer={null}
@@ -399,25 +409,25 @@ function FieldChangeModal({
     >
       <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
         <Col>
-          <Input placeholder="字段名" allowClear style={{ width: 150 }}
+          <Input placeholder={t('logCenter.fieldNameCol')} allowClear style={{ width: 150 }}
             value={fieldNameFilter}
             onChange={e => setFieldNameFilter(e.target.value)}
             onPressEnter={() => { setPage(1); fetchData(); }}
           />
         </Col>
         <Col>
-          <Select placeholder="变更类型" allowClear style={{ width: 120 }}
+          <Select placeholder={t('logCenter.changeTypeCol')} allowClear style={{ width: 120 }}
             value={changeTypeFilter}
             onChange={v => { setChangeTypeFilter(v); setPage(1); }}
             options={[
-              { value: 'update', label: '更新' },
-              { value: 'insert', label: '新增' },
-              { value: 'delete', label: '删除' },
+              { value: 'update', label: t('logCenter.changeUpdate') },
+              { value: 'insert', label: t('logCenter.changeInsert') },
+              { value: 'delete', label: t('logCenter.changeDelete') },
             ]}
           />
         </Col>
         <Col>
-          <Button type="primary" onClick={() => { setPage(1); fetchData(); }}>查询</Button>
+          <Button type="primary" onClick={() => { setPage(1); fetchData(); }}>{t('common.search')}</Button>
         </Col>
       </Row>
       <Table
@@ -429,7 +439,7 @@ function FieldChangeModal({
         pagination={{
           current: page, pageSize, total, showSizeChanger: true,
           pageSizeOptions: ['50', '100', '200'],
-          showTotal: t => `共 ${t} 条`,
+          showTotal: (total) => t('common.total', { count: total }),
           onChange: (p, ps) => { setPage(p); setPageSize(ps); },
         }}
         size="small"
@@ -440,6 +450,7 @@ function FieldChangeModal({
 
 // ─── Writeback Logs Tab ───
 function WritebackLogTab({ dsOptions }: { dsOptions: { value: number; label: string }[] }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<WritebackLogItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -467,29 +478,29 @@ function WritebackLogTab({ dsOptions }: { dsOptions: { value: number; label: str
       const res = await listWritebackLogs(params);
       setData(res.data.items);
       setTotal(res.data.total);
-    } catch { message.error('加载回写日志失败'); }
+    } catch { message.error(t('logCenter.loadFailed.writeback')); }
     finally { setLoading(false); }
   }, [page, pageSize, filters]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const columns: ColumnsType<WritebackLogItem> = [
-    { title: '批次号', dataIndex: 'writeback_batch_no', width: 200 },
-    { title: '数据源', dataIndex: 'datasource_name', width: 150 },
-    { title: '表名', dataIndex: 'table_name', width: 140, render: (v, r) => r.table_alias ? `${r.table_alias}（${v}）` : v },
-    { title: '操作人', dataIndex: 'operator_user', width: 100 },
-    { title: '更新', dataIndex: 'updated_row_count', width: 70 },
-    { title: '新增', dataIndex: 'inserted_row_count', width: 70 },
-    { title: '删除', dataIndex: 'deleted_row_count', width: 70 },
-    { title: '失败', dataIndex: 'failed_row_count', width: 70 },
-    { title: '备份版本号', dataIndex: 'backup_version_no', width: 200 },
-    { title: '操作时间', dataIndex: 'started_at', width: 180, render: (v: string) => formatBeijingTime(v) },
-    { title: '状态', dataIndex: 'writeback_status', width: 100, render: v => statusTag(v) },
+    { title: t('logCenter.batchNo'), dataIndex: 'writeback_batch_no', width: 200 },
+    { title: t('common.datasource'), dataIndex: 'datasource_name', width: 150 },
+    { title: t('common.tableName'), dataIndex: 'table_name', width: 140, render: (v, r) => r.table_alias ? `${r.table_alias}（${v}）` : v },
+    { title: t('common.operator'), dataIndex: 'operator_user', width: 100 },
+    { title: t('logCenter.updated'), dataIndex: 'updated_row_count', width: 70 },
+    { title: t('logCenter.inserted'), dataIndex: 'inserted_row_count', width: 70 },
+    { title: t('logCenter.deleted'), dataIndex: 'deleted_row_count', width: 70 },
+    { title: t('logCenter.failed'), dataIndex: 'failed_row_count', width: 70 },
+    { title: t('logCenter.backupVersionNo'), dataIndex: 'backup_version_no', width: 200 },
+    { title: t('logCenter.operationTime'), dataIndex: 'started_at', width: 180, render: (v: string) => formatBeijingTime(v) },
+    { title: t('common.status'), dataIndex: 'writeback_status', width: 100, render: v => statusTag(v) },
     {
-      title: '操作', width: 100, fixed: 'right',
+      title: t('common.operation'), width: 100, fixed: 'right',
       render: (_: unknown, record: WritebackLogItem) => (
         <Button type="link" size="small" onClick={() => { setSelectedWbLogId(record.id); setDetailModalOpen(true); }}>
-          变更明细
+          {t('logCenter.changeDetail')}
         </Button>
       ),
     },
@@ -502,7 +513,7 @@ function WritebackLogTab({ dsOptions }: { dsOptions: { value: number; label: str
         onReset={() => { setFilters(defaultFilters); setPage(1); }}
         extraFields={
           <Col>
-            <Select placeholder="状态" allowClear style={{ width: 130 }}
+            <Select placeholder={t('common.status')} allowClear style={{ width: 130 }}
               options={['success','failed','partial','running'].map(v => ({ value: v, label: v }))}
               value={filters.writeback_status}
               onChange={v => setFilters({ ...filters, writeback_status: v })}
@@ -513,7 +524,7 @@ function WritebackLogTab({ dsOptions }: { dsOptions: { value: number; label: str
       <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
         scroll={{ x: 1600 }}
         pagination={{ current: page, pageSize, total, showSizeChanger: true,
-          pageSizeOptions: ['20','50','100'], showTotal: t => `共 ${t} 条`,
+          pageSizeOptions: ['20','50','100'], showTotal: (total) => t('common.total', { count: total }),
           onChange: (p, ps) => { setPage(p); setPageSize(ps); },
         }}
       />
@@ -528,6 +539,7 @@ function WritebackLogTab({ dsOptions }: { dsOptions: { value: number; label: str
 
 // ─── Export Tasks Tab (v2.3) ───
 function ExportTaskTab() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ExportTaskItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -540,7 +552,7 @@ function ExportTaskTab() {
       const res = await listExportTasks({ page, page_size: pageSize });
       setData(res.data.items);
       setTotal(res.data.total);
-    } catch { message.error('加载导出任务失败'); }
+    } catch { message.error(t('logCenter.loadFailed.exportTask')); }
     finally { setLoading(false); }
   }, [page, pageSize]);
 
@@ -564,44 +576,44 @@ function ExportTaskTab() {
       a.click();
       window.URL.revokeObjectURL(url);
     } catch {
-      message.error('下载失败');
+      message.error(t('logCenter.downloadFailed'));
     }
   };
 
   const columns: ColumnsType<ExportTaskItem> = [
-    { title: '任务ID', dataIndex: 'task_id', width: 160 },
-    { title: '表名', dataIndex: 'table_alias', width: 150, render: (v, r) => v || r.table_name || '-' },
-    { title: '导出类型', dataIndex: 'export_type', width: 100 },
-    { title: '行数', dataIndex: 'row_count', width: 80, render: v => v ?? '-' },
+    { title: t('logCenter.taskId'), dataIndex: 'task_id', width: 160 },
+    { title: t('common.tableName'), dataIndex: 'table_alias', width: 150, render: (v, r) => v || r.table_name || '-' },
+    { title: t('logCenter.exportType'), dataIndex: 'export_type', width: 100 },
+    { title: t('logCenter.rowCount'), dataIndex: 'row_count', width: 80, render: v => v ?? '-' },
     {
-      title: '状态', dataIndex: 'status', width: 100,
+      title: t('common.status'), dataIndex: 'status', width: 100,
       render: (v: string) => {
-        const map: Record<string, { color: string; text: string }> = {
-          processing: { color: 'blue', text: '处理中' },
-          completed: { color: 'green', text: '已完成' },
-          failed: { color: 'red', text: '失败' },
+        const map: Record<string, { color: string; label: string }> = {
+          processing: { color: 'blue', label: t('logCenter.statusProcessing') },
+          completed: { color: 'green', label: t('logCenter.statusCompleted') },
+          failed: { color: 'red', label: t('logCenter.statusFailed') },
         };
-        const info = map[v] || { color: 'default', text: v };
-        return <Tag color={info.color}>{info.text}</Tag>;
+        const info = map[v] || { color: 'default', label: v };
+        return <Tag color={info.color}>{info.label}</Tag>;
       },
     },
-    { title: '操作人', dataIndex: 'operator_user', width: 100 },
-    { title: '创建时间', dataIndex: 'created_at', width: 180, render: (v: string) => formatBeijingTime(v) },
-    { title: '完成时间', dataIndex: 'finished_at', width: 180, render: (v: string) => v ? formatBeijingTime(v) : '-' },
+    { title: t('common.operator'), dataIndex: 'operator_user', width: 100 },
+    { title: t('logCenter.createdTime'), dataIndex: 'created_at', width: 180, render: (v: string) => formatBeijingTime(v) },
+    { title: t('logCenter.finishedTime'), dataIndex: 'finished_at', width: 180, render: (v: string) => v ? formatBeijingTime(v) : '-' },
     {
-      title: '操作', width: 100, fixed: 'right',
+      title: t('common.operation'), width: 100, fixed: 'right',
       render: (_: unknown, record: ExportTaskItem) => {
         if (record.status === 'completed') {
           return (
             <Button type="link" size="small" onClick={() => handleDownload(record.task_id, record.file_name || undefined)}>
-              下载
+              {t('common.download')}
             </Button>
           );
         }
         if (record.status === 'failed') {
-          return <Tag color="red" style={{ fontSize: 11 }}>{record.error_message?.slice(0, 30) || '失败'}</Tag>;
+          return <Tag color="red" style={{ fontSize: 11 }}>{record.error_message?.slice(0, 30) || t('logCenter.statusFailed')}</Tag>;
         }
-        return <Tag color="blue">处理中...</Tag>;
+        return <Tag color="blue">{t('logCenter.processing')}</Tag>;
       },
     },
   ];
@@ -609,12 +621,12 @@ function ExportTaskTab() {
   return (
     <>
       <div style={{ marginBottom: 12 }}>
-        <Button onClick={() => fetchData()}>刷新</Button>
+        <Button onClick={() => fetchData()}>{t('common.refresh')}</Button>
       </div>
       <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
         scroll={{ x: 1100 }}
         pagination={{ current: page, pageSize, total, showSizeChanger: true,
-          pageSizeOptions: ['20','50','100'], showTotal: t => `共 ${t} 条`,
+          pageSizeOptions: ['20','50','100'], showTotal: (total) => t('common.total', { count: total }),
           onChange: (p, ps) => { setPage(p); setPageSize(ps); },
         }}
       />
@@ -640,11 +652,11 @@ export default function LogCenter() {
   };
 
   const items = [
-    { key: 'system', label: '系统操作日志', children: <SystemLogTab dsOptions={dsOptions} /> },
-    { key: 'export', label: '模板导出日志', children: <ExportLogTab dsOptions={dsOptions} /> },
-    { key: 'export-tasks', label: '异步导出任务', children: <ExportTaskTab /> },
-    { key: 'import', label: '模板导入日志', children: <ImportLogTab dsOptions={dsOptions} onRetryNavigate={handleRetryNavigate} /> },
-    { key: 'writeback', label: '回写日志', children: <WritebackLogTab dsOptions={dsOptions} /> },
+    { key: 'system', label: t('logCenter.systemLog'), children: <SystemLogTab dsOptions={dsOptions} /> },
+    { key: 'export', label: t('logCenter.exportLog'), children: <ExportLogTab dsOptions={dsOptions} /> },
+    { key: 'export-tasks', label: t('logCenter.exportTasks'), children: <ExportTaskTab /> },
+    { key: 'import', label: t('logCenter.importLog'), children: <ImportLogTab dsOptions={dsOptions} onRetryNavigate={handleRetryNavigate} /> },
+    { key: 'writeback', label: t('logCenter.writebackLog'), children: <WritebackLogTab dsOptions={dsOptions} /> },
   ];
 
   return (
