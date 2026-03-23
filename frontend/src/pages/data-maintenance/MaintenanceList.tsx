@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Table, Card, Input, Button, Tag, Space, Select, message } from 'antd';
-import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { SearchOutlined, ReloadOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { listMaintenanceTables } from '../../api/dataMaintenance';
+import { listMaintenanceTables, batchExportTables } from '../../api/dataMaintenance';
 import type { MaintenanceTable } from '../../api/dataMaintenance';
 import { listDatasources } from '../../api/datasource';
 import type { Datasource } from '../../api/datasource';
@@ -17,6 +17,8 @@ export default function MaintenanceList() {
   const [datasources, setDatasources] = useState<Datasource[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
+  const [batchExporting, setBatchExporting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -54,6 +56,35 @@ export default function MaintenanceList() {
     setPage(1);
     // fetchData will be triggered by page change or we call it manually
     setTimeout(() => fetchData(), 0);
+  };
+
+  const handleBatchExport = async () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先勾选要导出的表');
+      return;
+    }
+    setBatchExporting(true);
+    try {
+      const res = await batchExportTables(selectedRowKeys);
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      const disposition = res.headers?.['content-disposition'];
+      let filename = 'batch_export.zip';
+      if (disposition) {
+        const m = disposition.match(/filename\*?=(?:UTF-8'')?([^;\n]+)/i);
+        if (m) filename = decodeURIComponent(m[1].replace(/"/g, ''));
+      }
+      a.download = filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      message.success(`已导出 ${selectedRowKeys.length} 张表`);
+      setSelectedRowKeys([]);
+    } catch {
+      message.error('批量导出失败');
+    } finally {
+      setBatchExporting(false);
+    }
   };
 
   const columns = [
@@ -123,12 +154,26 @@ export default function MaintenanceList() {
         <Button icon={<ReloadOutlined />} onClick={handleReset}>
           重置
         </Button>
+        {selectedRowKeys.length > 0 && (
+          <Button
+            icon={<DownloadOutlined />}
+            type="primary"
+            loading={batchExporting}
+            onClick={handleBatchExport}
+          >
+            批量导出 ({selectedRowKeys.length})
+          </Button>
+        )}
       </Space>
       <Table
         rowKey="id"
         columns={columns}
         dataSource={data}
         loading={loading}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys as number[]),
+        }}
         pagination={{
           current: page,
           pageSize,

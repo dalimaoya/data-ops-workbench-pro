@@ -276,7 +276,41 @@ class SystemSetting(Base):
     updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)
 
 
-# ── 13. field_change_log (v2.0) ──
+# ── 13. export_task (v2.3) ──
+class ExportTask(Base):
+    __tablename__ = "export_task"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(String(64), unique=True, nullable=False)
+    table_config_id = Column(Integer, nullable=False)
+    datasource_id = Column(Integer, nullable=False)
+    export_type = Column(String(32), nullable=False, default="all")
+    export_filters_json = Column(Text, nullable=True)
+    status = Column(String(32), nullable=False, default="processing")  # processing/completed/failed
+    row_count = Column(Integer, nullable=True)
+    file_name = Column(String(255), nullable=True)
+    file_path = Column(String(500), nullable=True)
+    error_message = Column(String(1000), nullable=True)
+    operator_user = Column(String(64), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)
+    finished_at = Column(DateTime, nullable=True)
+
+
+# ── 14. notification (v2.3) ──
+class Notification(Base):
+    __tablename__ = "notification"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    message = Column(Text, nullable=True)
+    type = Column(String(32), nullable=False, default="info")  # info/success/warning/error
+    is_read = Column(SmallInteger, nullable=False, default=0)
+    related_url = Column(String(500), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)
+
+
+# ── 15. field_change_log (v2.0) ──
 class FieldChangeLog(Base):
     __tablename__ = "field_change_log"
 
