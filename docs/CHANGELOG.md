@@ -174,7 +174,7 @@
   - 管理员：所有操作
   - 操作员：查看数据、下载模板、上传模板、预览差异、提交写入
   - 只读用户：查看数据、下载模板，不允许上传写入
-- 预置管理员账号：admin / admin123
+- 预置管理员账号：admin / dalimaoya
 - 所有 API 接口加 JWT 校验中间件（HTTPBearer）
 - `operator_user` 字段从 JWT token 中获取真实用户名（替代之前硬编码的 "admin"）
 - JWT 有效期 24 小时

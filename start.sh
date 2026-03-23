@@ -27,7 +27,7 @@ if [ -x "$SERVER_BIN" ]; then
 
   echo "============================================"
   echo "  访问地址: http://localhost:${PORT}"
-  echo "  默认账号: admin / admin123"
+  echo "  默认账号: admin / dalimaoya"
   echo "  按 Ctrl+C 停止服务"
   echo "============================================"
   echo ""
@@ -127,7 +127,7 @@ print('✅ 数据库初始化完成，默认管理员账号已创建')
   echo "🚀 启动后端服务..."
   echo "============================================"
   echo "  访问地址: http://localhost:${PORT}"
-  echo "  默认账号: admin / admin123"
+  echo "  默认账号: admin / dalimaoya"
   echo "  按 Ctrl+C 停止服务"
   echo "============================================"
   echo ""

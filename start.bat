@@ -25,7 +25,7 @@ if exist "%SERVER_BIN%" (
 
     echo ============================================
     echo   URL:     http://localhost:%PORT%
-    echo   Account: admin / admin123
+    echo   Account: admin / dalimaoya
     echo   Press Ctrl+C to stop
     echo ============================================
     echo.
@@ -130,7 +130,7 @@ for /d /r "%BACKEND_DIR%\app" %%d in (__pycache__) do (
 echo.
 echo ============================================
 echo   URL:     http://localhost:%PORT%
-echo   Account: admin / admin123
+echo   Account: admin / dalimaoya
 echo   Press Ctrl+C to stop
 echo ============================================
 echo.
