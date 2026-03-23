@@ -1,21 +1,46 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Form, Input, Button, Card, message, Typography, Space } from 'antd';
-import { UserOutlined, LockOutlined, GithubOutlined, LinkOutlined } from '@ant-design/icons';
-import { login as loginApi } from '../api/auth';
+import { UserOutlined, LockOutlined, SafetyOutlined, GithubOutlined, LinkOutlined } from '@ant-design/icons';
+import { login as loginApi, getCaptcha } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 
 const { Title, Text } = Typography;
 
 export default function Login() {
   const [loading, setLoading] = useState(false);
+  const [captchaId, setCaptchaId] = useState('');
+  const [captchaImage, setCaptchaImage] = useState('');
+  const [captchaLoading, setCaptchaLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const onFinish = async (values: { username: string; password: string }) => {
+  const refreshCaptcha = useCallback(async () => {
+    setCaptchaLoading(true);
+    try {
+      const res = await getCaptcha();
+      setCaptchaId(res.data.captcha_id);
+      setCaptchaImage(res.data.image);
+    } catch {
+      message.error('获取验证码失败');
+    } finally {
+      setCaptchaLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshCaptcha();
+  }, [refreshCaptcha]);
+
+  const onFinish = async (values: { username: string; password: string; captcha_code: string }) => {
     setLoading(true);
     try {
-      const res = await loginApi(values);
+      const res = await loginApi({
+        username: values.username,
+        password: values.password,
+        captcha_id: captchaId,
+        captcha_code: values.captcha_code,
+      });
       const data = res.data;
       login(data.token, {
         username: data.username,
@@ -27,6 +52,8 @@ export default function Login() {
     } catch (err: any) {
       const msg = err.response?.data?.detail || '登录失败，请检查用户名和密码';
       message.error(msg);
+      // Refresh captcha on failure
+      refreshCaptcha();
     } finally {
       setLoading(false);
     }
@@ -79,6 +106,38 @@ export default function Login() {
               prefix={<LockOutlined />}
               placeholder="密码"
             />
+          </Form.Item>
+          <Form.Item>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Form.Item
+                name="captcha_code"
+                noStyle
+                rules={[{ required: true, message: '请输入验证码' }]}
+              >
+                <Input
+                  prefix={<SafetyOutlined />}
+                  placeholder="验证码"
+                  maxLength={4}
+                  style={{ flex: 1 }}
+                />
+              </Form.Item>
+              <img
+                src={captchaImage ? `data:image/png;base64,${captchaImage}` : ''}
+                alt="验证码"
+                onClick={refreshCaptcha}
+                style={{
+                  height: 40,
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  border: '1px solid #d9d9d9',
+                  opacity: captchaLoading ? 0.5 : 1,
+                  minWidth: 130,
+                  objectFit: 'contain',
+                  background: '#fafafa',
+                }}
+                title="点击刷新验证码"
+              />
+            </div>
           </Form.Item>
           <Form.Item>
             <Button

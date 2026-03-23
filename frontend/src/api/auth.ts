@@ -5,6 +5,8 @@ const api = axios.create({ baseURL: '/api' });
 export interface LoginRequest {
   username: string;
   password: string;
+  captcha_id: string;
+  captcha_code: string;
 }
 
 export interface LoginResponse {
@@ -22,6 +24,11 @@ export interface UserInfo {
   status: string;
 }
 
+export interface CaptchaResponse {
+  captcha_id: string;
+  image: string; // base64 png
+}
+
 export const login = (data: LoginRequest) =>
   api.post<LoginResponse>('/auth/login', data);
 
@@ -29,3 +36,6 @@ export const getMe = (token: string) =>
   api.get<UserInfo>('/auth/me', {
     headers: { Authorization: `Bearer ${token}` },
   });
+
+export const getCaptcha = () =>
+  api.get<CaptchaResponse>('/auth/captcha');
