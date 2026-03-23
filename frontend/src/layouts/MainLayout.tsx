@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Dropdown, Button, Space, Tag, Modal, Form, Input, message } from 'antd';
+import { Layout, Menu, Dropdown, Button, Space, Tag, Modal, Form, Input, message, ConfigProvider, theme } from 'antd';
 import {
   DatabaseOutlined,
   TableOutlined,
@@ -20,6 +20,32 @@ import { changeMyPassword, updateMyProfile } from '../api/users';
 
 const { Sider, Content, Header } = Layout;
 
+// 路由 → 页面标题映射
+const routeTitles: Record<string, string> = {
+  '/': '工作台总览',
+  '/datasource': '数据源管理',
+  '/table-config': '表配置管理',
+  '/data-maintenance': '数据维护',
+  '/log-center': '日志中心',
+  '/version-rollback': '版本回退',
+  '/user-management': '用户管理',
+  '/about': '关于系统',
+};
+
+function getPageTitle(pathname: string): string {
+  // 精确匹配
+  if (routeTitles[pathname]) return routeTitles[pathname];
+  // 前缀匹配（如 /data-maintenance/xxx）
+  const matched = Object.keys(routeTitles)
+    .filter(k => k !== '/' && pathname.startsWith(k))
+    .sort((a, b) => b.length - a.length);
+  if (matched.length > 0) return routeTitles[matched[0]];
+  return '工作台总览';
+}
+
+// 侧边栏自定义深蓝色
+const SIDER_BG = '#0a2540';
+
 interface MenuItem {
   key: string;
   icon: React.ReactNode;
@@ -28,7 +54,7 @@ interface MenuItem {
 }
 
 const allMenuItems: MenuItem[] = [
-  { key: '/', icon: <HomeOutlined />, label: '首页' },
+  { key: '/', icon: <HomeOutlined />, label: '工作台总览' },
   { key: '/datasource', icon: <DatabaseOutlined />, label: '数据源管理', roles: ['admin'] },
   { key: '/table-config', icon: <TableOutlined />, label: '表配置管理' },
   { key: '/data-maintenance', icon: <ToolOutlined />, label: '数据维护' },
@@ -171,31 +197,44 @@ export default function MainLayout() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        collapsible
-        collapsed={collapsed}
-        onCollapse={setCollapsed}
-        theme="dark"
-      >
-        <div style={{
-          padding: collapsed ? '16px 8px 8px' : '16px 8px 8px',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-        }}>
-          <img src="/logo.png" alt="logo" style={{ width: collapsed ? 48 : '85%', objectFit: 'contain' }} />
-          {!collapsed && (
-            <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 22, textAlign: 'center', letterSpacing: 4, whiteSpace: 'nowrap' }}>
-              数据运维工作台
-            </span>
-          )}
-        </div>
-        <Menu
+      <ConfigProvider theme={{
+        components: {
+          Menu: {
+            darkItemBg: SIDER_BG,
+            darkSubMenuItemBg: SIDER_BG,
+            darkItemSelectedBg: '#163a5c',
+            darkItemHoverBg: '#132f4c',
+          },
+        },
+      }}>
+        <Sider
+          collapsible
+          collapsed={collapsed}
+          onCollapse={setCollapsed}
           theme="dark"
-          mode="inline"
-          selectedKeys={[selectedKey]}
-          items={menuItems}
-          onClick={({ key }) => navigate(key)}
-        />
-      </Sider>
+          style={{ background: SIDER_BG }}
+        >
+          <div style={{
+            padding: collapsed ? '16px 8px 8px' : '16px 8px 8px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+          }}>
+            <img src="/logo.png" alt="logo" style={{ width: collapsed ? 48 : '85%', objectFit: 'contain' }} />
+            {!collapsed && (
+              <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 22, textAlign: 'center', letterSpacing: 4, whiteSpace: 'nowrap' }}>
+                数据运维工作台
+              </span>
+            )}
+          </div>
+          <Menu
+            theme="dark"
+            mode="inline"
+            selectedKeys={[selectedKey]}
+            items={menuItems}
+            onClick={({ key }) => navigate(key)}
+            style={{ background: SIDER_BG }}
+          />
+        </Sider>
+      </ConfigProvider>
       <Layout>
         <Header style={{
           background: '#fff', padding: '0 24px',
@@ -204,7 +243,7 @@ export default function MainLayout() {
           borderBottom: '1px solid #f0f0f0',
           fontSize: 16, fontWeight: 500,
         }}>
-          <span>数据运维工作台</span>
+          <span>{getPageTitle(location.pathname)}</span>
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
             <Button type="text" icon={<UserOutlined />}>
               {user?.display_name || user?.username}
