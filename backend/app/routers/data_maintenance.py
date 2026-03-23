@@ -1620,6 +1620,17 @@ def inline_update(
                       operator=_get_username(user))
         db.commit()
 
+        try:
+            from app.utils.notifications import notify_user_by_username
+            notify_user_by_username(
+                db, _get_username(user),
+                title="在线编辑完成",
+                message_text=f"在线编辑【{tc.table_alias or tc.table_name}】完成，更新 {success_count} 行" + (f"，失败 {fail_count} 行" if fail_count else ""),
+                notif_type="success" if fail_count == 0 else "warning",
+            )
+        except Exception:
+            pass
+
         return {
             "writeback_batch_no": wb_batch,
             "backup_version_no": bk_batch,
@@ -1787,6 +1798,17 @@ def inline_insert(
                       message=f"在线新增行 {wb_batch}，备份 {bk_batch}",
                       operator=_get_username(user))
         db.commit()
+
+        try:
+            from app.utils.notifications import notify_user_by_username
+            notify_user_by_username(
+                db, _get_username(user),
+                title="新增行完成",
+                message_text=f"在线新增【{tc.table_alias or tc.table_name}】1 行数据",
+                notif_type="success",
+            )
+        except Exception:
+            pass
 
         return {
             "writeback_batch_no": wb_batch,
@@ -1980,6 +2002,17 @@ def delete_rows(
                       message=f"删除 {success_count} 行，失败 {fail_count}，备份 {bk_batch}",
                       operator=_get_username(user))
         db.commit()
+
+        try:
+            from app.utils.notifications import notify_user_by_username
+            notify_user_by_username(
+                db, _get_username(user),
+                title="删除行完成",
+                message_text=f"删除【{tc.table_alias or tc.table_name}】{success_count} 行数据" + (f"，失败 {fail_count} 行" if fail_count else ""),
+                notif_type="success" if fail_count == 0 else "warning",
+            )
+        except Exception:
+            pass
 
         return {
             "status": wb_status,
@@ -2184,6 +2217,17 @@ def batch_insert(
                       message="批量新增 %s，成功 %d，失败 %d，备份 %s" % (wb_batch, success_count, fail_count, bk_batch),
                       operator=_get_username(user))
         db.commit()
+
+        try:
+            from app.utils.notifications import notify_user_by_username
+            notify_user_by_username(
+                db, _get_username(user),
+                title="批量新增完成",
+                message_text=f"批量新增【{tc.table_alias or tc.table_name}】{success_count} 行" + (f"，失败 {fail_count} 行" if fail_count else ""),
+                notif_type="success" if fail_count == 0 else "warning",
+            )
+        except Exception:
+            pass
 
         return {
             "writeback_batch_no": wb_batch,
