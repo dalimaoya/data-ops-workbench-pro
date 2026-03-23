@@ -49,8 +49,7 @@ echo [OK] Virtual environment activated
 
 :: Step 3: Install dependencies
 echo [INFO] Installing backend dependencies...
-pip install -q --upgrade pip
-pip install -q -r "%BACKEND_DIR%\requirements.txt"
+python -m pip install -q -r "%BACKEND_DIR%\requirements.txt"
 if !errorlevel! neq 0 (
     echo [ERROR] Failed to install dependencies
     pause
