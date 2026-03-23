@@ -1,6 +1,5 @@
 """Utilities for querying remote databases: list tables, list columns, fetch sample data, compute structure hash."""
 
-from __future__ import annotations
 import hashlib
 import json
 from typing import List, Tuple, Optional, Any, Dict
@@ -50,7 +49,7 @@ def _connect(db_type, host, port, user, password, database=None, schema=None, ch
 
 
 def list_tables(db_type: str, host: str, port: int, user: str, password: str,
-                database: str | None = None, schema: str | None = None,
+                database: Optional[str] = None, schema: Optional[str] = None,
                 charset: str = "utf8", timeout: int = 10) -> List[Dict]:
     """Return list of {table_name, table_comment}."""
     conn = _connect(db_type, host, port, user, password, database, schema, charset, timeout)
@@ -97,7 +96,7 @@ def list_tables(db_type: str, host: str, port: int, user: str, password: str,
 
 
 def list_columns(db_type: str, host: str, port: int, user: str, password: str,
-                 table_name: str, database: str | None = None, schema: str | None = None,
+                 table_name: str, database: Optional[str] = None, schema: Optional[str] = None,
                  charset: str = "utf8", timeout: int = 10) -> List[Dict]:
     """Return list of column dicts with keys: field_name, db_data_type, is_nullable, column_default, is_primary_key, ordinal_position."""
     conn = _connect(db_type, host, port, user, password, database, schema, charset, timeout)
@@ -168,7 +167,7 @@ def list_columns(db_type: str, host: str, port: int, user: str, password: str,
 
 
 def fetch_sample_data(db_type: str, host: str, port: int, user: str, password: str,
-                      table_name: str, database: str | None = None, schema: str | None = None,
+                      table_name: str, database: Optional[str] = None, schema: Optional[str] = None,
                       charset: str = "utf8", timeout: int = 10,
                       limit: int = 5) -> Tuple[List[str], List[List[Optional[str]]]]:
     """Return (columns, rows) where each cell is a string."""

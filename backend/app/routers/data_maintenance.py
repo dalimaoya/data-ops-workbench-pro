@@ -6,7 +6,7 @@ import os
 import uuid
 import tempfile
 from datetime import datetime
-from typing import List, Optional, Any
+from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse
@@ -71,7 +71,7 @@ def _get_fields(db: Session, tc_id: int) -> List[FieldConfig]:
     )
 
 
-def _qualified_table(db_type: str, table_name: str, schema: str | None) -> str:
+def _qualified_table(db_type: str, table_name: str, schema: Optional[str]) -> str:
     if db_type == "postgresql":
         sch = schema or "public"
         return f'"{sch}"."{table_name}"'
@@ -496,8 +496,8 @@ async def import_template(
         raise HTTPException(400, "模板元信息格式错误")
 
     # ── 2. Validate template legitimacy ──
-    errors: list[dict] = []
-    warnings: list[dict] = []
+    errors: List[dict] = []
+    warnings: List[dict] = []
 
     if meta.get("table_config_id") != table_config_id:
         raise HTTPException(400, f"模板不属于当前纳管表 (期望 {table_config_id}，实际 {meta.get('table_config_id')})")
@@ -527,7 +527,7 @@ async def import_template(
     field_name_map = {f.field_name: f for f in fields}
 
     # ── 5. Field completeness check ──
-    mapped_cols: dict[int, str] = {}  # col_index -> field_name
+    mapped_cols: Dict[int, str] = {}  # col_index -> field_name
     for i, h in enumerate(header_row):
         if h in field_alias_to_name:
             mapped_cols[i] = field_alias_to_name[h]
@@ -577,8 +577,8 @@ async def import_template(
 
     # ── 6. Read rows & validate ──
     pk_col_indices = [i for i, fn in mapped_cols.items() if fn in pk_fields]
-    data_rows: list[dict] = []
-    seen_pks: dict[str, int] = {}
+    data_rows: List[dict] = []
+    seen_pks: Dict[str, int] = {}
 
     for row_idx in range(2, data_ws.max_row + 1):
         row_cells = [data_ws.cell(row=row_idx, column=i + 1).value for i in range(len(header_row))]
@@ -586,9 +586,9 @@ async def import_template(
         if all(c is None or str(c).strip() == "" for c in row_cells):
             continue
 
-        row_data: dict[str, str | None] = {}
-        row_errors: list[dict] = []
-        row_warnings: list[dict] = []
+        row_data: Dict[str, Optional[str]] = {}
+        row_errors: List[dict] = []
+        row_warnings: List[dict] = []
 
         for col_i, fname in mapped_cols.items():
             val = row_cells[col_i] if col_i < len(row_cells) else None
@@ -678,7 +678,7 @@ async def import_template(
         warnings.extend(row_warnings)
 
     # ── 7. Generate diff (original vs new) ──
-    diff_rows: list[dict] = []
+    diff_rows: List[dict] = []
     passed_count = 0
     failed_count = len([r for r in data_rows if r["errors"]])
 
@@ -705,7 +705,7 @@ async def import_template(
 
             # Build PK -> row map from DB
             pk_field_indices = [all_field_names.index(p) for p in pk_fields if p in all_field_names]
-            db_pk_map: dict[str, dict] = {}
+            db_pk_map: Dict[str, dict] = {}
             for db_row in db_rows:
                 pk_val = "|".join(str(db_row[i]) if db_row[i] is not None else "" for i in pk_field_indices)
                 row_dict = {}
@@ -1011,7 +1011,7 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
         # ── Step 2: Execute UPDATEs ──
         success_count = 0
         fail_count = 0
-        failed_details: list[dict] = []
+        failed_details: List[dict] = []
         editable_fields = [f for f in fields if f.is_editable and f.include_in_import]
 
         for irow in import_rows:

@@ -1,14 +1,13 @@
 """Test connection to external databases."""
 
-from __future__ import annotations
-from typing import Tuple
+from typing import Optional, Tuple
 
 
 def test_connection(db_type: str, host: str, port: int, username: str,
-                    password: str, database_name: str | None = None,
-                    schema_name: str | None = None,
-                    charset: str | None = "utf8",
-                    connect_timeout_seconds: int | None = 10) -> Tuple[bool, str]:
+                    password: str, database_name: Optional[str] = None,
+                    schema_name: Optional[str] = None,
+                    charset: Optional[str] = "utf8",
+                    connect_timeout_seconds: Optional[int] = 10) -> Tuple[bool, str]:
     """Return (success, message)."""
     timeout = connect_timeout_seconds or 10
     try:
