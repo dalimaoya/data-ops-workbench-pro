@@ -41,6 +41,28 @@
 
 ---
 
+## v1.4.0 — 2026-03-23 独立打包部署
+
+### PyInstaller 打包
+- 新增 `backend/app.spec` — PyInstaller onedir 打包配置
+- 新增 `backend/app_entry.py` — 打包入口，处理 frozen 环境路径
+- 打包产物：`server/app/app`（Linux ELF 可执行文件，约 79MB）
+- 包含前端静态资源、所有后端依赖、数据库驱动
+
+### 一键构建脚本
+- 新增 `build.sh` — Linux 一键构建发布包
+- 新增 `build.bat` — Windows 构建占位
+
+### 启动脚本双模式
+- `start.sh` / `start.bat` 改造：检测到打包产物 → 独立模式；未检测到 → 开发模式
+- 两种模式兼容，无需用户手动切换
+
+### 注意
+- pyodbc 因系统库依赖已从打包排除（SQL Server 用户需自行安装 ODBC 驱动）
+- Windows 打包需在 Windows 环境下执行 build.bat
+
+---
+
 ## v1.3.0 — 2026-03-23 权限与账户管理
 
 ### 用户管理（管理员专属）
