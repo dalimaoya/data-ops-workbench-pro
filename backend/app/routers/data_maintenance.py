@@ -1,4 +1,4 @@
-"""Data maintenance endpoints: browse, export, import, diff, writeback."""
+"""Data maintenance endpoints: browse, export, import, diff, writeback, delete rows."""
 
 from __future__ import annotations
 import json
@@ -10,12 +10,14 @@ from typing import Dict, List, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db, DATA_DIR
 from app.models import (
     TableConfig, DatasourceConfig, FieldConfig,
     TemplateExportLog, ImportTaskLog, WritebackLog, TableBackupVersion,
+    FieldChangeLog, _now_bjt,
 )
 from app.utils.crypto import decrypt_password
 from app.utils.remote_db import _connect, fetch_sample_data, compute_structure_hash, list_columns
@@ -39,7 +41,7 @@ os.makedirs(EXPORT_DIR, exist_ok=True)
 
 
 def _gen_batch(prefix: str) -> str:
-    ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    ts = _now_bjt().strftime("%Y%m%d%H%M%S")
     rand = uuid.uuid4().hex[:4].upper()
     return f"{prefix}_{ts}_{rand}"
 
@@ -79,6 +81,19 @@ def _qualified_table(db_type: str, table_name: str, schema: Optional[str]) -> st
         sch = schema or "dbo"
         return f"[{sch}].[{table_name}]"
     return f"`{table_name}`"
+
+
+def _quote_col(db_type: str, col: str) -> str:
+    """Quote a column name for the given DB type."""
+    if db_type == "sqlserver":
+        return f"[{col}]"
+    elif db_type == "mysql":
+        return f"`{col}`"
+    return f'"{col}"'
+
+
+def _placeholder(db_type: str) -> str:
+    return "?" if db_type == "sqlserver" else "%s"
 
 
 # ─────────────────────────────────────────────
@@ -124,6 +139,8 @@ def list_maintenance_tables(
             "config_version": row.config_version,
             "structure_check_status": row.structure_check_status,
             "field_count": field_count,
+            "allow_insert_rows": row.allow_insert_rows,
+            "allow_delete_rows": row.allow_delete_rows,
             "updated_by": row.updated_by,
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         })
@@ -150,7 +167,6 @@ def browse_table_data(
         return {"columns": [], "rows": [], "total": 0, "page": page, "page_size": page_size}
 
     col_names = [f.field_name for f in display_fields]
-    col_aliases = [f.field_alias or f.field_name for f in display_fields]
 
     conn = _connect(
         ds.db_type, ds.host, ds.port, ds.username, pwd,
@@ -159,20 +175,16 @@ def browse_table_data(
     try:
         cur = conn.cursor()
         qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
+        ph = _placeholder(ds.db_type)
 
         # Build WHERE clause
-        where_parts = []
+        where_parts: List[str] = []
         params: list = []
 
         if keyword:
             kw_parts = []
             for f in display_fields:
-                if ds.db_type == "sqlserver":
-                    kw_parts.append(f"CAST([{f.field_name}] AS NVARCHAR(MAX)) LIKE ?")
-                elif ds.db_type == "mysql":
-                    kw_parts.append(f"CAST(`{f.field_name}` AS CHAR) LIKE %s")
-                else:
-                    kw_parts.append(f'CAST("{f.field_name}" AS TEXT) LIKE %s')
+                kw_parts.append(f"CAST({_quote_col(ds.db_type, f.field_name)} AS {'NVARCHAR(MAX)' if ds.db_type == 'sqlserver' else 'TEXT' if ds.db_type == 'postgresql' else 'CHAR'}) LIKE {ph}")
                 params.append(f"%{keyword}%")
             if kw_parts:
                 where_parts.append(f"({' OR '.join(kw_parts)})")
@@ -182,12 +194,7 @@ def browse_table_data(
                 ff = json.loads(field_filters)
                 for fname, fval in ff.items():
                     if fval and any(f.field_name == fname for f in display_fields):
-                        if ds.db_type == "sqlserver":
-                            where_parts.append(f"CAST([{fname}] AS NVARCHAR(MAX)) LIKE ?")
-                        elif ds.db_type == "mysql":
-                            where_parts.append(f"CAST(`{fname}` AS CHAR) LIKE %s")
-                        else:
-                            where_parts.append(f'CAST("{fname}" AS TEXT) LIKE %s')
+                        where_parts.append(f"CAST({_quote_col(ds.db_type, fname)} AS {'NVARCHAR(MAX)' if ds.db_type == 'sqlserver' else 'TEXT' if ds.db_type == 'postgresql' else 'CHAR'}) LIKE {ph}")
                         params.append(f"%{fval}%")
             except (json.JSONDecodeError, TypeError):
                 pass
@@ -197,33 +204,20 @@ def browse_table_data(
             where_sql = " WHERE " + " AND ".join(where_parts)
 
         # Count
-        count_sql = f"SELECT COUNT(*) FROM {qt}{where_sql}"
-        if ds.db_type == "sqlserver":
-            cur.execute(count_sql, params)
-        else:
-            cur.execute(count_sql, params)
+        cur.execute(f"SELECT COUNT(*) FROM {qt}{where_sql}", params)
         total = cur.fetchone()[0]
 
         # Select columns
-        if ds.db_type == "sqlserver":
-            cols_sql = ", ".join(f"[{c}]" for c in col_names)
-        elif ds.db_type == "mysql":
-            cols_sql = ", ".join(f"`{c}`" for c in col_names)
-        else:
-            cols_sql = ", ".join(f'"{c}"' for c in col_names)
+        cols_sql = ", ".join(_quote_col(ds.db_type, c) for c in col_names)
 
         offset_val = (page - 1) * page_size
         if ds.db_type == "sqlserver":
-            # SQL Server requires ORDER BY for OFFSET
             pk_fields = tc.primary_key_fields.split(",")
-            order_col = f"[{pk_fields[0].strip()}]"
-            data_sql = f"SELECT {cols_sql} FROM {qt}{where_sql} ORDER BY {order_col} OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
+            order_col = _quote_col(ds.db_type, pk_fields[0].strip())
+            data_sql = f"SELECT {cols_sql} FROM {qt}{where_sql} ORDER BY {order_col} OFFSET {ph} ROWS FETCH NEXT {ph} ROWS ONLY"
             cur.execute(data_sql, params + [offset_val, page_size])
-        elif ds.db_type == "mysql":
-            data_sql = f"SELECT {cols_sql} FROM {qt}{where_sql} LIMIT %s OFFSET %s"
-            cur.execute(data_sql, params + [page_size, offset_val])
         else:
-            data_sql = f"SELECT {cols_sql} FROM {qt}{where_sql} LIMIT %s OFFSET %s"
+            data_sql = f"SELECT {cols_sql} FROM {qt}{where_sql} LIMIT {ph} OFFSET {ph}"
             cur.execute(data_sql, params + [page_size, offset_val])
 
         raw_rows = cur.fetchall()
@@ -253,6 +247,7 @@ def browse_table_data(
             "total": total,
             "page": page,
             "page_size": page_size,
+            "allow_delete_rows": tc.allow_delete_rows,
         }
     except Exception as e:
         raise HTTPException(500, f"查询数据失败: {str(e)}")
@@ -261,7 +256,7 @@ def browse_table_data(
 
 
 # ─────────────────────────────────────────────
-# P2-3: 模板导出
+# P2-3: 模板导出 (v2.0: 空白行主键可编辑 + _meta 区分)
 # ─────────────────────────────────────────────
 
 @router.post("/{table_config_id}/export")
@@ -287,6 +282,7 @@ def export_template(
 
     col_names = [f.field_name for f in export_fields]
     pk_set = set(f.strip() for f in tc.primary_key_fields.split(","))
+    ph = _placeholder(ds.db_type)
 
     # Query data from remote DB
     conn = _connect(
@@ -297,18 +293,13 @@ def export_template(
         cur = conn.cursor()
         qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
 
-        where_parts = []
+        where_parts: List[str] = []
         params: list = []
         if export_type == "current" and (keyword or field_filters):
             if keyword:
                 kw_parts = []
                 for f in export_fields:
-                    if ds.db_type == "sqlserver":
-                        kw_parts.append(f"CAST([{f.field_name}] AS NVARCHAR(MAX)) LIKE ?")
-                    elif ds.db_type == "mysql":
-                        kw_parts.append(f"CAST(`{f.field_name}` AS CHAR) LIKE %s")
-                    else:
-                        kw_parts.append(f'CAST("{f.field_name}" AS TEXT) LIKE %s')
+                    kw_parts.append(f"CAST({_quote_col(ds.db_type, f.field_name)} AS {'NVARCHAR(MAX)' if ds.db_type == 'sqlserver' else 'TEXT' if ds.db_type == 'postgresql' else 'CHAR'}) LIKE {ph}")
                     params.append(f"%{keyword}%")
                 where_parts.append(f"({' OR '.join(kw_parts)})")
             if field_filters:
@@ -316,12 +307,7 @@ def export_template(
                     ff = json.loads(field_filters)
                     for fname, fval in ff.items():
                         if fval and any(f.field_name == fname for f in export_fields):
-                            if ds.db_type == "sqlserver":
-                                where_parts.append(f"CAST([{fname}] AS NVARCHAR(MAX)) LIKE ?")
-                            elif ds.db_type == "mysql":
-                                where_parts.append(f"CAST(`{fname}` AS CHAR) LIKE %s")
-                            else:
-                                where_parts.append(f'CAST("{fname}" AS TEXT) LIKE %s')
+                            where_parts.append(f"CAST({_quote_col(ds.db_type, fname)} AS {'NVARCHAR(MAX)' if ds.db_type == 'sqlserver' else 'TEXT' if ds.db_type == 'postgresql' else 'CHAR'}) LIKE {ph}")
                             params.append(f"%{fval}%")
                 except (json.JSONDecodeError, TypeError):
                     pass
@@ -330,13 +316,7 @@ def export_template(
         if where_parts:
             where_sql = " WHERE " + " AND ".join(where_parts)
 
-        if ds.db_type == "sqlserver":
-            cols_sql = ", ".join(f"[{c}]" for c in col_names)
-        elif ds.db_type == "mysql":
-            cols_sql = ", ".join(f"`{c}`" for c in col_names)
-        else:
-            cols_sql = ", ".join(f'"{c}"' for c in col_names)
-
+        cols_sql = ", ".join(_quote_col(ds.db_type, c) for c in col_names)
         data_sql = f"SELECT {cols_sql} FROM {qt}{where_sql}"
         cur.execute(data_sql, params)
         raw_rows = cur.fetchall()
@@ -362,8 +342,6 @@ def export_template(
     editable_field_names = set(f.field_name for f in export_fields if f.is_editable)
 
     data_row_count = len(raw_rows)
-    total_rows = 1 + data_row_count + RESERVED_BLANK_ROWS  # header + data + blank
-    total_cols = len(export_fields)
 
     # Row 1: Header (field aliases) — always locked
     for i, f in enumerate(export_fields, 1):
@@ -379,51 +357,53 @@ def export_template(
                 # 已有数据行的主键列 — 锁定
                 cell.protection = locked_cell
             elif ef.field_name in editable_field_names:
-                # 可编辑字段 — 解锁
                 cell.protection = unlocked_cell
             else:
-                # 非可编辑、非主键字段 — 锁定
                 cell.protection = locked_cell
 
-    # Reserved blank rows (for future new-row support)
+    # Reserved blank rows (for new-row support) — v2.0: 主键列也解锁
     blank_start = 2 + data_row_count
     for row_idx in range(blank_start, blank_start + RESERVED_BLANK_ROWS):
         for col_idx, ef in enumerate(export_fields, 1):
             cell = ws.cell(row=row_idx, column=col_idx, value="")
             if ef.field_name in pk_set:
-                # 空白行的主键列 — 解锁（预留新增行）
+                # v2.0: 空白行的主键列 — 解锁，允许用户填写新主键
                 cell.protection = unlocked_cell
             elif ef.field_name in editable_field_names:
                 cell.protection = unlocked_cell
             else:
                 cell.protection = locked_cell
 
-    # Enable worksheet protection (防误操作，不设密码)
+    # Enable worksheet protection
     ws.protection = SheetProtection(
         sheet=True,
         formatColumns=False,
         formatRows=False,
         formatCells=False,
         insertRows=False,
-        deleteRows=True,     # 禁止删除行
-        deleteColumns=True,  # 禁止删除列
-        insertColumns=True,  # 禁止插入列
+        deleteRows=True,
+        deleteColumns=True,
+        insertColumns=True,
         sort=False,
         autoFilter=False,
     )
 
-    # Hidden meta sheet
+    # Hidden meta sheet — v2.0: 增加 data_row_count 和 blank_row_start 标记
     meta_ws = wb.create_sheet("_meta")
     meta_info = {
         "datasource_id": tc.datasource_id,
         "table_config_id": tc.id,
         "config_version": tc.config_version,
-        "export_time": datetime.utcnow().isoformat(),
+        "export_time": _now_bjt().isoformat(),
         "export_batch_no": batch_no,
         "field_codes": [f.field_name for f in export_fields],
         "field_aliases": [f.field_alias or f.field_name for f in export_fields],
         "primary_key_fields": list(pk_set),
         "structure_hash": tc.structure_version_hash,
+        "data_row_count": data_row_count,
+        "blank_row_start": blank_start,
+        "reserved_blank_rows": RESERVED_BLANK_ROWS,
+        "allow_insert_rows": tc.allow_insert_rows,
     }
     meta_ws.cell(row=1, column=1, value=json.dumps(meta_info, ensure_ascii=False))
     meta_ws.sheet_state = "hidden"
@@ -475,7 +455,6 @@ def get_export_info(table_config_id: int, db: Session = Depends(get_db), user: U
     fields = _get_fields(db, table_config_id)
     export_fields = [f for f in fields if f.include_in_export]
 
-    # Count rows
     conn = _connect(
         ds.db_type, ds.host, ds.port, ds.username, pwd,
         tc.db_name, tc.schema_name, ds.charset, ds.connect_timeout_seconds or 10,
@@ -501,7 +480,7 @@ def get_export_info(table_config_id: int, db: Session = Depends(get_db), user: U
 
 
 # ─────────────────────────────────────────────
-# P2-5: 模板导入
+# P2-5: 模板导入 (v2.0: 支持新增行)
 # ─────────────────────────────────────────────
 
 @router.post("/{table_config_id}/import")
@@ -564,11 +543,9 @@ async def import_template(
     # ── 4. Read data sheet ──
     data_ws = wb["数据"] if "数据" in wb.sheetnames else wb.worksheets[0]
 
-    # Get header row
     header_row = [cell.value for cell in data_ws[1]]
     header_row = [h for h in header_row if h is not None]
 
-    meta_field_codes = meta.get("field_codes", [])
     pk_fields = set(meta.get("primary_key_fields", []))
 
     # Build field map
@@ -599,14 +576,13 @@ async def import_template(
         )
 
     # ── 5. Field completeness check ──
-    mapped_cols: Dict[int, str] = {}  # col_index -> field_name
+    mapped_cols: Dict[int, str] = {}
     for i, h in enumerate(header_row):
         if h in field_alias_to_name:
             mapped_cols[i] = field_alias_to_name[h]
         elif h in field_name_map:
             mapped_cols[i] = h
 
-    # Check all import fields are present
     mapped_field_names = set(mapped_cols.values())
     for f in import_fields:
         if f.field_name not in mapped_field_names and f.field_name in set(f2.field_name for f2 in export_fields):
@@ -630,6 +606,7 @@ async def import_template(
             warning_row_count=0,
             failed_row_count=len(errors),
             diff_row_count=0,
+            new_row_count=0,
             validation_status="failed",
             validation_message="主键字段缺失",
             error_detail_json=json.dumps(errors, ensure_ascii=False),
@@ -643,6 +620,7 @@ async def import_template(
             "import_batch_no": batch_no,
             "validation_status": "failed",
             "total": 0, "passed": 0, "failed": len(errors), "warnings": len(warnings),
+            "diff_count": 0, "new_count": 0,
             "errors": errors,
             "warnings_list": warnings,
         }
@@ -651,6 +629,9 @@ async def import_template(
     pk_col_indices = [i for i, fn in mapped_cols.items() if fn in pk_fields]
     data_rows: List[dict] = []
     seen_pks: Dict[str, int] = {}
+
+    # v2.0: meta 中的 data_row_count 用于区分已有行和新增行范围（仅辅助）
+    meta_data_row_count = meta.get("data_row_count", 0)
 
     for row_idx in range(2, data_ws.max_row + 1):
         row_cells = [data_ws.cell(row=row_idx, column=i + 1).value for i in range(len(header_row))]
@@ -749,10 +730,10 @@ async def import_template(
         errors.extend(row_errors)
         warnings.extend(row_warnings)
 
-    # ── 7. Generate diff (original vs new) ──
+    # ── 7. Generate diff (original vs new) — v2.0 支持新增行 ──
     diff_rows: List[dict] = []
+    new_rows: List[dict] = []
     passed_count = 0
-    failed_count = len([r for r in data_rows if r["errors"]])
 
     if not all(r["errors"] for r in data_rows):
         # Fetch current data from DB for comparison
@@ -765,17 +746,11 @@ async def import_template(
             qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
             all_field_names = [f.field_name for f in export_fields]
 
-            if ds.db_type == "sqlserver":
-                cols_sql = ", ".join(f"[{c}]" for c in all_field_names)
-            elif ds.db_type == "mysql":
-                cols_sql = ", ".join(f"`{c}`" for c in all_field_names)
-            else:
-                cols_sql = ", ".join(f'"{c}"' for c in all_field_names)
+            cols_sql = ", ".join(_quote_col(ds.db_type, c) for c in all_field_names)
 
             cur.execute(f"SELECT {cols_sql} FROM {qt}")
             db_rows = cur.fetchall()
 
-            # Build PK -> row map from DB
             pk_field_indices = [all_field_names.index(p) for p in pk_fields if p in all_field_names]
             db_pk_map: Dict[str, dict] = {}
             for db_row in db_rows:
@@ -789,54 +764,53 @@ async def import_template(
         finally:
             conn.close()
 
-        # ── 7.1 主键不可变校验 ──
-        # 从原始导出数据中提取主键值，与上传数据对比
-        # 如果上传数据中的主键行在DB中找不到，可能是用户修改了主键
-        # 构建 DB 中所有主键集合用于校验
         db_all_pk_set = set(db_pk_map.keys())
 
-        pk_modified_errors: List[dict] = []
-        for row in data_rows:
-            if row["errors"]:
-                continue
-            pk_key = row["pk_key"]
-            if pk_key not in db_all_pk_set:
-                # 主键值在数据库中不存在 — 可能是用户篡改了主键
-                pk_modified_errors.append({
-                    "row": row["row_num"],
-                    "field": ",".join(pk_fields),
-                    "type": "pk_modified",
-                    "value": pk_key,
-                    "message": f"第{row['row_num']}行 主键值「{pk_key}」在数据库中不存在，疑似主键被修改（首版不支持新增记录）",
-                })
-
-        if pk_modified_errors:
-            # 主键被修改是严重错误，直接阻断
-            errors.extend(pk_modified_errors)
-            for e in pk_modified_errors:
-                matching_row = next((r for r in data_rows if r["row_num"] == e["row"]), None)
-                if matching_row:
-                    matching_row["errors"].append(e)
-                    failed_count += 1
-
-        # Compare
+        # v2.0: 区分已有行和新增行
         editable_fields = [f for f in fields if f.is_editable and f.include_in_import]
+
         for row in data_rows:
             if row["errors"]:
                 continue
             pk_key = row["pk_key"]
-            original = db_pk_map.get(pk_key)
-            if original is None:
-                # PK not found in DB (new row - but MVP doesn't support insert)
-                row["errors"].append({
-                    "row": row["row_num"], "field": ",".join(pk_fields),
-                    "type": "pk_not_found", "value": pk_key,
-                    "message": f"第{row['row_num']}行 主键在数据库中不存在（首版不支持新增记录）",
-                })
-                errors.append(row["errors"][-1])
-                failed_count += 1
+
+            if pk_key not in db_all_pk_set:
+                # v2.0: 新增行 — 如果允许新增则标记为 insert，否则报错
+                if tc.allow_insert_rows:
+                    # 记录为新增行
+                    new_rows.append({
+                        "row_num": row["row_num"],
+                        "data": row["data"],
+                        "pk_key": pk_key,
+                        "change_type": "insert",
+                    })
+                    # 将所有字段记入 diff
+                    for ef in export_fields:
+                        fn = ef.field_name
+                        new_val = row["data"].get(fn)
+                        if new_val is not None and new_val != "":
+                            diff_rows.append({
+                                "row_num": row["row_num"],
+                                "pk_key": pk_key,
+                                "field_name": fn,
+                                "field_alias": ef.field_alias or fn,
+                                "old_value": None,
+                                "new_value": new_val,
+                                "status": "new",
+                                "change_type": "insert",
+                            })
+                    passed_count += 1
+                else:
+                    row["errors"].append({
+                        "row": row["row_num"], "field": ",".join(pk_fields),
+                        "type": "pk_not_found", "value": pk_key,
+                        "message": f"第{row['row_num']}行 主键值「{pk_key}」在数据库中不存在（该表未启用新增行功能）",
+                    })
+                    errors.append(row["errors"][-1])
                 continue
 
+            # 已有行 — 对比差异
+            original = db_pk_map[pk_key]
             has_diff = False
             for ef in editable_fields:
                 fn = ef.field_name
@@ -852,11 +826,9 @@ async def import_template(
                         "old_value": old_val,
                         "new_value": new_val,
                         "status": "changed",
+                        "change_type": "update",
                     })
-            if has_diff:
-                passed_count += 1
-            else:
-                passed_count += 1  # no change but still valid
+            passed_count += 1
 
     # ── 8. Save import task log ──
     batch_no = _gen_batch("IMP")
@@ -879,8 +851,9 @@ async def import_template(
         warning_row_count=len(warnings),
         failed_row_count=actual_failed,
         diff_row_count=len(diff_rows),
+        new_row_count=len(new_rows),
         validation_status=validation_status,
-        validation_message=f"总计 {total_rows} 行，通过 {actual_passed}，失败 {actual_failed}，差异 {len(diff_rows)} 处",
+        validation_message=f"总计 {total_rows} 行，通过 {actual_passed}（含新增 {len(new_rows)}），失败 {actual_failed}，差异 {len(diff_rows)} 处",
         error_detail_json=json.dumps(errors, ensure_ascii=False) if errors else None,
         import_status="validated",
         operator_user=_get_username(user),
@@ -889,13 +862,14 @@ async def import_template(
     db.flush()
     log_operation(db, "数据维护", "导入模板", validation_status,
                   target_id=tc.id, target_name=tc.table_name,
-                  message=f"导入模板 {file_name}，{total_rows} 行，通过 {actual_passed}，失败 {actual_failed}",
+                  message=f"导入模板 {file_name}，{total_rows} 行，通过 {actual_passed}（新增 {len(new_rows)}），失败 {actual_failed}",
                   operator=_get_username(user))
 
-    # Store diff data in a temp JSON file for later retrieval
+    # Store diff data in a temp JSON file — v2.0: 包含 new_rows
     diff_file = os.path.join(UPLOAD_DIR, f"diff_{log.id}.json")
     diff_data = {
         "diff_rows": diff_rows,
+        "new_rows": new_rows,
         "import_data": [{"row_num": r["row_num"], "data": r["data"], "pk_key": r["pk_key"]}
                         for r in data_rows if not r["errors"]],
     }
@@ -913,13 +887,14 @@ async def import_template(
         "failed": actual_failed,
         "warnings": len(warnings),
         "diff_count": len(diff_rows),
-        "errors": errors[:100],  # limit response size
+        "new_count": len(new_rows),
+        "errors": errors[:100],
         "warnings_list": warnings[:50],
     }
 
 
 # ─────────────────────────────────────────────
-# P2-8: 差异预览
+# P2-8: 差异预览 (v2.0: 区分更新行和新增行)
 # ─────────────────────────────────────────────
 
 @router.get("/import-tasks/{task_id}/diff")
@@ -930,7 +905,6 @@ def get_import_diff(task_id: int, db: Session = Depends(get_db), user: UserAccou
         raise HTTPException(404, "导入任务不存在")
 
     tc = db.query(TableConfig).filter(TableConfig.id == task.table_config_id).first()
-    ds = db.query(DatasourceConfig).filter(DatasourceConfig.id == task.datasource_id).first()
 
     diff_file = os.path.join(UPLOAD_DIR, f"diff_{task_id}.json")
     if not os.path.isfile(diff_file):
@@ -952,7 +926,9 @@ def get_import_diff(task_id: int, db: Session = Depends(get_db), user: UserAccou
         "passed_rows": task.passed_row_count,
         "failed_rows": task.failed_row_count,
         "diff_count": task.diff_row_count,
+        "new_count": task.new_row_count,
         "diff_rows": diff_data.get("diff_rows", []),
+        "new_rows": diff_data.get("new_rows", []),
         "validation_status": task.validation_status,
     }
 
@@ -983,6 +959,7 @@ def get_import_task(task_id: int, db: Session = Depends(get_db), user: UserAccou
         "warning_row_count": task.warning_row_count,
         "failed_row_count": task.failed_row_count,
         "diff_row_count": task.diff_row_count,
+        "new_row_count": task.new_row_count,
         "validation_status": task.validation_status,
         "validation_message": task.validation_message,
         "import_status": task.import_status,
@@ -993,12 +970,12 @@ def get_import_task(task_id: int, db: Session = Depends(get_db), user: UserAccou
 
 
 # ─────────────────────────────────────────────
-# P2-10: 安全回写
+# P2-10: 安全回写 (v2.0: UPDATE + INSERT + FieldChangeLog)
 # ─────────────────────────────────────────────
 
 @router.post("/import-tasks/{task_id}/writeback")
 def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(require_role("admin", "operator"))):
-    """执行回写：写前全表备份 → UPDATE → 记录日志。"""
+    """执行回写：写前全表备份 → UPDATE/INSERT → 记录逐字段变更日志。"""
     task = db.query(ImportTaskLog).filter(ImportTaskLog.id == task_id).first()
     if not task:
         raise HTTPException(404, "导入任务不存在")
@@ -1022,12 +999,18 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
         diff_data = json.load(f)
 
     import_rows = diff_data.get("import_data", [])
-    if not import_rows:
+    new_rows_data = diff_data.get("new_rows", [])
+    diff_rows_data = diff_data.get("diff_rows", [])
+    if not import_rows and not new_rows_data:
         raise HTTPException(400, "没有可回写的数据")
+
+    # 分离更新行和新增行
+    new_pk_set = set(nr["pk_key"] for nr in new_rows_data)
+    update_rows = [r for r in import_rows if r["pk_key"] not in new_pk_set]
 
     wb_batch = _gen_batch("WB")
     bk_batch = _gen_batch("BK")
-    started_at = datetime.utcnow()
+    started_at = _now_bjt()
 
     conn = _connect(
         ds.db_type, ds.host, ds.port, ds.username, pwd,
@@ -1036,9 +1019,10 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
     try:
         cur = conn.cursor()
         qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
+        ph = _placeholder(ds.db_type)
 
         # ── Step 1: Full table backup ──
-        ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        ts = _now_bjt().strftime("%Y%m%d%H%M%S")
         backup_table_name = f"{tc.table_name}_bak_{ts}"
 
         if ds.db_type == "mysql":
@@ -1051,14 +1035,9 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
             cur.execute(f"SELECT * INTO [{sch}].[{backup_table_name}] FROM {qt}")
 
         # Count backup rows
-        if ds.db_type == "mysql":
-            cur.execute(f"SELECT COUNT(*) FROM `{backup_table_name}`")
-        elif ds.db_type == "postgresql":
-            cur.execute(f'SELECT COUNT(*) FROM "{sch}"."{backup_table_name}"')
-        elif ds.db_type == "sqlserver":
-            cur.execute(f"SELECT COUNT(*) FROM [{sch}].[{backup_table_name}]")
+        bk_qt = _qualified_table(ds.db_type, backup_table_name, tc.schema_name)
+        cur.execute(f"SELECT COUNT(*) FROM {bk_qt}")
         backup_count = cur.fetchone()[0]
-
         conn.commit()
 
         # Record backup version
@@ -1076,13 +1055,13 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
             storage_status="valid",
             can_rollback=1,
             backup_started_at=started_at,
-            backup_finished_at=datetime.utcnow(),
+            backup_finished_at=_now_bjt(),
             operator_user=_get_username(user),
         )
         db.add(backup_rec)
         db.flush()
 
-        # Clean old backups (keep only backup_keep_count)
+        # Clean old backups
         old_backups = (
             db.query(TableBackupVersion)
             .filter(
@@ -1094,16 +1073,12 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
         )
         if len(old_backups) > tc.backup_keep_count:
             for old_bk in old_backups[tc.backup_keep_count:]:
-                # Drop backup table in remote DB
                 try:
-                    if ds.db_type == "mysql":
-                        cur.execute(f"DROP TABLE IF EXISTS `{old_bk.backup_table_name}`")
-                    elif ds.db_type == "postgresql":
-                        sch_old = old_bk.source_schema_name or "public"
-                        cur.execute(f'DROP TABLE IF EXISTS "{sch_old}"."{old_bk.backup_table_name}"')
-                    elif ds.db_type == "sqlserver":
-                        sch_old = old_bk.source_schema_name or "dbo"
-                        cur.execute(f"IF OBJECT_ID('[{sch_old}].[{old_bk.backup_table_name}]') IS NOT NULL DROP TABLE [{sch_old}].[{old_bk.backup_table_name}]")
+                    old_bk_qt = _qualified_table(ds.db_type, old_bk.backup_table_name, old_bk.source_schema_name)
+                    if ds.db_type == "sqlserver":
+                        cur.execute(f"IF OBJECT_ID('{old_bk_qt}') IS NOT NULL DROP TABLE {old_bk_qt}")
+                    else:
+                        cur.execute(f"DROP TABLE IF EXISTS {old_bk_qt}")
                     conn.commit()
                 except Exception:
                     pass
@@ -1113,26 +1088,31 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
         # ── Step 2: Execute UPDATEs ──
         success_count = 0
         fail_count = 0
+        update_count = 0
+        insert_count = 0
         failed_details: List[dict] = []
+        change_logs: List[dict] = []
         editable_fields = [f for f in fields if f.is_editable and f.include_in_import]
 
-        for irow in import_rows:
+        # Build diff lookup: pk_key+field_name -> {old_value, new_value}
+        diff_lookup: Dict[str, List[dict]] = {}
+        for dr in diff_rows_data:
+            key = dr["pk_key"]
+            if key not in diff_lookup:
+                diff_lookup[key] = []
+            diff_lookup[key].append(dr)
+
+        for irow in update_rows:
             row_data = irow["data"]
             pk_key = irow["pk_key"]
 
-            # Build SET clause from editable fields that changed
             set_parts = []
             set_params = []
             for ef in editable_fields:
                 fn = ef.field_name
                 if fn in row_data:
                     new_val = row_data[fn]
-                    if ds.db_type == "sqlserver":
-                        set_parts.append(f"[{fn}] = ?")
-                    elif ds.db_type == "mysql":
-                        set_parts.append(f"`{fn}` = %s")
-                    else:
-                        set_parts.append(f'"{fn}" = %s')
+                    set_parts.append(f"{_quote_col(ds.db_type, fn)} = {ph}")
                     set_params.append(new_val)
 
             if not set_parts:
@@ -1144,18 +1124,26 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
             pk_vals = pk_key.split("|")
             for i, pkf in enumerate(pk_fields_list):
                 pk_val = pk_vals[i] if i < len(pk_vals) else ""
-                if ds.db_type == "sqlserver":
-                    where_parts.append(f"CAST([{pkf}] AS NVARCHAR(MAX)) = ?")
-                elif ds.db_type == "mysql":
-                    where_parts.append(f"CAST(`{pkf}` AS CHAR) = %s")
-                else:
-                    where_parts.append(f'CAST("{pkf}" AS TEXT) = %s')
+                where_parts.append(f"CAST({_quote_col(ds.db_type, pkf)} AS {'NVARCHAR(MAX)' if ds.db_type == 'sqlserver' else 'TEXT' if ds.db_type == 'postgresql' else 'CHAR'}) = {ph}")
                 where_params.append(pk_val)
 
             update_sql = f"UPDATE {qt} SET {', '.join(set_parts)} WHERE {' AND '.join(where_parts)}"
             try:
                 cur.execute(update_sql, set_params + where_params)
                 success_count += 1
+                update_count += 1
+
+                # Record field-level changes
+                diffs_for_row = diff_lookup.get(pk_key, [])
+                for d in diffs_for_row:
+                    if d.get("change_type") == "update":
+                        change_logs.append({
+                            "row_pk_value": pk_key,
+                            "field_name": d["field_name"],
+                            "old_value": d.get("old_value"),
+                            "new_value": d.get("new_value"),
+                            "change_type": "update",
+                        })
             except Exception as e:
                 fail_count += 1
                 failed_details.append({
@@ -1164,9 +1152,52 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
                     "error": str(e),
                 })
 
+        # ── Step 3: Execute INSERTs (v2.0) ──
+        if new_rows_data:
+            # 获取所有导出字段（用于 INSERT 列列表）
+            all_export_fields = [f for f in fields if f.include_in_export]
+            insert_col_names = [f.field_name for f in all_export_fields]
+            insert_cols_sql = ", ".join(_quote_col(ds.db_type, c) for c in insert_col_names)
+            placeholders = ", ".join([ph] * len(insert_col_names))
+
+            for nr in new_rows_data:
+                row_data = nr["data"]
+                pk_key = nr["pk_key"]
+                vals = []
+                for fn in insert_col_names:
+                    v = row_data.get(fn)
+                    if v is not None and v != "":
+                        vals.append(v)
+                    else:
+                        vals.append(None)
+
+                insert_sql = f"INSERT INTO {qt} ({insert_cols_sql}) VALUES ({placeholders})"
+                try:
+                    cur.execute(insert_sql, vals)
+                    success_count += 1
+                    insert_count += 1
+
+                    # Record field-level changes for INSERT
+                    for fn, val in zip(insert_col_names, vals):
+                        if val is not None:
+                            change_logs.append({
+                                "row_pk_value": pk_key,
+                                "field_name": fn,
+                                "old_value": None,
+                                "new_value": str(val),
+                                "change_type": "insert",
+                            })
+                except Exception as e:
+                    fail_count += 1
+                    failed_details.append({
+                        "row_num": nr["row_num"],
+                        "pk_key": pk_key,
+                        "error": str(e),
+                    })
+
         conn.commit()
 
-        finished_at = datetime.utcnow()
+        finished_at = _now_bjt()
         wb_status = "success" if fail_count == 0 else ("failed" if success_count == 0 else "partial")
 
         # Record writeback log
@@ -1176,26 +1207,42 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
             table_config_id=tc.id,
             datasource_id=tc.datasource_id,
             backup_version_no=bk_batch,
-            total_row_count=len(import_rows),
+            total_row_count=len(update_rows) + len(new_rows_data),
             success_row_count=success_count,
             failed_row_count=fail_count,
             skipped_row_count=0,
+            inserted_row_count=insert_count,
+            updated_row_count=update_count,
+            deleted_row_count=0,
             writeback_status=wb_status,
-            writeback_message=f"成功 {success_count}，失败 {fail_count}",
+            writeback_message=f"更新 {update_count}，新增 {insert_count}，失败 {fail_count}",
             failed_detail_json=json.dumps(failed_details, ensure_ascii=False) if failed_details else None,
             operator_user=_get_username(user),
             started_at=started_at,
             finished_at=finished_at,
         )
         db.add(wb_log)
+        db.flush()
+
+        # ── Step 4: Record field-level change logs (v2.0 Task 3) ──
+        for cl in change_logs:
+            db.add(FieldChangeLog(
+                writeback_log_id=wb_log.id,
+                row_pk_value=cl["row_pk_value"],
+                field_name=cl["field_name"],
+                old_value=cl["old_value"],
+                new_value=cl["new_value"],
+                change_type=cl["change_type"],
+            ))
+
         log_operation(db, "数据维护", "执行回写", wb_status,
                       target_id=tc.id, target_name=tc.table_name,
-                      message=f"回写 {wb_batch}，成功 {success_count}，失败 {fail_count}，备份 {bk_batch}",
+                      message=f"回写 {wb_batch}，更新 {update_count}，新增 {insert_count}，失败 {fail_count}，备份 {bk_batch}",
                       operator=_get_username(user))
 
         # Update import task status
         task.import_status = "confirmed"
-        task.updated_at = datetime.utcnow()
+        task.updated_at = _now_bjt()
 
         db.commit()
 
@@ -1203,9 +1250,11 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
             "writeback_batch_no": wb_batch,
             "backup_version_no": bk_batch,
             "status": wb_status,
-            "total": len(import_rows),
+            "total": len(update_rows) + len(new_rows_data),
             "success": success_count,
             "failed": fail_count,
+            "updated": update_count,
+            "inserted": insert_count,
             "backup_table": backup_table_name,
             "backup_record_count": backup_count,
             "operator_user": _get_username(user),
@@ -1219,5 +1268,195 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
     except Exception as e:
         conn.rollback()
         raise HTTPException(500, f"回写失败: {str(e)}")
+    finally:
+        conn.close()
+
+
+# ─────────────────────────────────────────────
+# v2.0 Task 2: 数据浏览页面直接删除行
+# ─────────────────────────────────────────────
+
+class DeleteRowsRequest(BaseModel):
+    pk_values: List[str]  # 主键值列表，复合主键用 | 分隔
+
+
+@router.delete("/{table_config_id}/rows")
+def delete_rows(
+    table_config_id: int,
+    body: DeleteRowsRequest,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin", "operator")),
+):
+    """按主键批量删除数据行（写前备份 + 逐字段变更日志）。"""
+    tc = _get_tc(db, table_config_id)
+    if not tc.allow_delete_rows:
+        raise HTTPException(403, "该纳管表未启用删除行功能")
+
+    ds = _get_ds(db, tc.datasource_id)
+    pwd = decrypt_password(ds.password_encrypted)
+    fields = _get_fields(db, tc.id)
+    pk_fields_list = [p.strip() for p in tc.primary_key_fields.split(",")]
+    export_fields = [f for f in fields if f.include_in_export]
+    all_field_names = [f.field_name for f in export_fields]
+
+    if not body.pk_values:
+        raise HTTPException(400, "未选择要删除的行")
+
+    conn = _connect(
+        ds.db_type, ds.host, ds.port, ds.username, pwd,
+        tc.db_name, tc.schema_name, ds.charset, ds.connect_timeout_seconds or 10,
+    )
+    try:
+        cur = conn.cursor()
+        qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
+        ph = _placeholder(ds.db_type)
+
+        # ── Step 1: Backup ──
+        wb_batch = _gen_batch("DEL")
+        bk_batch = _gen_batch("BK")
+        started_at = _now_bjt()
+
+        ts = _now_bjt().strftime("%Y%m%d%H%M%S")
+        backup_table_name = f"{tc.table_name}_bak_{ts}"
+
+        if ds.db_type == "mysql":
+            cur.execute(f"CREATE TABLE `{backup_table_name}` AS SELECT * FROM {qt}")
+        elif ds.db_type == "postgresql":
+            sch = tc.schema_name or "public"
+            cur.execute(f'CREATE TABLE "{sch}"."{backup_table_name}" AS SELECT * FROM {qt}')
+        elif ds.db_type == "sqlserver":
+            sch = tc.schema_name or "dbo"
+            cur.execute(f"SELECT * INTO [{sch}].[{backup_table_name}] FROM {qt}")
+
+        bk_qt = _qualified_table(ds.db_type, backup_table_name, tc.schema_name)
+        cur.execute(f"SELECT COUNT(*) FROM {bk_qt}")
+        backup_count = cur.fetchone()[0]
+        conn.commit()
+
+        backup_rec = TableBackupVersion(
+            backup_version_no=bk_batch,
+            table_config_id=tc.id,
+            datasource_id=tc.datasource_id,
+            backup_table_name=backup_table_name,
+            source_table_name=tc.table_name,
+            source_db_name=tc.db_name,
+            source_schema_name=tc.schema_name,
+            trigger_type="triggered_by_delete",
+            related_writeback_batch_no=wb_batch,
+            record_count=backup_count,
+            storage_status="valid",
+            can_rollback=1,
+            backup_started_at=started_at,
+            backup_finished_at=_now_bjt(),
+            operator_user=_get_username(user),
+        )
+        db.add(backup_rec)
+        db.flush()
+
+        # ── Step 2: Fetch rows to be deleted (for change log) ──
+        cols_sql = ", ".join(_quote_col(ds.db_type, c) for c in all_field_names)
+
+        success_count = 0
+        fail_count = 0
+        failed_details: List[dict] = []
+        change_logs: List[dict] = []
+
+        for pk_val_str in body.pk_values:
+            pk_vals = pk_val_str.split("|")
+
+            # Fetch the row first for change log
+            where_parts = []
+            where_params = []
+            for i, pkf in enumerate(pk_fields_list):
+                pv = pk_vals[i] if i < len(pk_vals) else ""
+                where_parts.append(f"CAST({_quote_col(ds.db_type, pkf)} AS {'NVARCHAR(MAX)' if ds.db_type == 'sqlserver' else 'TEXT' if ds.db_type == 'postgresql' else 'CHAR'}) = {ph}")
+                where_params.append(pv)
+
+            where_sql = " AND ".join(where_parts)
+
+            try:
+                # Read row before delete
+                cur.execute(f"SELECT {cols_sql} FROM {qt} WHERE {where_sql}", where_params)
+                row_before = cur.fetchone()
+
+                # DELETE
+                cur.execute(f"DELETE FROM {qt} WHERE {where_sql}", where_params)
+                success_count += 1
+
+                # Record change log
+                if row_before:
+                    for j, fn in enumerate(all_field_names):
+                        old_val = str(row_before[j]) if row_before[j] is not None else None
+                        if old_val is not None:
+                            change_logs.append({
+                                "row_pk_value": pk_val_str,
+                                "field_name": fn,
+                                "old_value": old_val,
+                                "new_value": None,
+                                "change_type": "delete",
+                            })
+            except Exception as e:
+                fail_count += 1
+                failed_details.append({"pk_key": pk_val_str, "error": str(e)})
+
+        conn.commit()
+        finished_at = _now_bjt()
+        wb_status = "success" if fail_count == 0 else ("failed" if success_count == 0 else "partial")
+
+        # Record writeback log (reuse WritebackLog for delete operations)
+        wb_log = WritebackLog(
+            writeback_batch_no=wb_batch,
+            import_task_id=0,  # 无关联导入任务
+            table_config_id=tc.id,
+            datasource_id=tc.datasource_id,
+            backup_version_no=bk_batch,
+            total_row_count=len(body.pk_values),
+            success_row_count=success_count,
+            failed_row_count=fail_count,
+            skipped_row_count=0,
+            inserted_row_count=0,
+            updated_row_count=0,
+            deleted_row_count=success_count,
+            writeback_status=wb_status,
+            writeback_message=f"删除 {success_count} 行，失败 {fail_count} 行",
+            failed_detail_json=json.dumps(failed_details, ensure_ascii=False) if failed_details else None,
+            operator_user=_get_username(user),
+            started_at=started_at,
+            finished_at=finished_at,
+        )
+        db.add(wb_log)
+        db.flush()
+
+        # Record field-level change logs
+        for cl in change_logs:
+            db.add(FieldChangeLog(
+                writeback_log_id=wb_log.id,
+                row_pk_value=cl["row_pk_value"],
+                field_name=cl["field_name"],
+                old_value=cl["old_value"],
+                new_value=cl["new_value"],
+                change_type=cl["change_type"],
+            ))
+
+        log_operation(db, "数据维护", "删除数据行", wb_status,
+                      target_id=tc.id, target_name=tc.table_name,
+                      message=f"删除 {success_count} 行，失败 {fail_count}，备份 {bk_batch}",
+                      operator=_get_username(user))
+        db.commit()
+
+        return {
+            "status": wb_status,
+            "deleted": success_count,
+            "failed": fail_count,
+            "backup_version_no": bk_batch,
+            "backup_table": backup_table_name,
+            "failed_details": failed_details[:50],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, f"删除失败: {str(e)}")
     finally:
         conn.close()

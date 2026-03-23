@@ -56,7 +56,7 @@ export default function DiffPreview() {
         <Result
           status={writeResult.status === 'success' ? 'success' : writeResult.status === 'failed' ? 'error' : 'warning'}
           title={writeResult.status === 'success' ? '写入成功' : writeResult.status === 'failed' ? '写入失败' : '部分写入成功'}
-          subTitle={`成功 ${writeResult.success} 条，失败 ${writeResult.failed} 条`}
+          subTitle={`更新 ${writeResult.updated} 条，新增 ${writeResult.inserted} 条，失败 ${writeResult.failed} 条`}
           extra={[
             <Button key="back" onClick={() => navigate(`/data-maintenance/browse/${diffData?.table_config_id}`)}>
               返回数据浏览
@@ -71,6 +71,8 @@ export default function DiffPreview() {
             <Descriptions.Item label="备份版本号">{writeResult.backup_version_no}</Descriptions.Item>
             <Descriptions.Item label="备份表名">{writeResult.backup_table}</Descriptions.Item>
             <Descriptions.Item label="备份记录数">{writeResult.backup_record_count}</Descriptions.Item>
+            <Descriptions.Item label="更新行数">{writeResult.updated}</Descriptions.Item>
+            <Descriptions.Item label="新增行数">{writeResult.inserted}</Descriptions.Item>
             <Descriptions.Item label="操作人">{writeResult.operator_user}</Descriptions.Item>
             <Descriptions.Item label="完成时间">{writeResult.finished_at}</Descriptions.Item>
           </Descriptions>
@@ -97,22 +99,37 @@ export default function DiffPreview() {
       title: '原值',
       dataIndex: 'old_value',
       key: 'old_value',
-      render: (v: string | null) => <span style={{ color: '#999' }}>{v ?? 'NULL'}</span>,
+      render: (v: string | null, record: { change_type?: string }) =>
+        record.change_type === 'insert'
+          ? <span style={{ color: '#999', fontStyle: 'italic' }}>—</span>
+          : <span style={{ color: '#999' }}>{v ?? 'NULL'}</span>,
     },
     {
       title: '新值',
       dataIndex: 'new_value',
       key: 'new_value',
-      render: (v: string | null) => <span style={{ color: '#1890ff', fontWeight: 500 }}>{v ?? 'NULL'}</span>,
+      render: (v: string | null, record: { change_type?: string }) =>
+        <span style={{ color: record.change_type === 'insert' ? '#52c41a' : '#1890ff', fontWeight: 500 }}>{v ?? 'NULL'}</span>,
     },
     {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
+      title: '类型',
+      dataIndex: 'change_type',
+      key: 'change_type',
       width: 80,
-      render: (v: string) => <Tag color={v === 'changed' ? 'orange' : 'default'}>{v === 'changed' ? '已变更' : v}</Tag>,
+      render: (v: string) => {
+        const map: Record<string, { color: string; text: string }> = {
+          update: { color: 'orange', text: '更新' },
+          insert: { color: 'green', text: '新增' },
+        };
+        const info = map[v] || { color: 'default', text: v };
+        return <Tag color={info.color}>{info.text}</Tag>;
+      },
     },
   ];
+
+  // Count update vs insert diff rows
+  const updateDiffCount = diffData?.diff_rows?.filter(d => d.change_type === 'update').length ?? 0;
+  const insertDiffCount = diffData?.diff_rows?.filter(d => d.change_type === 'insert').length ?? 0;
 
   return (
     <div>
@@ -140,12 +157,18 @@ export default function DiffPreview() {
         <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
           <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 'bold' }}>{diffData.passed_rows}</div>
-            <div style={{ color: '#666' }}>拟更新记录数</div>
+            <div style={{ color: '#666' }}>拟操作记录数</div>
           </Card>
           <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ fontSize: 24, fontWeight: 'bold', color: '#1890ff' }}>{diffData.diff_count}</div>
-            <div style={{ color: '#666' }}>差异项数</div>
+            <div style={{ fontSize: 24, fontWeight: 'bold', color: '#1890ff' }}>{updateDiffCount}</div>
+            <div style={{ color: '#666' }}>更新差异项</div>
           </Card>
+          {(diffData.new_count ?? 0) > 0 && (
+            <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: '#52c41a' }}>{diffData.new_count}</div>
+              <div style={{ color: '#666' }}>新增行数</div>
+            </Card>
+          )}
           <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 'bold', color: '#ff4d4f' }}>{diffData.failed_rows}</div>
             <div style={{ color: '#666' }}>失败记录数</div>
@@ -162,6 +185,7 @@ export default function DiffPreview() {
           scroll={{ x: 800 }}
           pagination={{ pageSize: 50, showTotal: t => `共 ${t} 处差异` }}
           size="small"
+          rowClassName={(record) => record.change_type === 'insert' ? 'ant-table-row-insert' : ''}
         />
 
         <div style={{ marginTop: 16, textAlign: 'right' }}>
@@ -185,6 +209,13 @@ export default function DiffPreview() {
           </Space>
         </div>
       </Card>
+
+      {/* Style for insert rows */}
+      <style>{`
+        .ant-table-row-insert td {
+          background-color: #f6ffed !important;
+        }
+      `}</style>
     </div>
   );
 }

@@ -1,18 +1,25 @@
-"""Platform database models - 8 core tables."""
+"""Platform database models - 11 core tables (incl. field_change_log for v2.0)."""
 
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from sqlalchemy import (
     Column, Integer, String, Text, DateTime, SmallInteger
 )
 from app.database import Base
 
+# 北京时间 UTC+8
+_BJT = timezone(timedelta(hours=8))
+
+
+def _now_bjt() -> datetime:
+    return datetime.now(_BJT)
+
 
 # ── Mixin for audit fields ──
 class AuditMixin:
     created_by = Column(String(64), nullable=False, default="system")
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)
     updated_by = Column(String(64), nullable=False, default="system")
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)
     is_deleted = Column(SmallInteger, nullable=False, default=0)
 
 
@@ -114,7 +121,7 @@ class TemplateExportLog(Base):
     operator_user = Column(String(64), nullable=False)
     operator_ip = Column(String(64), nullable=True)
     remark = Column(String(500), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)
 
 
 # ── 5. import_task_log ──
@@ -134,14 +141,15 @@ class ImportTaskLog(Base):
     warning_row_count = Column(Integer, nullable=False, default=0)
     failed_row_count = Column(Integer, nullable=False, default=0)
     diff_row_count = Column(Integer, nullable=False, default=0)
+    new_row_count = Column(Integer, nullable=False, default=0)
     validation_status = Column(String(32), nullable=False, default="waiting")
     validation_message = Column(String(1000), nullable=True)
     error_detail_json = Column(Text, nullable=True)
     import_status = Column(String(32), nullable=False, default="uploaded")
     operator_user = Column(String(64), nullable=False)
     operator_ip = Column(String(64), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)
+    updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)
 
 
 # ── 6. writeback_log ──
@@ -158,6 +166,9 @@ class WritebackLog(Base):
     success_row_count = Column(Integer, nullable=False, default=0)
     failed_row_count = Column(Integer, nullable=False, default=0)
     skipped_row_count = Column(Integer, nullable=False, default=0)
+    inserted_row_count = Column(Integer, nullable=False, default=0)
+    updated_row_count = Column(Integer, nullable=False, default=0)
+    deleted_row_count = Column(Integer, nullable=False, default=0)
     writeback_status = Column(String(32), nullable=False, default="running")
     writeback_message = Column(String(1000), nullable=True)
     failed_detail_json = Column(Text, nullable=True)
@@ -165,7 +176,7 @@ class WritebackLog(Base):
     operator_ip = Column(String(64), nullable=True)
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)
 
 
 # ── 7. table_backup_version ──
@@ -189,7 +200,7 @@ class TableBackupVersion(Base):
     backup_finished_at = Column(DateTime, nullable=True)
     operator_user = Column(String(64), nullable=False)
     remark = Column(String(500), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)
 
 
 # ── 8. user_account ──
@@ -202,8 +213,8 @@ class UserAccount(Base):
     role = Column(String(32), nullable=False, default="readonly")  # admin / operator / readonly
     display_name = Column(String(128), nullable=True)
     status = Column(String(32), nullable=False, default="enabled")
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)
+    updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)
 
 
 # ── 9. system_operation_log ──
@@ -223,4 +234,18 @@ class SystemOperationLog(Base):
     request_params_json = Column(Text, nullable=True)
     operator_user = Column(String(64), nullable=False)
     operator_ip = Column(String(64), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)
+
+
+# ── 10. field_change_log (v2.0) ──
+class FieldChangeLog(Base):
+    __tablename__ = "field_change_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    writeback_log_id = Column(Integer, nullable=False, index=True)
+    row_pk_value = Column(String(500), nullable=False)
+    field_name = Column(String(128), nullable=False)
+    old_value = Column(Text, nullable=True)
+    new_value = Column(Text, nullable=True)
+    change_type = Column(String(32), nullable=False)  # update / insert / delete
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)

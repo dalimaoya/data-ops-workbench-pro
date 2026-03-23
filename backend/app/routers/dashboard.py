@@ -10,6 +10,7 @@ from app.database import get_db
 from app.models import (
     DatasourceConfig, TableConfig, TemplateExportLog,
     ImportTaskLog, WritebackLog, SystemOperationLog, UserAccount,
+    _now_bjt,
 )
 from app.utils.auth import get_current_user
 
@@ -30,7 +31,7 @@ def dashboard_stats(
         TableConfig.is_deleted == 0
     ).scalar() or 0
 
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = _now_bjt().replace(hour=0, minute=0, second=0, microsecond=0)
 
     export_today = db.query(func.count(TemplateExportLog.id)).filter(
         TemplateExportLog.created_at >= today_start
@@ -109,7 +110,7 @@ def dashboard_alerts(
         })
 
     # 最近 7 天导入失败
-    week_ago = datetime.utcnow() - timedelta(days=7)
+    week_ago = _now_bjt() - timedelta(days=7)
     failed_imports = (
         db.query(ImportTaskLog)
         .filter(

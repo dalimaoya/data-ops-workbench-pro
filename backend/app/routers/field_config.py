@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import FieldConfig, TableConfig, UserAccount
+from app.models import FieldConfig, TableConfig, UserAccount, _now_bjt
 from app.schemas.table_config import FieldConfigOut, FieldConfigUpdate, FieldConfigBatchUpdate
 from app.utils.auth import get_current_user, require_role
 
@@ -68,7 +68,7 @@ def update_field(
     for k, v in updates.items():
         setattr(row, k, v)
     row.updated_by = user.username
-    row.updated_at = datetime.utcnow()
+    row.updated_at = _now_bjt()
     db.commit()
     db.refresh(row)
     return row
@@ -93,7 +93,7 @@ def batch_update_fields(
             for k, v in updates.items():
                 setattr(row, k, v)
             row.updated_by = user.username
-            row.updated_at = datetime.utcnow()
+            row.updated_at = _now_bjt()
             count += 1
     db.commit()
     return {"detail": f"已更新 {count} 个字段"}
@@ -112,6 +112,6 @@ def delete_field(
     if not row:
         raise HTTPException(404, "字段不存在")
     row.is_deleted = 1
-    row.updated_at = datetime.utcnow()
+    row.updated_at = _now_bjt()
     db.commit()
     return {"detail": "已删除"}

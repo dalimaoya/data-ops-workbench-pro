@@ -5,8 +5,9 @@ import {
 } from 'antd';
 import {
   SearchOutlined, DownloadOutlined, UploadOutlined, ReloadOutlined, ArrowLeftOutlined,
+  DeleteOutlined, ExclamationCircleOutlined,
 } from '@ant-design/icons';
-import { browseTableData, getExportInfo, exportTemplate } from '../../api/dataMaintenance';
+import { browseTableData, getExportInfo, exportTemplate, deleteRows } from '../../api/dataMaintenance';
 import type { ColumnMeta } from '../../api/dataMaintenance';
 import { getTableConfig } from '../../api/tableConfig';
 import { useAuth } from '../../context/AuthContext';
@@ -15,7 +16,7 @@ export default function DataBrowse() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const canUpload = user?.role === 'admin' || user?.role === 'operator';
+  const canOperate = user?.role === 'admin' || user?.role === 'operator';
   const tableConfigId = Number(id);
 
   const [columns, setColumns] = useState<ColumnMeta[]>([]);
@@ -28,12 +29,20 @@ export default function DataBrowse() {
   const [filterField, setFilterField] = useState<string>();
   const [filterValue, setFilterValue] = useState('');
   const [tableInfo, setTableInfo] = useState<Record<string, unknown>>({});
+  const [allowDelete, setAllowDelete] = useState(false);
+
+  // Row selection for delete
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
 
   // Export modal
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportType, setExportType] = useState<'all' | 'current'>('all');
   const [exportInfo, setExportInfo] = useState<Record<string, unknown>>({});
   const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // PK fields for building pk_key
+  const [pkFieldNames, setPkFieldNames] = useState<string[]>([]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -51,6 +60,10 @@ export default function DataBrowse() {
       setColumns(res.data.columns);
       setRows(res.data.rows);
       setTotal(res.data.total);
+      setAllowDelete(!!res.data.allow_delete_rows);
+      // Identify PK fields
+      const pks = res.data.columns.filter(c => c.is_primary_key).map(c => c.field_name);
+      setPkFieldNames(pks);
     } catch {
       message.error('获取数据失败');
     } finally {
@@ -66,6 +79,10 @@ export default function DataBrowse() {
   useEffect(() => { fetchData(); }, [page, pageSize]);
 
   const handleSearch = () => { setPage(1); fetchData(); };
+
+  // Build PK key for a row
+  const buildPkKey = (row: Record<string, string | null>) =>
+    pkFieldNames.map(pk => row[pk] ?? '').join('|');
 
   const tableColumns = columns.map((col) => ({
     title: col.field_alias,
@@ -99,7 +116,6 @@ export default function DataBrowse() {
         keyword: exportType === 'current' ? keyword || undefined : undefined,
         field_filters: exportType === 'current' && Object.keys(fieldFilters).length ? JSON.stringify(fieldFilters) : undefined,
       });
-      // Download blob
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const a = document.createElement('a');
       a.href = url;
@@ -120,6 +136,46 @@ export default function DataBrowse() {
       setExporting(false);
     }
   };
+
+  // v2.0: Delete selected rows
+  const handleDeleteRows = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先勾选要删除的行');
+      return;
+    }
+    Modal.confirm({
+      title: '确认删除',
+      icon: <ExclamationCircleOutlined />,
+      content: `确定要删除选中的 ${selectedRowKeys.length} 行数据吗？删除前将自动备份全表。此操作不可撤销。`,
+      okText: '确认删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        setDeleting(true);
+        try {
+          const res = await deleteRows(tableConfigId, selectedRowKeys);
+          if (res.data.status === 'success') {
+            message.success(`成功删除 ${res.data.deleted} 行`);
+          } else {
+            message.warning(`删除 ${res.data.deleted} 行，失败 ${res.data.failed} 行`);
+          }
+          setSelectedRowKeys([]);
+          fetchData();
+        } catch (e: unknown) {
+          const err = e as { response?: { data?: { detail?: string } } };
+          message.error(err?.response?.data?.detail || '删除失败');
+        } finally {
+          setDeleting(false);
+        }
+      },
+    });
+  };
+
+  // Row selection config
+  const rowSelection = (canOperate && allowDelete) ? {
+    selectedRowKeys,
+    onChange: (keys: React.Key[]) => setSelectedRowKeys(keys as string[]),
+  } : undefined;
 
   return (
     <div>
@@ -188,17 +244,28 @@ export default function DataBrowse() {
           </Col>
           <Col>
             <Space>
+              {canOperate && allowDelete && selectedRowKeys.length > 0 && (
+                <Button
+                  icon={<DeleteOutlined />}
+                  danger
+                  loading={deleting}
+                  onClick={handleDeleteRows}
+                >
+                  删除选中行 ({selectedRowKeys.length})
+                </Button>
+              )}
               <Button icon={<DownloadOutlined />} onClick={handleExportClick}>导出模板</Button>
-              {canUpload && <Button icon={<UploadOutlined />} onClick={() => navigate(`/data-maintenance/import/${tableConfigId}`)}>上传修订模板</Button>}
+              {canOperate && <Button icon={<UploadOutlined />} onClick={() => navigate(`/data-maintenance/import/${tableConfigId}`)}>上传修订模板</Button>}
             </Space>
           </Col>
         </Row>
 
         <Table
-          rowKey={(_r, i) => String(i)}
+          rowKey={(r) => buildPkKey(r)}
           columns={tableColumns}
           dataSource={rows}
           loading={loading}
+          rowSelection={rowSelection}
           scroll={{ x: Math.max(columns.length * 150, 800) }}
           pagination={{
             current: page,

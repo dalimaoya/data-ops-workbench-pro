@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import DatasourceConfig
+from app.models import DatasourceConfig, _now_bjt
 from app.schemas.datasource import (
     DatasourceCreate, DatasourceUpdate, DatasourceOut,
     TestConnectionRequest, TestConnectionResponse,
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/datasource", tags=["数据源管理"])
 
 
 def _gen_code(db: Session) -> str:
-    today = datetime.utcnow().strftime("%Y%m%d")
+    today = _now_bjt().strftime("%Y%m%d")
     prefix = f"DS_{today}_"
     last = (
         db.query(DatasourceConfig)
@@ -132,7 +132,7 @@ def update_datasource(ds_id: int, body: DatasourceUpdate, db: Session = Depends(
     for k, v in updates.items():
         setattr(row, k, v)
     row.updated_by = user.username
-    row.updated_at = datetime.utcnow()
+    row.updated_at = _now_bjt()
     log_operation(db, "数据源管理", "编辑数据源", "success",
                   target_id=row.id, target_code=row.datasource_code,
                   target_name=row.datasource_name,
@@ -151,7 +151,7 @@ def delete_datasource(ds_id: int, db: Session = Depends(get_db), user: UserAccou
     if not row:
         raise HTTPException(404, "数据源不存在")
     row.is_deleted = 1
-    row.updated_at = datetime.utcnow()
+    row.updated_at = _now_bjt()
     log_operation(db, "数据源管理", "删除数据源", "success",
                   target_id=row.id, target_code=row.datasource_code,
                   target_name=row.datasource_name,
@@ -188,7 +188,7 @@ def test_existing_datasource(ds_id: int, db: Session = Depends(get_db), user: Us
     )
     row.last_test_status = "success" if ok else "failed"
     row.last_test_message = msg
-    row.last_test_at = datetime.utcnow()
+    row.last_test_at = _now_bjt()
     log_operation(db, "数据源管理", "测试连接", "success" if ok else "failed",
                   target_id=row.id, target_code=row.datasource_code,
                   target_name=row.datasource_name,
