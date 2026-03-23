@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Form, Select, Button, Input, Space, Table, message, Spin } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
 import { listDatasources, type Datasource } from '../../api/datasource';
 import { getRemoteTables, createTableConfig, type RemoteTableInfo } from '../../api/tableConfig';
 
@@ -11,6 +12,7 @@ export default function TableConfigCreate() {
   const [remoteTables, setRemoteTables] = useState<RemoteTableInfo[]>([]);
   const [loadingTables, setLoadingTables] = useState(false);
   const [selectedTable, setSelectedTable] = useState<RemoteTableInfo | undefined>();
+  const [tableSearch, setTableSearch] = useState('');
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
 
@@ -92,13 +94,23 @@ export default function TableConfigCreate() {
           />
           {selectedDs && (
             <Spin spinning={loadingTables}>
+              <Input
+                placeholder="搜索表名"
+                prefix={<SearchOutlined />}
+                allowClear
+                style={{ width: 300, marginTop: 16, marginBottom: 8 }}
+                value={tableSearch}
+                onChange={e => setTableSearch(e.target.value)}
+              />
               <Table
                 rowKey="table_name"
                 columns={tableColumns}
-                dataSource={remoteTables}
+                dataSource={remoteTables.filter(t =>
+                  !tableSearch || t.table_name.toLowerCase().includes(tableSearch.toLowerCase())
+                  || (t.table_comment && t.table_comment.toLowerCase().includes(tableSearch.toLowerCase()))
+                )}
                 size="small"
                 pagination={{ pageSize: 10 }}
-                style={{ marginTop: 16 }}
               />
             </Spin>
           )}
