@@ -15,6 +15,7 @@ import ImportPage from './pages/data-maintenance/ImportPage';
 import DiffPreview from './pages/data-maintenance/DiffPreview';
 import LogCenter from './pages/log-center/LogCenter';
 import VersionRollback from './pages/version-rollback/VersionRollback';
+import About from './pages/About';
 
 function RequireAuth({ children }: { children: React.JSX.Element }) {
   const { isAuthenticated } = useAuth();
@@ -49,6 +50,7 @@ function App() {
         <Route path="/data-maintenance/diff/:taskId" element={<DiffPreview />} />
         <Route path="/log-center" element={<LogCenter />} />
         <Route path="/version-rollback" element={<VersionRollback />} />
+        <Route path="/about" element={<About />} />
         <Route path="/system-settings" element={<PlaceHolder title="系统设置" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

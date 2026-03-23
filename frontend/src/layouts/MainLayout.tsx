@@ -11,6 +11,7 @@ import {
   SettingOutlined,
   UserOutlined,
   LogoutOutlined,
+  InfoCircleOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,6 +25,7 @@ const menuItems = [
   { key: '/log-center', icon: <FileTextOutlined />, label: '日志中心' },
   { key: '/version-rollback', icon: <HistoryOutlined />, label: '版本回退' },
   { key: '/system-settings', icon: <SettingOutlined />, label: '系统设置' },
+  { key: '/about', icon: <InfoCircleOutlined />, label: '关于' },
 ];
 
 const roleLabels: Record<string, string> = {
