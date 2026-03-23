@@ -13,6 +13,8 @@ export interface MaintenanceTable {
   config_version: number;
   structure_check_status?: string;
   field_count?: number;
+  allow_insert_rows?: number;
+  allow_delete_rows?: number;
   updated_by?: string;
   updated_at?: string;
 }
@@ -32,6 +34,7 @@ export interface BrowseResponse {
   total: number;
   page: number;
   page_size: number;
+  allow_delete_rows?: number;
 }
 
 export interface ExportInfo {
@@ -52,6 +55,7 @@ export interface ImportResult {
   failed: number;
   warnings: number;
   diff_count: number;
+  new_count: number;
   errors: Array<{
     row: number;
     field: string;
@@ -75,6 +79,7 @@ export interface DiffRow {
   old_value: string | null;
   new_value: string | null;
   status: string;
+  change_type?: string;  // v2.0: "update" | "insert"
 }
 
 export interface DiffResponse {
@@ -90,7 +95,9 @@ export interface DiffResponse {
   passed_rows: number;
   failed_rows: number;
   diff_count: number;
+  new_count: number;
   diff_rows: DiffRow[];
+  new_rows?: Array<{ row_num: number; data: Record<string, string | null>; pk_key: string; change_type: string }>;
   validation_status: string;
 }
 
@@ -101,6 +108,8 @@ export interface WritebackResult {
   total: number;
   success: number;
   failed: number;
+  updated: number;
+  inserted: number;
   backup_table: string;
   backup_record_count: number;
   operator_user: string;
@@ -121,6 +130,7 @@ export interface ImportTaskDetail {
   warning_row_count: number;
   failed_row_count: number;
   diff_row_count: number;
+  new_row_count: number;
   validation_status: string;
   validation_message?: string;
   import_status: string;
@@ -133,6 +143,15 @@ export interface ImportTaskDetail {
     value?: string;
     message: string;
   }>;
+}
+
+export interface DeleteRowsResult {
+  status: string;
+  deleted: number;
+  failed: number;
+  backup_version_no: string;
+  backup_table: string;
+  failed_details: Array<{ pk_key: string; error: string }>;
 }
 
 // 可维护表列表
@@ -174,3 +193,9 @@ export const getImportDiff = (taskId: number) =>
 // 执行回写
 export const executeWriteback = (taskId: number) =>
   api.post<WritebackResult>(`/data-maintenance/import-tasks/${taskId}/writeback`);
+
+// v2.0: 批量删除行
+export const deleteRows = (tableConfigId: number, pkValues: string[]) =>
+  api.delete<DeleteRowsResult>(`/data-maintenance/${tableConfigId}/rows`, {
+    data: { pk_values: pkValues },
+  });

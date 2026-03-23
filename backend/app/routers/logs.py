@@ -4,13 +4,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import (
     SystemOperationLog, TemplateExportLog, ImportTaskLog, WritebackLog,
-    DatasourceConfig, TableConfig, UserAccount,
+    DatasourceConfig, TableConfig, UserAccount, FieldChangeLog,
 )
 from app.utils.auth import get_current_user
 
@@ -315,8 +315,55 @@ def list_writeback_logs(
             "writeback_status": r.writeback_status,
             "writeback_message": r.writeback_message,
             "operator_user": r.operator_user,
+            "inserted_row_count": r.inserted_row_count,
+            "updated_row_count": r.updated_row_count,
+            "deleted_row_count": r.deleted_row_count,
             "started_at": r.started_at.isoformat() if r.started_at else None,
             "finished_at": r.finished_at.isoformat() if r.finished_at else None,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        })
+
+    return {"total": total, "items": items}
+
+
+# ─────────────────────────────────────────────
+# v2.0: 逐字段变更明细日志
+# ─────────────────────────────────────────────
+
+@router.get("/writeback/{writeback_log_id}/field-changes")
+def list_field_changes(
+    writeback_log_id: int,
+    field_name: Optional[str] = None,
+    change_type: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
+):
+    """查询某次回写的逐字段变更明细。"""
+    wb = db.query(WritebackLog).filter(WritebackLog.id == writeback_log_id).first()
+    if not wb:
+        raise HTTPException(404, "回写日志不存在")
+
+    q = db.query(FieldChangeLog).filter(FieldChangeLog.writeback_log_id == writeback_log_id)
+    if field_name:
+        q = q.filter(FieldChangeLog.field_name == field_name)
+    if change_type:
+        q = q.filter(FieldChangeLog.change_type == change_type)
+
+    total = q.count()
+    rows = q.order_by(FieldChangeLog.id).offset((page - 1) * page_size).limit(page_size).all()
+
+    items = []
+    for r in rows:
+        items.append({
+            "id": r.id,
+            "writeback_log_id": r.writeback_log_id,
+            "row_pk_value": r.row_pk_value,
+            "field_name": r.field_name,
+            "old_value": r.old_value,
+            "new_value": r.new_value,
+            "change_type": r.change_type,
             "created_at": r.created_at.isoformat() if r.created_at else None,
         })
 

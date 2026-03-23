@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import (
     TableBackupVersion, TableConfig, DatasourceConfig, WritebackLog,
-    SystemOperationLog,
+    SystemOperationLog, _now_bjt,
 )
 from app.utils.crypto import decrypt_password
 from app.utils.remote_db import _connect
@@ -33,7 +33,7 @@ def _qualified_table(db_type: str, table_name: str, schema: Optional[str]) -> st
 
 def _gen_batch(prefix: str) -> str:
     import uuid
-    ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    ts = _now_bjt().strftime("%Y%m%d%H%M%S")
     rand = uuid.uuid4().hex[:4].upper()
     return f"{prefix}_{ts}_{rand}"
 
@@ -187,7 +187,7 @@ def rollback_version(version_id: int, db: Session = Depends(get_db), user: UserA
         raise HTTPException(404, "数据源不存在")
 
     pwd = decrypt_password(ds.password_encrypted)
-    started_at = datetime.utcnow()
+    started_at = _now_bjt()
 
     conn = _connect(
         ds.db_type, ds.host, ds.port, ds.username, pwd,
@@ -198,7 +198,7 @@ def rollback_version(version_id: int, db: Session = Depends(get_db), user: UserA
         qt_source = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
 
         # ── Step 1: Backup current data before rollback ──
-        ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        ts = _now_bjt().strftime("%Y%m%d%H%M%S")
         pre_rollback_backup_name = f"{tc.table_name}_pre_rb_{ts}"
         pre_rb_batch = _gen_batch("BK")
 
@@ -232,7 +232,7 @@ def rollback_version(version_id: int, db: Session = Depends(get_db), user: UserA
             storage_status="valid",
             can_rollback=1,
             backup_started_at=started_at,
-            backup_finished_at=datetime.utcnow(),
+            backup_finished_at=_now_bjt(),
             operator_user=user.username,
             remark=f"回退前自动备份，回退目标版本: {bv.backup_version_no}",
         )
@@ -258,7 +258,7 @@ def rollback_version(version_id: int, db: Session = Depends(get_db), user: UserA
         restored_count = cur.fetchone()[0]
 
         conn.commit()
-        finished_at = datetime.utcnow()
+        finished_at = _now_bjt()
 
         # ── Step 3: Record rollback operation log ──
         _log_operation(

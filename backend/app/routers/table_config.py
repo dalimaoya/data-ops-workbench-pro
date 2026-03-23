@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import TableConfig, DatasourceConfig, FieldConfig
+from app.models import TableConfig, DatasourceConfig, FieldConfig, _now_bjt
 from app.schemas.table_config import (
     TableConfigCreate, TableConfigUpdate, TableConfigOut,
     RemoteTablesResponse, RemoteTableInfo,
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/table-config", tags=["纳管表配置"])
 
 
 def _gen_code(db: Session) -> str:
-    today = datetime.utcnow().strftime("%Y%m%d")
+    today = _now_bjt().strftime("%Y%m%d")
     prefix = f"TB_{today}_"
     last = (
         db.query(TableConfig)
@@ -213,8 +213,8 @@ def create_table_config(body: TableConfigCreate, db: Session = Depends(get_db), 
         strict_field_order=body.strict_field_order,
         status="enabled",
         structure_check_status="normal",
-        last_structure_check_at=datetime.utcnow(),
-        last_sync_at=datetime.utcnow(),
+        last_structure_check_at=_now_bjt(),
+        last_sync_at=_now_bjt(),
         created_by=user.username,
         updated_by=user.username,
     )
@@ -290,7 +290,7 @@ def _merge_fields(db: Session, table_config_id: int, columns: list, pk_fields_st
             if col.get("sample_value") is not None:
                 existing.sample_value = str(col["sample_value"])
             existing.updated_by = operator_name
-            existing.updated_at = datetime.utcnow()
+            existing.updated_at = _now_bjt()
         else:
             # New field — create with defaults
             fc = FieldConfig(
@@ -317,7 +317,7 @@ def _merge_fields(db: Session, table_config_id: int, columns: list, pk_fields_st
     for fname, existing in existing_map.items():
         if fname not in remote_field_names:
             existing.is_deleted = 1
-            existing.updated_at = datetime.utcnow()
+            existing.updated_at = _now_bjt()
 
 
 def _auto_generate_fields(db: Session, table_config_id: int, columns: list, pk_fields_str: str, operator_name: str = "system"):
@@ -362,7 +362,7 @@ def update_table_config(tc_id: int, body: TableConfigUpdate, db: Session = Depen
     for k, v in updates.items():
         setattr(row, k, v)
     row.updated_by = user.username
-    row.updated_at = datetime.utcnow()
+    row.updated_at = _now_bjt()
     row.config_version = row.config_version + 1
     log_operation(db, "纳管表配置", "编辑纳管表", "success",
                   target_id=row.id, target_code=row.table_config_code,
@@ -383,7 +383,7 @@ def delete_table_config(tc_id: int, db: Session = Depends(get_db), user: UserAcc
     if not row:
         raise HTTPException(404, "纳管表不存在")
     row.is_deleted = 1
-    row.updated_at = datetime.utcnow()
+    row.updated_at = _now_bjt()
     # Also soft-delete fields
     db.query(FieldConfig).filter(FieldConfig.table_config_id == tc_id).update(
         {"is_deleted": 1}, synchronize_session=False
@@ -418,7 +418,7 @@ def check_structure(tc_id: int, db: Session = Depends(get_db), user: UserAccount
         )
     except Exception as e:
         row.structure_check_status = "error"
-        row.last_structure_check_at = datetime.utcnow()
+        row.last_structure_check_at = _now_bjt()
         db.commit()
         return StructureCheckResponse(
             status="error", message=f"无法连接远程数据库: {str(e)}",
@@ -430,7 +430,7 @@ def check_structure(tc_id: int, db: Session = Depends(get_db), user: UserAccount
 
     if current_hash == saved_hash:
         row.structure_check_status = "normal"
-        row.last_structure_check_at = datetime.utcnow()
+        row.last_structure_check_at = _now_bjt()
         log_operation(db, "纳管表配置", "结构检测", "success",
                       target_id=row.id, target_name=row.table_name,
                       message="表结构未发生变化",
@@ -442,7 +442,7 @@ def check_structure(tc_id: int, db: Session = Depends(get_db), user: UserAccount
         )
     else:
         row.structure_check_status = "changed"
-        row.last_structure_check_at = datetime.utcnow()
+        row.last_structure_check_at = _now_bjt()
         log_operation(db, "纳管表配置", "结构检测", "warning",
                       target_id=row.id, target_name=row.table_name,
                       message="表结构已发生变化",
@@ -503,10 +503,10 @@ def sync_fields(tc_id: int, db: Session = Depends(get_db), user: UserAccount = D
     new_hash = compute_structure_hash(columns)
     row.structure_version_hash = new_hash
     row.structure_check_status = "normal"
-    row.last_structure_check_at = datetime.utcnow()
-    row.last_sync_at = datetime.utcnow()
+    row.last_structure_check_at = _now_bjt()
+    row.last_sync_at = _now_bjt()
     row.config_version = row.config_version + 1
-    row.updated_at = datetime.utcnow()
+    row.updated_at = _now_bjt()
     log_operation(db, "纳管表配置", "字段同步", "success",
                   target_id=row.id, target_name=row.table_name,
                   message=f"字段同步完成，{len(columns)} 个字段",

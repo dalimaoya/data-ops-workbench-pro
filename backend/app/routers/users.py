@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import UserAccount
+from app.models import UserAccount, _now_bjt
 from app.utils.auth import (
     get_current_user, require_role, hash_password, verify_password,
 )
@@ -138,7 +138,7 @@ def update_user(
         if body.role not in ("admin", "operator", "readonly"):
             raise HTTPException(400, "角色必须为 admin / operator / readonly")
         target.role = body.role
-    target.updated_at = datetime.utcnow()
+    target.updated_at = _now_bjt()
     log_operation(
         db, "用户管理", "编辑用户", "success",
         target_id=target.id,
@@ -173,7 +173,7 @@ def update_user_status(
     if body.status not in ("enabled", "disabled"):
         raise HTTPException(400, "状态必须为 enabled / disabled")
     target.status = body.status
-    target.updated_at = datetime.utcnow()
+    target.updated_at = _now_bjt()
     action = "启用用户" if body.status == "enabled" else "禁用用户"
     log_operation(
         db, "用户管理", action, "success",
@@ -197,7 +197,7 @@ def reset_user_password(
     if not target:
         raise HTTPException(404, "用户不存在")
     target.password_hash = hash_password(body.new_password)
-    target.updated_at = datetime.utcnow()
+    target.updated_at = _now_bjt()
     log_operation(
         db, "用户管理", "重置密码", "success",
         target_id=target.id,
@@ -222,7 +222,7 @@ def change_my_password(
     if len(body.new_password) < 4:
         raise HTTPException(400, "新密码长度不能少于4位")
     user.password_hash = hash_password(body.new_password)
-    user.updated_at = datetime.utcnow()
+    user.updated_at = _now_bjt()
     log_operation(
         db, "个人设置", "修改密码", "success",
         target_id=user.id,
@@ -241,7 +241,7 @@ def update_my_profile(
     user: UserAccount = Depends(get_current_user),
 ):
     user.display_name = body.display_name
-    user.updated_at = datetime.utcnow()
+    user.updated_at = _now_bjt()
     log_operation(
         db, "个人设置", "修改显示名", "success",
         target_id=user.id,

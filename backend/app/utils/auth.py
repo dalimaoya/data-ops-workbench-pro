@@ -11,7 +11,7 @@ import hashlib
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import UserAccount
+from app.models import UserAccount, _now_bjt
 
 SECRET_KEY = os.environ.get("JWT_SECRET", "data-ops-workbench-secret-key-2026")
 ALGORITHM = "HS256"
@@ -32,7 +32,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS))
+    expire = _now_bjt() + (expires_delta or timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 

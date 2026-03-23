@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Card, Table, Tabs, Input, Select, DatePicker, Button, Tag, Row, Col, message,
+  Card, Table, Tabs, Input, Select, DatePicker, Button, Tag, Row, Col, message, Modal,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
-  listSystemLogs, listExportLogs, listImportLogs, listWritebackLogs,
-  type SystemLog, type ExportLog, type ImportLog, type WritebackLogItem,
+  listSystemLogs, listExportLogs, listImportLogs, listWritebackLogs, listFieldChanges,
+  type SystemLog, type ExportLog, type ImportLog, type WritebackLogItem, type FieldChangeItem,
 } from '../../api/logs';
 import { listDatasources } from '../../api/datasource';
 import { formatBeijingTime } from '../../utils/formatTime';
@@ -61,6 +61,16 @@ const statusTag = (s: string) => {
     running: 'blue', validated: 'cyan', uploaded: 'default', confirmed: 'green',
   };
   return <Tag color={colorMap[s] || 'default'}>{s}</Tag>;
+};
+
+const changeTypeTag = (s: string) => {
+  const map: Record<string, { color: string; text: string }> = {
+    update: { color: 'orange', text: '更新' },
+    insert: { color: 'green', text: '新增' },
+    delete: { color: 'red', text: '删除' },
+  };
+  const info = map[s] || { color: 'default', text: s };
+  return <Tag color={info.color}>{info.text}</Tag>;
 };
 
 // ─── System Logs Tab ───
@@ -282,6 +292,110 @@ function ImportLogTab({ dsOptions }: { dsOptions: { value: number; label: string
   );
 }
 
+// ─── Field Change Detail Modal ───
+function FieldChangeModal({
+  writebackLogId, open, onClose,
+}: {
+  writebackLogId: number; open: boolean; onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<FieldChangeItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [fieldNameFilter, setFieldNameFilter] = useState('');
+  const [changeTypeFilter, setChangeTypeFilter] = useState<string | undefined>();
+
+  const fetchData = useCallback(async () => {
+    if (!open || !writebackLogId) return;
+    setLoading(true);
+    try {
+      const params: Record<string, unknown> = { page, page_size: pageSize };
+      if (fieldNameFilter) params.field_name = fieldNameFilter;
+      if (changeTypeFilter) params.change_type = changeTypeFilter;
+      const res = await listFieldChanges(writebackLogId, params);
+      setData(res.data.items);
+      setTotal(res.data.total);
+    } catch {
+      message.error('加载变更明细失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [writebackLogId, open, page, pageSize, fieldNameFilter, changeTypeFilter]);
+
+  useEffect(() => {
+    if (open) {
+      setPage(1);
+      fetchData();
+    }
+  }, [open, writebackLogId]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const columns: ColumnsType<FieldChangeItem> = [
+    { title: '行主键', dataIndex: 'row_pk_value', width: 180 },
+    { title: '字段名', dataIndex: 'field_name', width: 150 },
+    {
+      title: '原值', dataIndex: 'old_value', ellipsis: true,
+      render: (v: string | null) => v !== null ? <span style={{ color: '#999' }}>{v}</span> : <span style={{ color: '#ccc', fontStyle: 'italic' }}>NULL</span>,
+    },
+    {
+      title: '新值', dataIndex: 'new_value', ellipsis: true,
+      render: (v: string | null) => v !== null ? <span style={{ color: '#1890ff', fontWeight: 500 }}>{v}</span> : <span style={{ color: '#ccc', fontStyle: 'italic' }}>NULL</span>,
+    },
+    { title: '变更类型', dataIndex: 'change_type', width: 90, render: v => changeTypeTag(v) },
+  ];
+
+  return (
+    <Modal
+      title="变更明细"
+      open={open}
+      onCancel={onClose}
+      footer={null}
+      width={900}
+      destroyOnClose
+    >
+      <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
+        <Col>
+          <Input placeholder="字段名" allowClear style={{ width: 150 }}
+            value={fieldNameFilter}
+            onChange={e => setFieldNameFilter(e.target.value)}
+            onPressEnter={() => { setPage(1); fetchData(); }}
+          />
+        </Col>
+        <Col>
+          <Select placeholder="变更类型" allowClear style={{ width: 120 }}
+            value={changeTypeFilter}
+            onChange={v => { setChangeTypeFilter(v); setPage(1); }}
+            options={[
+              { value: 'update', label: '更新' },
+              { value: 'insert', label: '新增' },
+              { value: 'delete', label: '删除' },
+            ]}
+          />
+        </Col>
+        <Col>
+          <Button type="primary" onClick={() => { setPage(1); fetchData(); }}>查询</Button>
+        </Col>
+      </Row>
+      <Table
+        rowKey="id"
+        columns={columns}
+        dataSource={data}
+        loading={loading}
+        scroll={{ x: 800 }}
+        pagination={{
+          current: page, pageSize, total, showSizeChanger: true,
+          pageSizeOptions: ['50', '100', '200'],
+          showTotal: t => `共 ${t} 条`,
+          onChange: (p, ps) => { setPage(p); setPageSize(ps); },
+        }}
+        size="small"
+      />
+    </Modal>
+  );
+}
+
 // ─── Writeback Logs Tab ───
 function WritebackLogTab({ dsOptions }: { dsOptions: { value: number; label: string }[] }) {
   const [loading, setLoading] = useState(false);
@@ -291,6 +405,10 @@ function WritebackLogTab({ dsOptions }: { dsOptions: { value: number; label: str
   const [pageSize, setPageSize] = useState(20);
   const defaultFilters = { datasource_id: undefined, table_name: '', operator_user: '', timeRange: null, writeback_status: undefined };
   const [filters, setFilters] = useState<Record<string, any>>(defaultFilters);
+
+  // Field change detail modal
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [selectedWbLogId, setSelectedWbLogId] = useState(0);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -318,12 +436,21 @@ function WritebackLogTab({ dsOptions }: { dsOptions: { value: number; label: str
     { title: '数据源', dataIndex: 'datasource_name', width: 150 },
     { title: '表名', dataIndex: 'table_name', width: 140, render: (v, r) => r.table_alias ? `${r.table_alias}（${v}）` : v },
     { title: '操作人', dataIndex: 'operator_user', width: 100 },
-    { title: '文件名', dataIndex: 'file_name', width: 200, ellipsis: true },
-    { title: '成功数', dataIndex: 'success_row_count', width: 80 },
-    { title: '失败数', dataIndex: 'failed_row_count', width: 80 },
+    { title: '更新', dataIndex: 'updated_row_count', width: 70 },
+    { title: '新增', dataIndex: 'inserted_row_count', width: 70 },
+    { title: '删除', dataIndex: 'deleted_row_count', width: 70 },
+    { title: '失败', dataIndex: 'failed_row_count', width: 70 },
     { title: '备份版本号', dataIndex: 'backup_version_no', width: 200 },
     { title: '操作时间', dataIndex: 'started_at', width: 180, render: (v: string) => formatBeijingTime(v) },
     { title: '状态', dataIndex: 'writeback_status', width: 100, render: v => statusTag(v) },
+    {
+      title: '操作', width: 100, fixed: 'right',
+      render: (_: unknown, record: WritebackLogItem) => (
+        <Button type="link" size="small" onClick={() => { setSelectedWbLogId(record.id); setDetailModalOpen(true); }}>
+          变更明细
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -342,11 +469,16 @@ function WritebackLogTab({ dsOptions }: { dsOptions: { value: number; label: str
         }
       />
       <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
-        scroll={{ x: 1500 }}
+        scroll={{ x: 1600 }}
         pagination={{ current: page, pageSize, total, showSizeChanger: true,
           pageSizeOptions: ['20','50','100'], showTotal: t => `共 ${t} 条`,
           onChange: (p, ps) => { setPage(p); setPageSize(ps); },
         }}
+      />
+      <FieldChangeModal
+        writebackLogId={selectedWbLogId}
+        open={detailModalOpen}
+        onClose={() => setDetailModalOpen(false)}
       />
     </>
   );

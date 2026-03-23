@@ -71,11 +71,25 @@ export interface WritebackLogItem {
   success_row_count: number;
   failed_row_count: number;
   skipped_row_count: number;
+  inserted_row_count: number;
+  updated_row_count: number;
+  deleted_row_count: number;
   writeback_status: string;
   writeback_message?: string;
   operator_user: string;
   started_at?: string;
   finished_at?: string;
+  created_at?: string;
+}
+
+export interface FieldChangeItem {
+  id: number;
+  writeback_log_id: number;
+  row_pk_value: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  change_type: string;
   created_at?: string;
 }
 
@@ -90,3 +104,7 @@ export const listImportLogs = (params?: Record<string, unknown>) =>
 
 export const listWritebackLogs = (params?: Record<string, unknown>) =>
   api.get<{ total: number; items: WritebackLogItem[] }>('/logs/writeback', { params });
+
+// v2.0: 逐字段变更明细
+export const listFieldChanges = (writebackLogId: number, params?: Record<string, unknown>) =>
+  api.get<{ total: number; items: FieldChangeItem[] }>(`/logs/writeback/${writebackLogId}/field-changes`, { params });
