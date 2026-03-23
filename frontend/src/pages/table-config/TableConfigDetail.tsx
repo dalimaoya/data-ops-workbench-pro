@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Card, Descriptions, Form, Switch, InputNumber, Button, Space, message, Table, Tag, Spin, Typography,
+  Card, Descriptions, Form, Switch, InputNumber, Button, Space, message, Table, Tag, Spin,
 } from 'antd';
 import {
   getTableConfig, updateTableConfig, getSampleData, checkStructure, syncFields,
@@ -103,7 +103,6 @@ export default function TableConfigDetail() {
 
   return (
     <div>
-      <Typography.Title level={4} style={{ marginBottom: 16 }}>表配置管理</Typography.Title>
       <Card title="表基础信息" style={{ marginBottom: 16 }} extra={
         <Space>
           <Button size="small" onClick={handleCheckStructure}>检查表结构</Button>

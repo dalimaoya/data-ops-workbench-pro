@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Table, Button, Space, Tag, Input, Select, message, Popconfirm, Card, Typography,
+  Table, Button, Space, Tag, Input, Select, message, Popconfirm, Card,
 } from 'antd';
 import { PlusOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -115,29 +115,25 @@ export default function DatasourceList() {
   ];
 
   return (
-    <div>
-      <Typography.Title level={4} style={{ marginBottom: 16 }}>数据源管理</Typography.Title>
-      <Card style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <Input
-            placeholder="搜索数据源名称"
-            value={keyword}
-            onChange={e => setKeyword(e.target.value)}
-            onPressEnter={handleSearch}
-            style={{ width: 200 }}
-            prefix={<SearchOutlined />}
-          />
-          <Select options={dbTypeOptions} value={dbType} onChange={setDbType} style={{ width: 140 }} placeholder="数据库类型" />
-          <Select options={statusOptions} value={status} onChange={setStatus} style={{ width: 120 }} placeholder="状态" />
-          <Button icon={<SearchOutlined />} type="primary" onClick={handleSearch}>查询</Button>
-          <Button icon={<ReloadOutlined />} onClick={() => { setKeyword(''); setDbType(''); setStatus(''); setPage(1); setTimeout(fetchData, 0); }}>重置</Button>
-        </Space>
-      </Card>
+    <Card
+      title="数据源管理"
+      extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/datasource/create')}>新建数据源</Button>}
+    >
+      <Space wrap style={{ marginBottom: 16 }}>
+        <Input
+          placeholder="搜索数据源名称"
+          value={keyword}
+          onChange={e => setKeyword(e.target.value)}
+          onPressEnter={handleSearch}
+          style={{ width: 200 }}
+          prefix={<SearchOutlined />}
+        />
+        <Select options={dbTypeOptions} value={dbType} onChange={setDbType} style={{ width: 140 }} placeholder="数据库类型" />
+        <Select options={statusOptions} value={status} onChange={setStatus} style={{ width: 120 }} placeholder="状态" />
+        <Button icon={<SearchOutlined />} type="primary" onClick={handleSearch}>查询</Button>
+        <Button icon={<ReloadOutlined />} onClick={() => { setKeyword(''); setDbType(''); setStatus(''); setPage(1); setTimeout(fetchData, 0); }}>重置</Button>
+      </Space>
 
-      <Card
-        title="数据源列表"
-        extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/datasource/create')}>新建数据源</Button>}
-      >
         <Table
           rowKey="id"
           columns={columns}
@@ -153,7 +149,6 @@ export default function DatasourceList() {
             onChange: (p, ps) => { setPage(p); setPageSize(ps); },
           }}
         />
-      </Card>
-    </div>
+    </Card>
   );
 }
