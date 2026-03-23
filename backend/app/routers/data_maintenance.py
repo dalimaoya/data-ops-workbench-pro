@@ -139,8 +139,8 @@ def list_maintenance_tables(
             "config_version": row.config_version,
             "structure_check_status": row.structure_check_status,
             "field_count": field_count,
-            "allow_insert_rows": row.allow_insert_rows,
-            "allow_delete_rows": row.allow_delete_rows,
+            "allow_insert_rows": row.allow_insert_rows if user.role in ("admin", "operator") else 0,
+            "allow_delete_rows": row.allow_delete_rows if user.role in ("admin", "operator") else 0,
             "updated_by": row.updated_by,
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         })
@@ -247,7 +247,7 @@ def browse_table_data(
             "total": total,
             "page": page,
             "page_size": page_size,
-            "allow_delete_rows": tc.allow_delete_rows,
+            "allow_delete_rows": tc.allow_delete_rows if user.role in ("admin", "operator") else 0,
         }
     except Exception as e:
         raise HTTPException(500, f"查询数据失败: {str(e)}")
