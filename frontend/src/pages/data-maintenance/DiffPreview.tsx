@@ -130,6 +130,7 @@ export default function DiffPreview() {
   // Count update vs insert diff rows
   const updateDiffCount = diffData?.diff_rows?.filter(d => d.change_type === 'update').length ?? 0;
   const insertDiffCount = diffData?.diff_rows?.filter(d => d.change_type === 'insert').length ?? 0;
+  void insertDiffCount;
 
   return (
     <div>

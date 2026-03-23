@@ -13,8 +13,10 @@ export interface RecentOperation {
   operation_type: string;
   operation_module: string;
   target_name: string | null;
+  table_alias: string | null;
   operation_status: string;
   operation_message: string | null;
+  readable_desc: string | null;
   operator_user: string;
   created_at: string | null;
 }
@@ -25,6 +27,7 @@ export interface Alert {
   title: string;
   message: string;
   target_id: number;
+  table_config_id?: number;
   target_name: string;
   created_at: string | null;
 }

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Table, Card, Input, Button, Tag, Space, message } from 'antd';
+import { Table, Card, Input, Button, Tag, Space, Select, message } from 'antd';
 import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { listMaintenanceTables } from '../../api/dataMaintenance';
 import type { MaintenanceTable } from '../../api/dataMaintenance';
+import { listDatasources } from '../../api/datasource';
+import type { Datasource } from '../../api/datasource';
 import { formatBeijingTime } from '../../utils/formatTime';
 
 export default function MaintenanceList() {
@@ -11,14 +13,25 @@ export default function MaintenanceList() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [keyword, setKeyword] = useState('');
+  const [datasourceId, setDatasourceId] = useState<number | undefined>(undefined);
+  const [datasources, setDatasources] = useState<Datasource[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    listDatasources({ page_size: 100 }).then(r => setDatasources(r.data)).catch(() => {});
+  }, []);
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await listMaintenanceTables({ keyword: keyword || undefined, page, page_size: pageSize });
+      const res = await listMaintenanceTables({
+        keyword: keyword || undefined,
+        datasource_id: datasourceId,
+        page,
+        page_size: pageSize,
+      });
       setData(res.data.items);
       setTotal(res.data.total);
     } catch {
@@ -29,6 +42,19 @@ export default function MaintenanceList() {
   };
 
   useEffect(() => { fetchData(); }, [page, pageSize]);
+
+  const handleSearch = () => {
+    setPage(1);
+    fetchData();
+  };
+
+  const handleReset = () => {
+    setKeyword('');
+    setDatasourceId(undefined);
+    setPage(1);
+    // fetchData will be triggered by page change or we call it manually
+    setTimeout(() => fetchData(), 0);
+  };
 
   const columns = [
     {
@@ -73,18 +99,29 @@ export default function MaintenanceList() {
 
   return (
     <Card title="数据维护">
-      <Space style={{ marginBottom: 16 }}>
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Select
+          placeholder="选择数据源"
+          allowClear
+          value={datasourceId}
+          onChange={(v) => setDatasourceId(v)}
+          style={{ width: 200 }}
+          options={datasources.map(ds => ({ label: ds.datasource_name, value: ds.id }))}
+        />
         <Input
           placeholder="搜索表名/别名"
           prefix={<SearchOutlined />}
           value={keyword}
           onChange={e => setKeyword(e.target.value)}
-          onPressEnter={() => { setPage(1); fetchData(); }}
+          onPressEnter={handleSearch}
           style={{ width: 260 }}
           allowClear
         />
-        <Button icon={<ReloadOutlined />} onClick={() => { setPage(1); fetchData(); }}>
+        <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
           查询
+        </Button>
+        <Button icon={<ReloadOutlined />} onClick={handleReset}>
+          重置
         </Button>
       </Space>
       <Table

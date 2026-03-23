@@ -429,7 +429,8 @@ export default function DataBrowse() {
   } : undefined;
 
   // Build new row table data for the insert row
-  const newRowTableData = addingRow ? [{ __isNewRow: true, ...newRowData }] : [];
+  const _newRowTableData = addingRow ? [{ __isNewRow: true, ...newRowData }] : [];
+  void _newRowTableData;
 
   return (
     <div>
