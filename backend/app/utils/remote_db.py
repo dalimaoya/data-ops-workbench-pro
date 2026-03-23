@@ -37,6 +37,35 @@ def _get_sqlserver_conn(host, port, user, password, database, timeout=10):
     return pyodbc.connect(conn_str, timeout=timeout)
 
 
+def _get_oracle_conn(host, port, user, password, database, timeout=10):
+    import oracledb
+    dsn = oracledb.makedsn(host, port, service_name=database or "ORCL")
+    conn = oracledb.connect(user=user, password=password, dsn=dsn)
+    return conn
+
+
+def _get_dm_conn(host, port, user, password, database, timeout=10):
+    import pyodbc
+    conn_str = (
+        f"DRIVER={{DM8 ODBC DRIVER}};"
+        f"SERVER={host};"
+        f"PORT={port};"
+        f"UID={user};PWD={password};"
+    )
+    if database:
+        conn_str += f"DATABASE={database};"
+    return pyodbc.connect(conn_str, timeout=timeout)
+
+
+def _get_kingbase_conn(host, port, user, password, database, timeout=10):
+    """人大金仓兼容 PostgreSQL 协议。"""
+    import psycopg2
+    dsn = f"host={host} port={port} user={user} password={password} connect_timeout={timeout}"
+    if database:
+        dsn += f" dbname={database}"
+    return psycopg2.connect(dsn)
+
+
 def _connect(db_type, host, port, user, password, database=None, schema=None, charset="utf8", timeout=10):
     if db_type == "mysql":
         return _get_mysql_conn(host, port, user, password, database, charset, timeout)
@@ -44,6 +73,12 @@ def _connect(db_type, host, port, user, password, database=None, schema=None, ch
         return _get_pg_conn(host, port, user, password, database, timeout)
     elif db_type == "sqlserver":
         return _get_sqlserver_conn(host, port, user, password, database, timeout)
+    elif db_type == "oracle":
+        return _get_oracle_conn(host, port, user, password, database, timeout)
+    elif db_type == "dm":
+        return _get_dm_conn(host, port, user, password, database, timeout)
+    elif db_type == "kingbase":
+        return _get_kingbase_conn(host, port, user, password, database, timeout)
     else:
         raise ValueError(f"不支持的数据库类型: {db_type}")
 
@@ -58,7 +93,7 @@ def list_tables(db_type: str, host: str, port: int, user: str, password: str,
         if db_type == "mysql":
             sql = "SELECT TABLE_NAME, TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME"
             cur.execute(sql, (database or "",))
-        elif db_type == "postgresql":
+        elif db_type in ("postgresql", "kingbase"):
             sch = schema or "public"
             sql = """
                 SELECT c.relname AS table_name,
@@ -82,6 +117,35 @@ def list_tables(db_type: str, host: str, port: int, user: str, password: str,
                 ORDER BY t.name
             """
             cur.execute(sql, (sch,))
+        elif db_type == "oracle":
+            owner = (schema or user).upper()
+            sql = """
+                SELECT table_name, comments
+                FROM all_tab_comments
+                WHERE owner = :1 AND table_type = 'TABLE'
+                ORDER BY table_name
+            """
+            cur.execute(sql, (owner,))
+        elif db_type == "dm":
+            sch = schema or user
+            sql = """
+                SELECT t.name AS table_name,
+                       ep.value AS table_comment
+                FROM sys.tables t
+                LEFT JOIN sys.extended_properties ep
+                    ON ep.major_id = t.object_id AND ep.minor_id = 0 AND ep.name = 'MS_Description'
+                LEFT JOIN sys.schemas s ON s.schema_id = t.schema_id
+                WHERE s.name = ?
+                ORDER BY t.name
+            """
+            # 达梦兼容 SQL Server 语法；如果不行则回退到 information_schema
+            try:
+                cur.execute(sql, (sch,))
+            except Exception:
+                cur.execute(
+                    "SELECT TABLE_NAME, COMMENTS FROM ALL_TAB_COMMENTS WHERE OWNER = ? ORDER BY TABLE_NAME",
+                    (sch.upper(),)
+                )
 
         rows = cur.fetchall()
         result = []
@@ -116,7 +180,7 @@ def list_columns(db_type: str, host: str, port: int, user: str, password: str,
                 ORDER BY c.ORDINAL_POSITION
             """
             cur.execute(sql, (database or "", table_name))
-        elif db_type == "postgresql":
+        elif db_type in ("postgresql", "kingbase"):
             sch = schema or "public"
             sql = """
                 SELECT c.column_name, c.data_type, c.is_nullable, c.column_default, c.ordinal_position,
@@ -149,6 +213,47 @@ def list_columns(db_type: str, host: str, port: int, user: str, password: str,
                 ORDER BY c.column_id
             """
             cur.execute(sql, (sch, table_name))
+        elif db_type == "oracle":
+            owner = (schema or user).upper()
+            sql = """
+                SELECT col.COLUMN_NAME,
+                       col.DATA_TYPE || CASE WHEN col.DATA_TYPE IN ('VARCHAR2','CHAR','NVARCHAR2','NCHAR') THEN '(' || col.DATA_LENGTH || ')' WHEN col.DATA_TYPE = 'NUMBER' AND col.DATA_PRECISION IS NOT NULL THEN '(' || col.DATA_PRECISION || ',' || col.DATA_SCALE || ')' ELSE '' END AS data_type,
+                       col.NULLABLE,
+                       col.DATA_DEFAULT,
+                       col.COLUMN_ID,
+                       CASE WHEN cc.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END AS is_pk
+                FROM all_tab_columns col
+                LEFT JOIN (
+                    SELECT acc.OWNER, acc.TABLE_NAME, acc.COLUMN_NAME
+                    FROM all_cons_columns acc
+                    JOIN all_constraints ac ON ac.OWNER = acc.OWNER AND ac.CONSTRAINT_NAME = acc.CONSTRAINT_NAME
+                    WHERE ac.CONSTRAINT_TYPE = 'P'
+                ) cc ON cc.OWNER = col.OWNER AND cc.TABLE_NAME = col.TABLE_NAME AND cc.COLUMN_NAME = col.COLUMN_NAME
+                WHERE col.OWNER = :1 AND col.TABLE_NAME = :2
+                ORDER BY col.COLUMN_ID
+            """
+            cur.execute(sql, (owner, table_name.upper()))
+        elif db_type == "dm":
+            # 达梦兼容 Oracle 的数据字典视图
+            owner = (schema or user).upper()
+            sql = """
+                SELECT col.COLUMN_NAME,
+                       col.DATA_TYPE || CASE WHEN col.DATA_TYPE IN ('VARCHAR2','CHAR','VARCHAR') THEN '(' || col.DATA_LENGTH || ')' WHEN col.DATA_TYPE = 'NUMBER' AND col.DATA_PRECISION IS NOT NULL THEN '(' || col.DATA_PRECISION || ',' || col.DATA_SCALE || ')' ELSE '' END AS data_type,
+                       col.NULLABLE,
+                       col.DATA_DEFAULT,
+                       col.COLUMN_ID,
+                       CASE WHEN cc.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END AS is_pk
+                FROM ALL_TAB_COLUMNS col
+                LEFT JOIN (
+                    SELECT acc.OWNER, acc.TABLE_NAME, acc.COLUMN_NAME
+                    FROM ALL_CONS_COLUMNS acc
+                    JOIN ALL_CONSTRAINTS ac ON ac.OWNER = acc.OWNER AND ac.CONSTRAINT_NAME = acc.CONSTRAINT_NAME
+                    WHERE ac.CONSTRAINT_TYPE = 'P'
+                ) cc ON cc.OWNER = col.OWNER AND cc.TABLE_NAME = col.TABLE_NAME AND cc.COLUMN_NAME = col.COLUMN_NAME
+                WHERE col.OWNER = ? AND col.TABLE_NAME = ?
+                ORDER BY col.COLUMN_ID
+            """
+            cur.execute(sql, (owner, table_name.upper()))
 
         rows = cur.fetchall()
         result = []
@@ -156,7 +261,7 @@ def list_columns(db_type: str, host: str, port: int, user: str, password: str,
             result.append({
                 "field_name": r[0],
                 "db_data_type": str(r[1]),
-                "is_nullable": r[2] in (True, 'YES', 1),
+                "is_nullable": r[2] in (True, 'YES', 'Y', 1),
                 "column_default": str(r[3]) if r[3] is not None else None,
                 "ordinal_position": r[4],
                 "is_primary_key": bool(r[5]),
@@ -175,15 +280,23 @@ def fetch_sample_data(db_type: str, host: str, port: int, user: str, password: s
     try:
         cur = conn.cursor()
         qualified = table_name
-        if db_type == "postgresql":
+        if db_type in ("postgresql", "kingbase"):
             sch = schema or "public"
             qualified = f'"{sch}"."{table_name}"'
         elif db_type == "sqlserver":
             sch = schema or "dbo"
             qualified = f"[{sch}].[{table_name}]"
+        elif db_type == "oracle":
+            owner = (schema or user).upper()
+            qualified = f'"{owner}"."{table_name.upper()}"'
+        elif db_type == "dm":
+            owner = (schema or user).upper()
+            qualified = f'"{owner}"."{table_name.upper()}"'
 
         if db_type == "sqlserver":
             cur.execute(f"SELECT TOP {limit} * FROM {qualified}")
+        elif db_type in ("oracle", "dm"):
+            cur.execute(f"SELECT * FROM {qualified} WHERE ROWNUM <= {limit}")
         else:
             cur.execute(f"SELECT * FROM {qualified} LIMIT {limit}")
 
