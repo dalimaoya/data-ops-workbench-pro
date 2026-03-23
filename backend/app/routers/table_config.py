@@ -18,6 +18,7 @@ from app.utils.crypto import decrypt_password
 from app.utils.remote_db import list_tables, list_columns, fetch_sample_data, compute_structure_hash
 from app.utils.audit import log_operation
 from app.utils.auth import get_current_user, require_role
+from app.utils.permissions import get_permitted_datasource_ids
 from app.models import UserAccount
 
 router = APIRouter(prefix="/api/table-config", tags=["纳管表配置"])
@@ -93,6 +94,12 @@ def list_table_configs(
     user: UserAccount = Depends(get_current_user),
 ):
     q = db.query(TableConfig).filter(TableConfig.is_deleted == 0)
+    # v2.2: datasource-level permission filtering
+    permitted_ids = get_permitted_datasource_ids(db, user)
+    if permitted_ids is not None:
+        if not permitted_ids:
+            return []
+        q = q.filter(TableConfig.datasource_id.in_(permitted_ids))
     if datasource_id:
         q = q.filter(TableConfig.datasource_id == datasource_id)
     if status:
@@ -128,6 +135,12 @@ def count_table_configs(
     user: UserAccount = Depends(get_current_user),
 ):
     q = db.query(TableConfig).filter(TableConfig.is_deleted == 0)
+    # v2.2: datasource-level permission filtering
+    permitted_ids = get_permitted_datasource_ids(db, user)
+    if permitted_ids is not None:
+        if not permitted_ids:
+            return {"total": 0}
+        q = q.filter(TableConfig.datasource_id.in_(permitted_ids))
     if datasource_id:
         q = q.filter(TableConfig.datasource_id == datasource_id)
     if status:

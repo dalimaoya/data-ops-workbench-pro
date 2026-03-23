@@ -205,6 +205,17 @@ chmod +x start.sh
 start.bat
 ```
 
+### Docker
+
+```bash
+# 使用 docker-compose
+docker-compose up -d
+
+# 或手动构建运行
+docker build -t data-ops-workbench .
+docker run -d -p 8580:8580 -v ./data:/app/data -v ./backups:/app/backups data-ops-workbench
+```
+
 ### 启动后
 
 - 访问地址：**http://localhost:8580**

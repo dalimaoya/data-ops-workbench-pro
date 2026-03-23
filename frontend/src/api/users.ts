@@ -36,6 +36,21 @@ export const updateUserStatus = (id: number, status: string) =>
 export const resetUserPassword = (id: number, new_password: string) =>
   api.put(`/users/${id}/reset-password`, { new_password });
 
+// 数据源权限管理 (v2.2)
+export interface DatasourcePermissionInfo {
+  user_id: number;
+  username: string;
+  role: string;
+  datasource_ids: number[];
+  all_datasources: { id: number; datasource_name: string; db_type: string }[];
+}
+
+export const getUserDatasourcePermissions = (userId: number) =>
+  api.get<DatasourcePermissionInfo>(`/users/${userId}/datasource-permissions`);
+
+export const setUserDatasourcePermissions = (userId: number, datasource_ids: number[]) =>
+  api.put(`/users/${userId}/datasource-permissions`, { datasource_ids });
+
 // 个人设置
 export const changeMyPassword = (old_password: string, new_password: string) =>
   api.put('/me/password', { old_password, new_password });

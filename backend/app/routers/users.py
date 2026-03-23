@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import UserAccount, _now_bjt
+from app.models import UserAccount, UserDatasourcePermission, DatasourceConfig, _now_bjt
 from app.utils.auth import (
     get_current_user, require_role, hash_password, verify_password,
 )
@@ -59,6 +59,10 @@ class ChangePasswordRequest(BaseModel):
 
 class UpdateProfileRequest(BaseModel):
     display_name: str
+
+
+class DatasourcePermissionUpdate(BaseModel):
+    datasource_ids: List[int]
 
 
 # ── Admin: User Management (/api/users) ──
@@ -251,3 +255,63 @@ def update_my_profile(
     )
     db.commit()
     return {"detail": "显示名修改成功", "display_name": body.display_name}
+
+
+# ── Datasource Permission Management (v2.2) ──
+
+@router.get("/api/users/{user_id}/datasource-permissions")
+def get_user_datasource_permissions(
+    user_id: int,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
+    target = db.query(UserAccount).filter(UserAccount.id == user_id).first()
+    if not target:
+        raise HTTPException(404, "用户不存在")
+    perms = db.query(UserDatasourcePermission).filter(
+        UserDatasourcePermission.user_id == user_id
+    ).all()
+    datasource_ids = [p.datasource_id for p in perms]
+    # Also return all datasources for the UI checkbox list
+    all_ds = db.query(DatasourceConfig).filter(
+        DatasourceConfig.is_deleted == 0
+    ).order_by(DatasourceConfig.id).all()
+    all_datasources = [
+        {"id": ds.id, "datasource_name": ds.datasource_name, "db_type": ds.db_type}
+        for ds in all_ds
+    ]
+    return {
+        "user_id": user_id,
+        "username": target.username,
+        "role": target.role,
+        "datasource_ids": datasource_ids,
+        "all_datasources": all_datasources,
+    }
+
+
+@router.put("/api/users/{user_id}/datasource-permissions")
+def set_user_datasource_permissions(
+    user_id: int,
+    body: DatasourcePermissionUpdate,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
+    target = db.query(UserAccount).filter(UserAccount.id == user_id).first()
+    if not target:
+        raise HTTPException(404, "用户不存在")
+    # Delete existing permissions
+    db.query(UserDatasourcePermission).filter(
+        UserDatasourcePermission.user_id == user_id
+    ).delete(synchronize_session=False)
+    # Insert new permissions
+    for ds_id in body.datasource_ids:
+        db.add(UserDatasourcePermission(user_id=user_id, datasource_id=ds_id))
+    log_operation(
+        db, "用户管理", "设置数据源权限", "success",
+        target_id=target.id,
+        target_name=target.username,
+        message="设置用户 %s 的数据源权限：%d 个数据源" % (target.username, len(body.datasource_ids)),
+        operator=user.username,
+    )
+    db.commit()
+    return {"detail": "数据源权限已更新", "datasource_ids": body.datasource_ids}

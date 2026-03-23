@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Form, Input, InputNumber, Select, Button, Card, Space, message, Switch,
+  Form, Input, InputNumber, Select, Button, Card, Space, message, Switch, Typography,
 } from 'antd';
 import {
   getDatasource, createDatasource, updateDatasource, testConnection,
@@ -107,6 +107,8 @@ export default function DatasourceForm() {
   };
 
   return (
+    <div>
+      <Typography.Title level={4} style={{ marginBottom: 16 }}>数据源管理</Typography.Title>
     <Card title={isEdit ? '编辑数据源' : '新建数据源'}>
       <Form
         form={form}
@@ -176,5 +178,6 @@ export default function DatasourceForm() {
         </Form.Item>
       </Form>
     </Card>
+    </div>
   );
 }

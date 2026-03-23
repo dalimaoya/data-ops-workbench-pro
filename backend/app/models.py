@@ -237,7 +237,46 @@ class SystemOperationLog(Base):
     created_at = Column(DateTime, nullable=False, default=_now_bjt)
 
 
-# ── 10. field_change_log (v2.0) ──
+# ── 10. user_datasource_permission (v2.2) ──
+class UserDatasourcePermission(Base):
+    __tablename__ = "user_datasource_permission"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    datasource_id = Column(Integer, nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)
+
+
+# ── 11. approval_request (v2.2) ──
+class ApprovalRequest(Base):
+    __tablename__ = "approval_request"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    import_task_id = Column(Integer, nullable=True)
+    table_config_id = Column(Integer, nullable=False)
+    request_type = Column(String(32), nullable=False)  # writeback/delete/batch_insert/inline_update/inline_insert
+    request_data_json = Column(Text, nullable=True)  # serialized request body for replay
+    requested_by = Column(String(64), nullable=False)
+    request_time = Column(DateTime, nullable=False, default=_now_bjt)
+    status = Column(String(32), nullable=False, default="pending")  # pending/approved/rejected
+    approved_by = Column(String(64), nullable=True)
+    approve_time = Column(DateTime, nullable=True)
+    reject_reason = Column(String(1000), nullable=True)
+    structure_hash_at_request = Column(String(128), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)
+
+
+# ── 12. system_setting (v2.2) ──
+class SystemSetting(Base):
+    __tablename__ = "system_setting"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    setting_key = Column(String(128), unique=True, nullable=False)
+    setting_value = Column(String(1000), nullable=False)
+    updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)
+
+
+# ── 13. field_change_log (v2.0) ──
 class FieldChangeLog(Base):
     __tablename__ = "field_change_log"
 

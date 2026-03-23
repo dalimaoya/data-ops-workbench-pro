@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Card, Table, Switch, Input, InputNumber, Button, Space, message, Tag, Spin,
+  Card, Table, Switch, Input, InputNumber, Button, Space, message, Tag, Spin, Typography,
 } from 'antd';
 import {
   getTableConfig, listFields, updateField, batchUpdateFields, syncFields,
@@ -151,6 +151,7 @@ export default function FieldConfigPage() {
 
   return (
     <div>
+      <Typography.Title level={4} style={{ marginBottom: 16 }}>表配置管理</Typography.Title>
       <Card
         title={`字段配置 — ${tc?.table_alias || tc?.table_name || ''}`}
         extra={

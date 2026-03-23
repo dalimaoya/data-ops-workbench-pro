@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Table, Button, Space, Tag, Input, Select, message, Popconfirm, Card,
+  Table, Button, Space, Tag, Input, Select, message, Popconfirm, Card, Typography,
 } from 'antd';
 import { PlusOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -116,6 +116,7 @@ export default function DatasourceList() {
 
   return (
     <div>
+      <Typography.Title level={4} style={{ marginBottom: 16 }}>数据源管理</Typography.Title>
       <Card style={{ marginBottom: 16 }}>
         <Space wrap>
           <Input

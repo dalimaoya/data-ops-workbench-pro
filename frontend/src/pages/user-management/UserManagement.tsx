@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import {
   Table, Card, Button, Space, Tag, Modal, Form, Input, Select, message, Popconfirm,
+  Checkbox, Spin,
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, LockOutlined, StopOutlined, CheckCircleOutlined,
+  DatabaseOutlined,
 } from '@ant-design/icons';
 import {
   listUsers, createUser, updateUser, updateUserStatus, resetUserPassword,
+  getUserDatasourcePermissions, setUserDatasourcePermissions,
 } from '../../api/users';
 import type { UserItem } from '../../api/users';
 import { formatBeijingTime } from '../../utils/formatTime';
@@ -49,6 +52,14 @@ export default function UserManagement() {
   const [resetForm] = Form.useForm();
   const [resetLoading, setResetLoading] = useState(false);
   const [resetUser, setResetUser] = useState<UserItem | null>(null);
+
+  // Datasource permission modal (v2.2)
+  const [permOpen, setPermOpen] = useState(false);
+  const [permLoading, setPermLoading] = useState(false);
+  const [permSaveLoading, setPermSaveLoading] = useState(false);
+  const [permUser, setPermUser] = useState<UserItem | null>(null);
+  const [allDatasources, setAllDatasources] = useState<{ id: number; datasource_name: string; db_type: string }[]>([]);
+  const [selectedDsIds, setSelectedDsIds] = useState<number[]>([]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -132,6 +143,35 @@ export default function UserManagement() {
     }
   };
 
+  const handleOpenPermissions = async (record: UserItem) => {
+    setPermUser(record);
+    setPermOpen(true);
+    setPermLoading(true);
+    try {
+      const res = await getUserDatasourcePermissions(record.id);
+      setAllDatasources(res.data.all_datasources);
+      setSelectedDsIds(res.data.datasource_ids);
+    } catch {
+      message.error('获取权限信息失败');
+    } finally {
+      setPermLoading(false);
+    }
+  };
+
+  const handleSavePermissions = async () => {
+    if (!permUser) return;
+    setPermSaveLoading(true);
+    try {
+      await setUserDatasourcePermissions(permUser.id, selectedDsIds);
+      message.success('数据源权限已更新');
+      setPermOpen(false);
+    } catch (err: any) {
+      message.error(err?.response?.data?.detail || '保存失败');
+    } finally {
+      setPermSaveLoading(false);
+    }
+  };
+
   const columns = [
     { title: '用户名', dataIndex: 'username', key: 'username', width: 120 },
     { title: '显示名', dataIndex: 'display_name', key: 'display_name', width: 120 },
@@ -154,9 +194,9 @@ export default function UserManagement() {
       render: (val: string) => formatBeijingTime(val),
     },
     {
-      title: '操作', key: 'action', width: 240,
+      title: '操作', key: 'action', width: 340,
       render: (_: unknown, record: UserItem) => (
-        <Space size="small">
+        <Space size="small" wrap>
           <Button
             size="small"
             icon={<EditOutlined />}
@@ -170,6 +210,13 @@ export default function UserManagement() {
             }}
           >
             编辑
+          </Button>
+          <Button
+            size="small"
+            icon={<DatabaseOutlined />}
+            onClick={() => handleOpenPermissions(record)}
+          >
+            数据源权限
           </Button>
           <Button
             size="small"
@@ -282,6 +329,43 @@ export default function UserManagement() {
             <Input.Password placeholder="请输入新密码" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* 数据源权限弹窗 (v2.2) */}
+      <Modal
+        title={`数据源权限 - ${permUser?.display_name || permUser?.username || ''}`}
+        open={permOpen}
+        onOk={handleSavePermissions}
+        onCancel={() => { setPermOpen(false); setPermUser(null); }}
+        confirmLoading={permSaveLoading}
+        destroyOnClose
+      >
+        {permLoading ? (
+          <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
+        ) : (
+          <div>
+            {permUser?.role === 'admin' && (
+              <div style={{ marginBottom: 12, color: '#999' }}>
+                管理员默认可访问所有数据源，无需单独授权。
+              </div>
+            )}
+            <Checkbox.Group
+              value={selectedDsIds}
+              onChange={(vals) => setSelectedDsIds(vals as number[])}
+              style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+            >
+              {allDatasources.map((ds) => (
+                <Checkbox key={ds.id} value={ds.id}>
+                  {ds.datasource_name}
+                  <Tag style={{ marginLeft: 8 }}>{ds.db_type}</Tag>
+                </Checkbox>
+              ))}
+              {allDatasources.length === 0 && (
+                <div style={{ color: '#999' }}>暂无数据源</div>
+              )}
+            </Checkbox.Group>
+          </div>
+        )}
       </Modal>
     </div>
   );

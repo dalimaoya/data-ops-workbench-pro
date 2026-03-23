@@ -23,9 +23,56 @@ from app.utils.crypto import decrypt_password
 from app.utils.remote_db import _connect, fetch_sample_data, compute_structure_hash, list_columns
 from app.utils.audit import log_operation
 from app.utils.auth import get_current_user, require_role
-from app.models import UserAccount
+from app.utils.permissions import get_permitted_datasource_ids
+from app.models import UserAccount, ApprovalRequest, SystemSetting
 
 router = APIRouter(prefix="/api/data-maintenance", tags=["数据维护"])
+
+def _needs_approval(db: Session, user) -> bool:
+    """Check if approval workflow is enabled and user is not admin."""
+    if not user or not hasattr(user, 'role') or user.role == "admin":
+        return False
+    row = db.query(SystemSetting).filter(
+        SystemSetting.setting_key == "approval_enabled"
+    ).first()
+    return row is not None and row.setting_value == "true"
+
+
+def _create_approval_request(
+    db: Session, user, table_config_id: int, request_type: str,
+    import_task_id: int = None, request_data_json: str = None,
+):
+    """Create an approval request and return the response."""
+    from app.models import TableConfig, _now_bjt
+    tc = db.query(TableConfig).filter(TableConfig.id == table_config_id).first()
+    approval = ApprovalRequest(
+        import_task_id=import_task_id,
+        table_config_id=table_config_id,
+        request_type=request_type,
+        request_data_json=request_data_json,
+        requested_by=_get_username(user),
+        request_time=_now_bjt(),
+        status="pending",
+        structure_hash_at_request=tc.structure_version_hash if tc else None,
+    )
+    db.add(approval)
+    db.flush()
+    from app.utils.audit import log_operation
+    log_operation(
+        db, "审批流", "提交审批", "success",
+        target_id=approval.id,
+        target_name=tc.table_name if tc else None,
+        message="用户 %s 提交 %s 审批" % (_get_username(user), request_type),
+        operator=_get_username(user),
+    )
+    db.commit()
+    return {
+        "approval_required": True,
+        "approval_id": approval.id,
+        "status": "pending",
+        "message": "已提交审批，等待管理员审核",
+    }
+
 
 def _get_username(user) -> str:
     """Get username from JWT user or fallback."""
@@ -182,6 +229,12 @@ def list_maintenance_tables(
     q = db.query(TableConfig).filter(
         TableConfig.is_deleted == 0, TableConfig.status == "enabled"
     )
+    # v2.2: datasource-level permission filtering
+    permitted_ids = get_permitted_datasource_ids(db, user)
+    if permitted_ids is not None:
+        if not permitted_ids:
+            return {"total": 0, "items": []}
+        q = q.filter(TableConfig.datasource_id.in_(permitted_ids))
     if datasource_id:
         q = q.filter(TableConfig.datasource_id == datasource_id)
     if keyword:
@@ -1064,6 +1117,15 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
     if task.validation_status == "failed":
         raise HTTPException(400, "校验全部失败，无法回写")
 
+    # v2.2: approval workflow
+    if _needs_approval(db, user):
+        return _create_approval_request(
+            db, user,
+            table_config_id=task.table_config_id,
+            request_type="writeback",
+            import_task_id=task_id,
+        )
+
     tc = _get_tc(db, task.table_config_id)
     ds = _get_ds(db, tc.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
@@ -1367,6 +1429,16 @@ def inline_update(
     user: UserAccount = Depends(require_role("admin", "operator")),
 ):
     """行内编辑：写前备份 → 逐行 UPDATE → 记录 writeback_log + field_change_log。"""
+    # v2.2: approval workflow
+    if _needs_approval(db, user):
+        changes_data = [{"pk_values": c.pk_values, "updates": c.updates} for c in body.changes]
+        return _create_approval_request(
+            db, user,
+            table_config_id=table_config_id,
+            request_type="inline_update",
+            request_data_json=json.dumps({"changes": changes_data}, ensure_ascii=False),
+        )
+
     tc = _get_tc(db, table_config_id)
     ds = _get_ds(db, tc.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
@@ -1563,6 +1635,15 @@ def inline_insert(
     user: UserAccount = Depends(require_role("admin", "operator")),
 ):
     """单行新增：写前备份 → INSERT → 记录日志。"""
+    # v2.2: approval workflow
+    if _needs_approval(db, user):
+        return _create_approval_request(
+            db, user,
+            table_config_id=table_config_id,
+            request_type="inline_insert",
+            request_data_json=json.dumps({"row_data": body.row_data}, ensure_ascii=False),
+        )
+
     tc = _get_tc(db, table_config_id)
     if not tc.allow_insert_rows:
         raise HTTPException(403, "该纳管表未启用新增行功能")
@@ -1724,6 +1805,15 @@ def delete_rows(
     user: UserAccount = Depends(require_role("admin", "operator")),
 ):
     """按主键批量删除数据行（写前备份 + 逐字段变更日志）。"""
+    # v2.2: approval workflow
+    if _needs_approval(db, user):
+        return _create_approval_request(
+            db, user,
+            table_config_id=table_config_id,
+            request_type="delete",
+            request_data_json=json.dumps({"pk_values": body.pk_values}, ensure_ascii=False),
+        )
+
     tc = _get_tc(db, table_config_id)
     if not tc.allow_delete_rows:
         raise HTTPException(403, "该纳管表未启用删除行功能")
@@ -1907,6 +1997,15 @@ def batch_insert(
     user: UserAccount = Depends(require_role("admin", "operator")),
 ):
     """批量新增行：写前备份 → 逐行 INSERT → 记录日志。"""
+    # v2.2: approval workflow
+    if _needs_approval(db, user):
+        return _create_approval_request(
+            db, user,
+            table_config_id=table_config_id,
+            request_type="batch_insert",
+            request_data_json=json.dumps({"rows": body.rows}, ensure_ascii=False),
+        )
+
     tc = _get_tc(db, table_config_id)
     if not tc.allow_insert_rows:
         raise HTTPException(403, "该纳管表未启用新增行功能")
