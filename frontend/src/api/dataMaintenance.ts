@@ -235,3 +235,19 @@ export interface InlineInsertResult {
 
 export const inlineInsert = (tableConfigId: number, rowData: Record<string, string | null>) =>
   api.post<InlineInsertResult>(`/data-maintenance/${tableConfigId}/inline-insert`, { row_data: rowData });
+
+// v2.1.2: 批量新增行
+export interface BatchInsertResult {
+  writeback_batch_no: string;
+  backup_version_no: string;
+  status: string;
+  total: number;
+  success: number;
+  failed: number;
+  backup_table: string;
+  backup_record_count: number;
+  failed_details: Array<{ row_num: number; pk_key: string; error: string }>;
+}
+
+export const batchInsert = (tableConfigId: number, rows: Record<string, string | null>[]) =>
+  api.post<BatchInsertResult>(`/data-maintenance/${tableConfigId}/batch-insert`, { rows });

@@ -254,4 +254,10 @@ data-ops-workbench/
 
 ## License
 
-Private - Internal Use Only
+本项目采用 [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) 许可协议。
+
+- ✅ 允许学习、交流、研究用途
+- ✅ 允许复制、分发、修改（需注明出处）
+- ❌ 禁止商业用途
+
+如需商业授权请联系项目作者。
