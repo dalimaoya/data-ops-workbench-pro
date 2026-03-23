@@ -2,6 +2,9 @@
 
 > 不碰数据库客户端，也能安全修订结果表。
 
+[![GitHub](https://img.shields.io/badge/GitHub-dalimaoya-blue?logo=github)](https://github.com/dalimaoya/data-ops-workbench)
+[![Gitee](https://img.shields.io/badge/Gitee-dalimaoya-red?logo=gitee)](https://gitee.com/dalimaoya/data-ops-workbench)
+
 ---
 
 ## 这是什么？
@@ -243,6 +246,11 @@ data-ops-workbench/
 | `JWT_SECRET` | JWT 密钥 | 内置默认值 |
 
 ---
+
+## 项目仓库
+
+- **GitHub:** https://github.com/dalimaoya/data-ops-workbench
+- **Gitee:** https://gitee.com/dalimaoya/data-ops-workbench
 
 ## License
 
