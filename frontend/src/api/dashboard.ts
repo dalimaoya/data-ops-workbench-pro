@@ -32,6 +32,31 @@ export interface Alert {
   created_at: string | null;
 }
 
+export interface TrendDay {
+  date: string;
+  export: number;
+  import: number;
+  writeback: number;
+}
+
+export interface DatasourceHealth {
+  id: number;
+  name: string;
+  code: string;
+  db_type: string;
+  status: 'ok' | 'error' | 'untested';
+  last_test_status: string | null;
+  last_test_message: string | null;
+  last_test_at: string | null;
+}
+
+export interface TopTable {
+  table_config_id: number;
+  table_name: string;
+  datasource_name: string | null;
+  op_count: number;
+}
+
 export const getDashboardStats = () =>
   api.get<DashboardStats>('/dashboard/stats');
 
@@ -40,3 +65,12 @@ export const getRecentOperations = () =>
 
 export const getAlerts = () =>
   api.get<Alert[]>('/dashboard/alerts');
+
+export const getDashboardTrends = () =>
+  api.get<TrendDay[]>('/dashboard/trends');
+
+export const getDatasourceHealth = () =>
+  api.get<DatasourceHealth[]>('/dashboard/datasource-health');
+
+export const getTopTables = () =>
+  api.get<TopTable[]>('/dashboard/top-tables');

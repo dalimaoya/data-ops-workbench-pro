@@ -1,17 +1,18 @@
-"""Dashboard endpoints: stats, recent operations, alerts."""
+"""Dashboard endpoints: stats, recent operations, alerts, trends, health, top tables."""
 
 import re
 from datetime import datetime, timedelta
+from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, cast, String, case
 
 from app.database import get_db
 from app.models import (
     DatasourceConfig, TableConfig, TemplateExportLog,
     ImportTaskLog, WritebackLog, SystemOperationLog, UserAccount,
-    _now_bjt,
+    _now_bjt, _BJT,
 )
 from app.utils.auth import get_current_user
 
@@ -201,3 +202,148 @@ def dashboard_alerts(
         })
 
     return alerts
+
+
+@router.get("/trends")
+def dashboard_trends(
+    user: UserAccount = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """最近 7 天操作趋势：每天的导出、导入、回写次数。"""
+    now = _now_bjt()
+    # 7 天前的 00:00:00
+    start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # 预填 7 天数据
+    days = []  # type: List[Dict[str, Any]]
+    for i in range(7):
+        d = start + timedelta(days=i)
+        days.append({
+            "date": d.strftime("%m-%d"),
+            "export": 0,
+            "import": 0,
+            "writeback": 0,
+        })
+
+    # 辅助：date string -> index
+    date_idx = {d["date"]: i for i, d in enumerate(days)}
+
+    # 导出趋势
+    export_rows = (
+        db.query(
+            func.strftime("%m-%d", TemplateExportLog.created_at).label("day"),
+            func.count(TemplateExportLog.id).label("cnt"),
+        )
+        .filter(TemplateExportLog.created_at >= start)
+        .group_by("day")
+        .all()
+    )
+    for row in export_rows:
+        if row.day in date_idx:
+            days[date_idx[row.day]]["export"] = row.cnt
+
+    # 导入趋势
+    import_rows = (
+        db.query(
+            func.strftime("%m-%d", ImportTaskLog.created_at).label("day"),
+            func.count(ImportTaskLog.id).label("cnt"),
+        )
+        .filter(ImportTaskLog.created_at >= start)
+        .group_by("day")
+        .all()
+    )
+    for row in import_rows:
+        if row.day in date_idx:
+            days[date_idx[row.day]]["import"] = row.cnt
+
+    # 回写趋势
+    wb_rows = (
+        db.query(
+            func.strftime("%m-%d", WritebackLog.created_at).label("day"),
+            func.count(WritebackLog.id).label("cnt"),
+        )
+        .filter(WritebackLog.created_at >= start)
+        .group_by("day")
+        .all()
+    )
+    for row in wb_rows:
+        if row.day in date_idx:
+            days[date_idx[row.day]]["writeback"] = row.cnt
+
+    return days
+
+
+@router.get("/datasource-health")
+def datasource_health(
+    user: UserAccount = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """各数据源最近连接测试状态。"""
+    sources = (
+        db.query(DatasourceConfig)
+        .filter(DatasourceConfig.is_deleted == 0)
+        .order_by(DatasourceConfig.id)
+        .all()
+    )
+    result = []
+    for ds in sources:
+        status = "untested"
+        if ds.last_test_status == "success":
+            status = "ok"
+        elif ds.last_test_status and ds.last_test_status != "success":
+            status = "error"
+
+        result.append({
+            "id": ds.id,
+            "name": ds.datasource_name,
+            "code": ds.datasource_code,
+            "db_type": ds.db_type,
+            "status": status,
+            "last_test_status": ds.last_test_status,
+            "last_test_message": ds.last_test_message,
+            "last_test_at": ds.last_test_at.isoformat() if ds.last_test_at else None,
+        })
+    return result
+
+
+@router.get("/top-tables")
+def dashboard_top_tables(
+    user: UserAccount = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """最近 7 天操作最频繁的表 Top 5。"""
+    now = _now_bjt()
+    week_ago = now - timedelta(days=7)
+
+    # 从 SystemOperationLog 统计，target_id 对应 table_config_id
+    rows = (
+        db.query(
+            SystemOperationLog.target_id,
+            func.count(SystemOperationLog.id).label("op_count"),
+        )
+        .filter(
+            SystemOperationLog.created_at >= week_ago,
+            SystemOperationLog.target_id.isnot(None),
+            SystemOperationLog.target_id != 0,
+        )
+        .group_by(SystemOperationLog.target_id)
+        .order_by(func.count(SystemOperationLog.id).desc())
+        .limit(5)
+        .all()
+    )
+
+    result = []
+    for row in rows:
+        tc = db.query(TableConfig).filter(TableConfig.id == row.target_id).first()
+        table_name = tc.table_alias or tc.table_name if tc else "未知表"
+        ds_name = None
+        if tc:
+            ds = db.query(DatasourceConfig).filter(DatasourceConfig.id == tc.datasource_id).first()
+            ds_name = ds.datasource_name if ds else None
+        result.append({
+            "table_config_id": row.target_id,
+            "table_name": table_name,
+            "datasource_name": ds_name,
+            "op_count": row.op_count,
+        })
+    return result

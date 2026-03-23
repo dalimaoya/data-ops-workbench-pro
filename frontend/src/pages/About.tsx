@@ -8,7 +8,7 @@ export default function About() {
     <Card style={{ maxWidth: 860, margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
         <Title level={3} style={{ marginBottom: 4 }}>数据运维工作台</Title>
-        <Tag color="blue" style={{ fontSize: 14, padding: '2px 12px' }}>v2.1.1</Tag>
+        <Tag color="blue" style={{ fontSize: 14, padding: '2px 12px' }}>v2.5.0</Tag>
       </div>
 
       <Divider />
