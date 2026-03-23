@@ -363,17 +363,26 @@ def browse_table_data(
                 row_dict[cn] = str(raw[i]) if raw[i] is not None else None
             rows.append(row_dict)
 
-        # Build column meta
+        # Build column meta (v2.4: include editable_roles for field-level permission)
         columns_meta = []
         pk_set = set(f.strip() for f in tc.primary_key_fields.split(","))
+        user_role = user.role if user else "readonly"
         for f in display_fields:
+            # v2.4: field-level permission — if editable_roles is set, only those roles can edit
+            effective_editable = f.is_editable
+            if effective_editable and f.editable_roles:
+                allowed_roles = [r.strip() for r in f.editable_roles.split(",") if r.strip()]
+                if allowed_roles and user_role not in allowed_roles:
+                    effective_editable = 0
+
             columns_meta.append({
                 "field_name": f.field_name,
                 "field_alias": f.field_alias or f.field_name,
                 "db_data_type": f.db_data_type,
                 "is_primary_key": f.is_primary_key,
-                "is_editable": f.is_editable,
+                "is_editable": effective_editable,
                 "is_system_field": f.is_system_field,
+                "editable_roles": f.editable_roles,
             })
 
         return {
@@ -473,8 +482,16 @@ def export_template(
     locked_cell = CellProtection(locked=True)
     unlocked_cell = CellProtection(locked=False)
 
-    # Build editable field set for quick lookup
-    editable_field_names = set(f.field_name for f in export_fields if f.is_editable)
+    # Build editable field set for quick lookup (v2.4: respect editable_roles)
+    user_role = user.role if user else "readonly"
+    editable_field_names = set()
+    for f in export_fields:
+        if f.is_editable:
+            if f.editable_roles:
+                allowed_roles = [r.strip() for r in f.editable_roles.split(",") if r.strip()]
+                if allowed_roles and user_role not in allowed_roles:
+                    continue
+            editable_field_names.add(f.field_name)
 
     data_row_count = len(raw_rows)
 
@@ -1068,6 +1085,332 @@ def get_import_diff(task_id: int, db: Session = Depends(get_db), user: UserAccou
     }
 
 
+@router.get("/import-tasks/{task_id}/diff-report")
+def get_diff_report(task_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(get_current_user)):
+    """Generate and download a diff comparison Excel report."""
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment
+
+    task = db.query(ImportTaskLog).filter(ImportTaskLog.id == task_id).first()
+    if not task:
+        raise HTTPException(404, "导入任务不存在")
+
+    tc = db.query(TableConfig).filter(TableConfig.id == task.table_config_id).first()
+
+    diff_file = os.path.join(UPLOAD_DIR, "diff_%d.json" % task_id)
+    if not os.path.isfile(diff_file):
+        raise HTTPException(404, "差异数据不存在，请重新导入")
+
+    with open(diff_file, "r", encoding="utf-8") as f:
+        diff_data = json.load(f)
+
+    diff_rows = diff_data.get("diff_rows", [])
+    if not diff_rows:
+        raise HTTPException(400, "没有差异数据")
+
+    # Create Excel workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "差异对比报告"
+
+    # Styles
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    update_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")  # yellow
+    insert_fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")  # green
+    delete_fill = PatternFill(start_color="FCE4EC", end_color="FCE4EC", fill_type="solid")  # red
+
+    change_type_map = {
+        "update": ("更新", update_fill),
+        "insert": ("新增", insert_fill),
+        "delete": ("删除", delete_fill),
+    }
+
+    # Headers
+    headers = ["行号", "主键值", "字段名", "原值", "新值", "变更类型"]
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center")
+
+    # Data rows
+    for row_idx, dr in enumerate(diff_rows, 2):
+        change_type = dr.get("change_type", "update")
+        type_text, row_fill = change_type_map.get(change_type, ("更新", update_fill))
+
+        values = [
+            dr.get("row_num", ""),
+            dr.get("pk_key", ""),
+            dr.get("field_alias", dr.get("field_name", "")),
+            dr.get("old_value") if dr.get("old_value") is not None else "",
+            dr.get("new_value") if dr.get("new_value") is not None else "",
+            type_text,
+        ]
+        for col_idx, val in enumerate(values, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.fill = row_fill
+
+    # Column widths
+    col_widths = [8, 20, 20, 25, 25, 12]
+    from openpyxl.utils import get_column_letter
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    # Save to temp file
+    report_name = "diff_report_%s_%d.xlsx" % (_gen_batch("DIFF"), task_id)
+    report_path = os.path.join(EXPORT_DIR, report_name)
+    wb.save(report_path)
+
+    return FileResponse(
+        report_path,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=report_name,
+    )
+
+
+@router.post("/import-tasks/{task_id}/retry")
+def retry_import_validation(task_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(require_role("admin", "operator"))):
+    """Retry validation using the original uploaded file."""
+    task = db.query(ImportTaskLog).filter(ImportTaskLog.id == task_id).first()
+    if not task:
+        raise HTTPException(404, "导入任务不存在")
+
+    # Only allow retry on failed validations
+    if task.validation_status not in ("failed", "partial"):
+        raise HTTPException(400, "只能对校验失败或部分失败的导入任务重新校验")
+
+    # Check original file exists
+    if not task.import_file_path or not os.path.isfile(task.import_file_path):
+        raise HTTPException(404, "原始上传文件不存在，无法重新校验")
+
+    # Re-read the original file and re-run the import validation
+    # We'll simulate re-upload by reading the file and calling the import logic
+    import openpyxl
+
+    tc = db.query(TableConfig).filter(
+        TableConfig.id == task.table_config_id,
+        TableConfig.is_deleted == 0,
+        TableConfig.status == "enabled",
+    ).first()
+    if not tc:
+        raise HTTPException(404, "纳管表不存在或未启用")
+
+    ds = db.query(DatasourceConfig).filter(
+        DatasourceConfig.id == tc.datasource_id,
+        DatasourceConfig.is_deleted == 0,
+    ).first()
+    if not ds:
+        raise HTTPException(404, "数据源不存在")
+
+    pwd = decrypt_password(ds.password_encrypted)
+    fields = _get_fields(db, tc.id)
+
+    # Parse Excel
+    try:
+        wb = openpyxl.load_workbook(task.import_file_path, data_only=True)
+    except Exception as e:
+        raise HTTPException(400, "无法解析文件: %s" % str(e))
+
+    if "_meta" not in wb.sheetnames:
+        raise HTTPException(400, "非平台导出模板，缺少元信息")
+
+    meta_ws = wb["_meta"]
+    meta_raw = meta_ws.cell(row=1, column=1).value
+    if not meta_raw:
+        raise HTTPException(400, "模板元信息为空")
+
+    try:
+        meta = json.loads(meta_raw)
+    except json.JSONDecodeError:
+        raise HTTPException(400, "模板元信息格式错误")
+
+    # Validate
+    errors = []
+    warnings = []
+
+    meta_version = meta.get("config_version", 0)
+    if tc.strict_template_version and meta_version != tc.config_version:
+        raise HTTPException(400, "配置版本不匹配 (模板版本 %d，当前版本 %d)，请重新导出模板" % (meta_version, tc.config_version))
+
+    data_ws = wb["数据"] if "数据" in wb.sheetnames else wb.worksheets[0]
+    header_row = [cell.value for cell in data_ws[1]]
+    header_row = [h for h in header_row if h is not None]
+
+    pk_fields = set(meta.get("primary_key_fields", []))
+    import_fields = [f for f in fields if f.include_in_import or f.is_primary_key]
+    export_fields = [f for f in fields if f.include_in_export]
+    field_alias_to_name = {f.field_alias or f.field_name: f.field_name for f in export_fields}
+    field_name_map = {f.field_name: f for f in fields}
+
+    mapped_cols = {}
+    for i, h in enumerate(header_row):
+        if h in field_alias_to_name:
+            mapped_cols[i] = field_alias_to_name[h]
+        elif h in field_name_map:
+            mapped_cols[i] = h
+
+    pk_col_indices = [i for i, fn in mapped_cols.items() if fn in pk_fields]
+    data_rows = []
+    seen_pks = {}
+
+    for row_idx in range(2, data_ws.max_row + 1):
+        row_cells = [data_ws.cell(row=row_idx, column=i + 1).value for i in range(len(header_row))]
+        if all(c is None or str(c).strip() == "" for c in row_cells):
+            continue
+
+        row_data = {}
+        row_errors = []
+        for col_i, fname in mapped_cols.items():
+            val = row_cells[col_i] if col_i < len(row_cells) else None
+            str_val = str(val).strip() if val is not None else None
+            row_data[fname] = str_val
+            fc = field_name_map.get(fname)
+            if not fc:
+                continue
+            if fc.is_required and (str_val is None or str_val == ""):
+                row_errors.append({"row": row_idx, "field": fname, "type": "required", "value": str_val,
+                                   "message": "第%d行 字段[%s] 必填" % (row_idx, fc.field_alias or fname)})
+            if fc.max_length and str_val and len(str_val) > fc.max_length:
+                row_errors.append({"row": row_idx, "field": fname, "type": "length", "value": str_val,
+                                   "message": "第%d行 字段[%s] 超过长度限制 %d" % (row_idx, fc.field_alias or fname, fc.max_length)})
+
+        pk_vals = tuple(row_data.get(mapped_cols[i], "") for i in pk_col_indices)
+        pk_key = "|".join(str(v) for v in pk_vals)
+        if any(v is None or v == "" for v in pk_vals):
+            row_errors.append({"row": row_idx, "field": ",".join(pk_fields), "type": "pk_empty", "value": pk_key,
+                               "message": "第%d行 主键字段为空" % row_idx})
+        elif pk_key in seen_pks:
+            row_errors.append({"row": row_idx, "field": ",".join(pk_fields), "type": "duplicate", "value": pk_key,
+                               "message": "第%d行 与第%d行主键重复" % (row_idx, seen_pks[pk_key])})
+        else:
+            seen_pks[pk_key] = row_idx
+
+        data_rows.append({"row_num": row_idx, "data": row_data, "errors": row_errors, "warnings": [], "pk_key": pk_key})
+        errors.extend(row_errors)
+
+    # Generate diff
+    diff_rows = []
+    new_rows = []
+
+    if not all(r["errors"] for r in data_rows):
+        conn = _connect(ds.db_type, ds.host, ds.port, ds.username, pwd,
+                        tc.db_name, tc.schema_name, ds.charset, ds.connect_timeout_seconds or 10)
+        try:
+            cur = conn.cursor()
+            qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
+            all_field_names = [f.field_name for f in export_fields]
+            cols_sql = ", ".join(_quote_col(ds.db_type, c) for c in all_field_names)
+            cur.execute("SELECT %s FROM %s" % (cols_sql, qt))
+            db_rows = cur.fetchall()
+            pk_field_indices = [all_field_names.index(p) for p in pk_fields if p in all_field_names]
+            db_pk_map = {}
+            for db_row in db_rows:
+                pk_val = "|".join(str(db_row[i]) if db_row[i] is not None else "" for i in pk_field_indices)
+                row_dict = {}
+                for j, fn in enumerate(all_field_names):
+                    row_dict[fn] = str(db_row[j]) if db_row[j] is not None else None
+                db_pk_map[pk_val] = row_dict
+        except Exception as e:
+            raise HTTPException(500, "查询原始数据失败: %s" % str(e))
+        finally:
+            conn.close()
+
+        db_all_pk_set = set(db_pk_map.keys())
+        editable_fields = [f for f in fields if f.is_editable and f.include_in_import]
+
+        for row in data_rows:
+            if row["errors"]:
+                continue
+            pk_key = row["pk_key"]
+            if pk_key not in db_all_pk_set:
+                if tc.allow_insert_rows:
+                    new_rows.append({"row_num": row["row_num"], "data": row["data"], "pk_key": pk_key, "change_type": "insert"})
+                    for ef in export_fields:
+                        fn = ef.field_name
+                        new_val = row["data"].get(fn)
+                        if new_val is not None and new_val != "":
+                            diff_rows.append({"row_num": row["row_num"], "pk_key": pk_key, "field_name": fn,
+                                             "field_alias": ef.field_alias or fn, "old_value": None,
+                                             "new_value": new_val, "status": "new", "change_type": "insert"})
+                else:
+                    row["errors"].append({"row": row["row_num"], "field": ",".join(pk_fields),
+                                          "type": "pk_not_found", "value": pk_key,
+                                          "message": "第%d行 主键值在数据库中不存在" % row["row_num"]})
+                    errors.append(row["errors"][-1])
+                continue
+            original = db_pk_map[pk_key]
+            for ef in editable_fields:
+                fn = ef.field_name
+                new_val = row["data"].get(fn)
+                old_val = original.get(fn)
+                if new_val != old_val:
+                    diff_rows.append({"row_num": row["row_num"], "pk_key": pk_key, "field_name": fn,
+                                     "field_alias": ef.field_alias or fn, "old_value": old_val,
+                                     "new_value": new_val, "status": "changed", "change_type": "update"})
+
+    # Save new import task log
+    batch_no = _gen_batch("IMP")
+    total_rows = len(data_rows)
+    actual_failed = len([r for r in data_rows if r["errors"]])
+    actual_passed = total_rows - actual_failed
+    validation_status = "success" if actual_failed == 0 else ("failed" if actual_passed == 0 else "partial")
+
+    new_log = ImportTaskLog(
+        import_batch_no=batch_no,
+        table_config_id=tc.id,
+        datasource_id=tc.datasource_id,
+        related_export_batch_no=meta.get("export_batch_no"),
+        import_file_name=task.import_file_name,
+        import_file_path=task.import_file_path,
+        template_version=meta_version,
+        total_row_count=total_rows,
+        passed_row_count=actual_passed,
+        warning_row_count=len(warnings),
+        failed_row_count=actual_failed,
+        diff_row_count=len(diff_rows),
+        new_row_count=len(new_rows),
+        validation_status=validation_status,
+        validation_message="重新校验: 总计 %d 行，通过 %d，失败 %d，差异 %d 处" % (total_rows, actual_passed, actual_failed, len(diff_rows)),
+        error_detail_json=json.dumps(errors, ensure_ascii=False) if errors else None,
+        import_status="validated",
+        operator_user=_get_username(user),
+    )
+    db.add(new_log)
+    db.flush()
+
+    # Store diff data
+    diff_file = os.path.join(UPLOAD_DIR, "diff_%d.json" % new_log.id)
+    diff_data_out = {
+        "diff_rows": diff_rows,
+        "new_rows": new_rows,
+        "import_data": [{"row_num": r["row_num"], "data": r["data"], "pk_key": r["pk_key"]}
+                        for r in data_rows if not r["errors"]],
+    }
+    with open(diff_file, "w", encoding="utf-8") as f:
+        json.dump(diff_data_out, f, ensure_ascii=False)
+
+    log_operation(db, "数据维护", "重新校验", validation_status,
+                  target_id=tc.id, target_name=tc.table_name,
+                  message="重新校验导入 %s（原任务 #%d），%d 行，通过 %d，失败 %d" % (batch_no, task_id, total_rows, actual_passed, actual_failed),
+                  operator=_get_username(user))
+    db.commit()
+
+    return {
+        "task_id": new_log.id,
+        "import_batch_no": batch_no,
+        "validation_status": validation_status,
+        "total": total_rows,
+        "passed": actual_passed,
+        "failed": actual_failed,
+        "warnings": len(warnings),
+        "diff_count": len(diff_rows),
+        "new_count": len(new_rows),
+        "errors": errors[:100],
+        "original_task_id": task_id,
+    }
+
+
 @router.get("/import-tasks/{task_id}")
 def get_import_task(task_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(get_current_user)):
     """获取导入任务详情。"""
@@ -1518,11 +1861,17 @@ def inline_update(
             pk_values = change.pk_values
             updates = change.updates
 
-            # Filter to only editable fields
+            # Filter to only editable fields (v2.4: respect editable_roles)
+            user_role = user.role if user else "readonly"
             valid_updates = {}  # type: Dict[str, Optional[str]]
             for fn, new_val in updates.items():
                 fc = field_name_map.get(fn)
                 if fc and fc.is_editable and not fc.is_primary_key and not fc.is_system_field:
+                    # v2.4: check editable_roles
+                    if fc.editable_roles:
+                        allowed_roles = [r.strip() for r in fc.editable_roles.split(",") if r.strip()]
+                        if allowed_roles and user_role not in allowed_roles:
+                            continue
                     valid_updates[fn] = new_val
 
             if not valid_updates:

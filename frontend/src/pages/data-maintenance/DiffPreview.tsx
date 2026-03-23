@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Table, Tag, Space, Button, Descriptions, message, Modal, Result } from 'antd';
-import { ArrowLeftOutlined, CheckCircleOutlined } from '@ant-design/icons';
-import { getImportDiff, executeWriteback } from '../../api/dataMaintenance';
+import { ArrowLeftOutlined, CheckCircleOutlined, DownloadOutlined } from '@ant-design/icons';
+import { getImportDiff, executeWriteback, downloadDiffReport } from '../../api/dataMaintenance';
 import type { DiffResponse, WritebackResult } from '../../api/dataMaintenance';
 import { useAuth } from '../../context/AuthContext';
 
@@ -191,6 +191,27 @@ export default function DiffPreview() {
 
         <div style={{ marginTop: 16, textAlign: 'right' }}>
           <Space>
+            {diffData && diffData.diff_rows && diffData.diff_rows.length > 0 && (
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={async () => {
+                  try {
+                    const res = await downloadDiffReport(tid);
+                    const url = window.URL.createObjectURL(new Blob([res.data]));
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `diff_report_${tid}.xlsx`;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    message.success('对比报告已下载');
+                  } catch {
+                    message.error('下载对比报告失败');
+                  }
+                }}
+              >
+                导出对比报告
+              </Button>
+            )}
             <Button onClick={() => navigate(-1)}>返回校验结果</Button>
             <Button onClick={() => navigate(`/data-maintenance/browse/${diffData?.table_config_id}`)}>取消本次操作</Button>
             {canWriteback && (

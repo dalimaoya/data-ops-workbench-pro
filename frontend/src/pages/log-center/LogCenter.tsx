@@ -8,7 +8,8 @@ import {
   type SystemLog, type ExportLog, type ImportLog, type WritebackLogItem, type FieldChangeItem,
 } from '../../api/logs';
 import { listDatasources } from '../../api/datasource';
-import { listExportTasks, downloadExportTask, type ExportTaskItem } from '../../api/dataMaintenance';
+import { listExportTasks, downloadExportTask, retryImportValidation, type ExportTaskItem } from '../../api/dataMaintenance';
+import { useNavigate as useLogNavigate } from 'react-router-dom';
 import { formatBeijingTime } from '../../utils/formatTime';
 
 const { RangePicker } = DatePicker;
@@ -223,7 +224,7 @@ function ExportLogTab({ dsOptions }: { dsOptions: { value: number; label: string
 }
 
 // ─── Import Logs Tab ───
-function ImportLogTab({ dsOptions }: { dsOptions: { value: number; label: string }[] }) {
+function ImportLogTab({ dsOptions, onRetryNavigate }: { dsOptions: { value: number; label: string }[]; onRetryNavigate?: (taskId: number) => void }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ImportLog[]>([]);
   const [total, setTotal] = useState(0);
@@ -253,6 +254,27 @@ function ImportLogTab({ dsOptions }: { dsOptions: { value: number; label: string
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const [retrying, setRetrying] = useState<number | null>(null);
+
+  const handleRetry = async (taskId: number) => {
+    setRetrying(taskId);
+    try {
+      const res = await retryImportValidation(taskId);
+      const result = res.data;
+      message.success('重新校验完成');
+      fetchData();
+      // Navigate to diff preview of the new task
+      if (onRetryNavigate && result.task_id) {
+        onRetryNavigate(result.task_id);
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail || '重新校验失败';
+      message.error(msg);
+    } finally {
+      setRetrying(null);
+    }
+  };
+
   const columns: ColumnsType<ImportLog> = [
     { title: '批次号', dataIndex: 'import_batch_no', width: 200 },
     { title: '数据源', dataIndex: 'datasource_name', width: 150 },
@@ -265,6 +287,24 @@ function ImportLogTab({ dsOptions }: { dsOptions: { value: number; label: string
     { title: '导入状态', dataIndex: 'import_status', width: 100, render: v => statusTag(v) },
     { title: '操作人', dataIndex: 'operator_user', width: 100 },
     { title: '时间', dataIndex: 'created_at', width: 180, render: (v: string) => formatBeijingTime(v) },
+    {
+      title: '操作', width: 100, fixed: 'right',
+      render: (_: unknown, record: ImportLog) => {
+        if (record.validation_status === 'failed' || record.validation_status === 'partial') {
+          return (
+            <Button
+              type="link"
+              size="small"
+              loading={retrying === record.id}
+              onClick={() => handleRetry(record.id)}
+            >
+              重新校验
+            </Button>
+          );
+        }
+        return null;
+      },
+    },
   ];
 
   return (
@@ -584,6 +624,7 @@ function ExportTaskTab() {
 // ─── Main Component ───
 export default function LogCenter() {
   const [dsOptions, setDsOptions] = useState<{ value: number; label: string }[]>([]);
+  const logNav = useLogNavigate();
 
   useEffect(() => {
     listDatasources().then(res => {
@@ -592,11 +633,15 @@ export default function LogCenter() {
     });
   }, []);
 
+  const handleRetryNavigate = (taskId: number) => {
+    logNav(`/data-maintenance/diff/${taskId}`);
+  };
+
   const items = [
     { key: 'system', label: '系统操作日志', children: <SystemLogTab dsOptions={dsOptions} /> },
     { key: 'export', label: '模板导出日志', children: <ExportLogTab dsOptions={dsOptions} /> },
     { key: 'export-tasks', label: '异步导出任务', children: <ExportTaskTab /> },
-    { key: 'import', label: '模板导入日志', children: <ImportLogTab dsOptions={dsOptions} /> },
+    { key: 'import', label: '模板导入日志', children: <ImportLogTab dsOptions={dsOptions} onRetryNavigate={handleRetryNavigate} /> },
     { key: 'writeback', label: '回写日志', children: <WritebackLogTab dsOptions={dsOptions} /> },
   ];
 

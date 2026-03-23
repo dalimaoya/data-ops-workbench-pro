@@ -128,6 +128,7 @@ class FieldConfigOut(BaseModel):
     enum_options_json: Optional[str] = None
     validation_rule_json: Optional[str] = None
     default_display_type: Optional[str] = None
+    editable_roles: Optional[str] = None
     remark: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -149,6 +150,7 @@ class FieldConfigUpdate(BaseModel):
     enum_options_json: Optional[str] = None
     validation_rule_json: Optional[str] = None
     default_display_type: Optional[str] = None
+    editable_roles: Optional[str] = None
     remark: Optional[str] = None
 
 

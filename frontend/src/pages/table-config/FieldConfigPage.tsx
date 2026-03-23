@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Card, Table, Switch, Input, InputNumber, Button, Space, message, Tag, Spin,
+  Card, Table, Switch, Input, InputNumber, Button, Space, message, Tag, Spin, Select,
 } from 'antd';
 import {
   getTableConfig, listFields, updateField, batchUpdateFields, syncFields,
@@ -51,6 +51,7 @@ export default function FieldConfigPage() {
       field_alias: f.field_alias,
       max_length: f.max_length,
       enum_options_json: f.enum_options_json,
+      editable_roles: (f as any).editable_roles,
       remark: f.remark,
     });
   };
@@ -133,6 +134,37 @@ export default function FieldConfigPage() {
       render: (v: string, r: FieldConfig) => editingId === r.id ? (
         <Input size="small" value={editingValues.enum_options_json || ''} onChange={e => setEditingValues(p => ({ ...p, enum_options_json: e.target.value }))} placeholder='["选项1","选项2"]' />
       ) : (v || '-'),
+    },
+    {
+      title: '可编辑角色', dataIndex: 'editable_roles', width: 160,
+      render: (v: string, r: FieldConfig) => {
+        if (editingId === r.id) {
+          const currentRoles = (editingValues as any).editable_roles
+            ? ((editingValues as any).editable_roles as string).split(',').filter(Boolean)
+            : [];
+          return (
+            <Select
+              mode="multiple"
+              size="small"
+              style={{ width: '100%' }}
+              placeholder="所有角色"
+              value={currentRoles}
+              onChange={(vals: string[]) => setEditingValues(p => ({ ...p, editable_roles: vals.length > 0 ? vals.join(',') : '' }))}
+              options={[
+                { value: 'admin', label: '管理员' },
+                { value: 'operator', label: '操作员' },
+              ]}
+            />
+          );
+        }
+        if (!v) return <span style={{ color: '#999' }}>所有角色</span>;
+        const roleMap: Record<string, string> = { admin: '管理员', operator: '操作员' };
+        return v.split(',').filter(Boolean).map(role => (
+          <Tag key={role} color={role === 'admin' ? 'blue' : 'green'} style={{ marginRight: 2 }}>
+            {roleMap[role] || role}
+          </Tag>
+        ));
+      },
     },
     {
       title: '操作', width: 100, fixed: 'right' as const,

@@ -100,6 +100,7 @@ class FieldConfig(AuditMixin, Base):
     enum_options_json = Column(Text, nullable=True)
     validation_rule_json = Column(Text, nullable=True)
     default_display_type = Column(String(32), nullable=True, default="text")
+    editable_roles = Column(String(255), nullable=True)  # v2.4: comma-separated roles, e.g. "admin,operator"
     remark = Column(String(500), nullable=True)
 
 

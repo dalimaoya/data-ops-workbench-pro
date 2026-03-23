@@ -88,6 +88,7 @@ export interface FieldConfig {
   enum_options_json?: string;
   validation_rule_json?: string;
   default_display_type?: string;
+  editable_roles?: string;
   remark?: string;
   created_at: string;
   updated_at: string;

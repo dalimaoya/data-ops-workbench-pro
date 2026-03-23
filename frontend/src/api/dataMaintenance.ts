@@ -26,6 +26,7 @@ export interface ColumnMeta {
   is_primary_key: number;
   is_editable: number;
   is_system_field: number;
+  editable_roles?: string;
 }
 
 export interface BrowseResponse {
@@ -288,3 +289,11 @@ export const downloadExportTask = (taskId: string) =>
 // v2.3: Batch export (multi-table zip)
 export const batchExportTables = (tableConfigIds: number[]) =>
   api.post('/data-maintenance/batch-export', { table_config_ids: tableConfigIds }, { responseType: 'blob' });
+
+// v2.4: Diff report download
+export const downloadDiffReport = (taskId: number) =>
+  api.get(`/data-maintenance/import-tasks/${taskId}/diff-report`, { responseType: 'blob' });
+
+// v2.4: Retry import validation
+export const retryImportValidation = (taskId: number) =>
+  api.post<ImportResult>(`/data-maintenance/import-tasks/${taskId}/retry`);
