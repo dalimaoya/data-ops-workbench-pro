@@ -20,31 +20,7 @@ import { changeMyPassword, updateMyProfile } from '../api/users';
 
 const { Sider, Content, Header } = Layout;
 
-// 路由 → 页面标题映射
-const routeTitles: Record<string, string> = {
-  '/': '工作台总览',
-  '/datasource': '数据源管理',
-  '/table-config': '表配置管理',
-  '/data-maintenance': '数据维护',
-  '/log-center': '日志中心',
-  '/version-rollback': '版本回退',
-  '/user-management': '用户管理',
-  '/about': '关于系统',
-};
-
-function getPageTitle(pathname: string): string {
-  // 精确匹配
-  if (routeTitles[pathname]) return routeTitles[pathname];
-  // 前缀匹配（如 /data-maintenance/xxx）
-  const matched = Object.keys(routeTitles)
-    .filter(k => k !== '/' && pathname.startsWith(k))
-    .sort((a, b) => b.length - a.length);
-  if (matched.length > 0) return routeTitles[matched[0]];
-  return '工作台总览';
-}
-
-// 侧边栏自定义深蓝色
-const SIDER_BG = '#0a2540';
+// 侧边栏使用渐变背景，Menu 透明叠加
 
 interface MenuItem {
   key: string;
@@ -200,10 +176,15 @@ export default function MainLayout() {
       <ConfigProvider theme={{
         components: {
           Menu: {
-            darkItemBg: SIDER_BG,
-            darkSubMenuItemBg: SIDER_BG,
-            darkItemSelectedBg: '#163a5c',
-            darkItemHoverBg: '#132f4c',
+            darkItemBg: 'transparent',
+            darkSubMenuItemBg: 'transparent',
+            darkItemSelectedBg: 'rgba(255,255,255,0.1)',
+            darkItemHoverBg: 'rgba(255,255,255,0.06)',
+            darkItemColor: 'rgba(255,255,255,0.65)',
+            darkItemSelectedColor: '#fff',
+            itemHeight: 48,
+            iconSize: 18,
+            fontSize: 15,
           },
         },
       }}>
@@ -212,7 +193,7 @@ export default function MainLayout() {
           collapsed={collapsed}
           onCollapse={setCollapsed}
           theme="dark"
-          style={{ background: SIDER_BG }}
+          style={{ background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)' }}
         >
           <div style={{
             padding: collapsed ? '16px 8px 8px' : '16px 8px 8px',
@@ -231,7 +212,7 @@ export default function MainLayout() {
             selectedKeys={[selectedKey]}
             items={menuItems}
             onClick={({ key }) => navigate(key)}
-            style={{ background: SIDER_BG }}
+            style={{ background: 'transparent' }}
           />
         </Sider>
       </ConfigProvider>
@@ -239,11 +220,9 @@ export default function MainLayout() {
         <Header style={{
           background: '#fff', padding: '0 24px',
           display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-end',
           borderBottom: '1px solid #f0f0f0',
-          fontSize: 16, fontWeight: 500,
         }}>
-          <span>{getPageTitle(location.pathname)}</span>
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
             <Button type="text" icon={<UserOutlined />}>
               {user?.display_name || user?.username}
