@@ -37,6 +37,10 @@ def list_system_logs(
     """系统操作日志查询（支持按模块/类型/操作人/时间范围/状态筛选，分页）。"""
     q = db.query(SystemOperationLog)
 
+    # v2.2: non-admin users only see their own logs
+    if user.role != "admin":
+        q = q.filter(SystemOperationLog.operator_user == user.username)
+
     if operation_module:
         q = q.filter(SystemOperationLog.operation_module.contains(operation_module))
     if operation_type:
@@ -98,6 +102,10 @@ def list_export_logs(
 ):
     """模板导出日志查询。"""
     q = db.query(TemplateExportLog)
+
+    # v2.2: non-admin users only see their own logs
+    if user.role != "admin":
+        q = q.filter(TemplateExportLog.operator_user == user.username)
 
     if datasource_id:
         q = q.filter(TemplateExportLog.datasource_id == datasource_id)
@@ -175,6 +183,10 @@ def list_import_logs(
 ):
     """模板导入日志查询。"""
     q = db.query(ImportTaskLog)
+
+    # v2.2: non-admin users only see their own logs
+    if user.role != "admin":
+        q = q.filter(ImportTaskLog.operator_user == user.username)
 
     if datasource_id:
         q = q.filter(ImportTaskLog.datasource_id == datasource_id)
@@ -257,6 +269,10 @@ def list_writeback_logs(
 ):
     """回写日志查询。"""
     q = db.query(WritebackLog)
+
+    # v2.2: non-admin users only see their own logs
+    if user.role != "admin":
+        q = q.filter(WritebackLog.operator_user == user.username)
 
     if datasource_id:
         q = q.filter(WritebackLog.datasource_id == datasource_id)

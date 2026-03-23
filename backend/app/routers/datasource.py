@@ -17,6 +17,7 @@ from app.utils.crypto import encrypt_password, decrypt_password
 from app.utils.db_connector import test_connection
 from app.utils.audit import log_operation
 from app.utils.auth import get_current_user, require_role
+from app.utils.permissions import get_permitted_datasource_ids
 from app.models import UserAccount
 
 router = APIRouter(prefix="/api/datasource", tags=["数据源管理"])
@@ -51,6 +52,12 @@ def list_datasources(
     user: UserAccount = Depends(get_current_user),
 ):
     q = db.query(DatasourceConfig).filter(DatasourceConfig.is_deleted == 0)
+    # v2.2: datasource-level permission filtering
+    permitted_ids = get_permitted_datasource_ids(db, user)
+    if permitted_ids is not None:
+        if not permitted_ids:
+            return []
+        q = q.filter(DatasourceConfig.id.in_(permitted_ids))
     if db_type:
         q = q.filter(DatasourceConfig.db_type == db_type)
     if status:
@@ -69,6 +76,12 @@ def count_datasources(
     user: UserAccount = Depends(get_current_user),
 ):
     q = db.query(DatasourceConfig).filter(DatasourceConfig.is_deleted == 0)
+    # v2.2: datasource-level permission filtering
+    permitted_ids = get_permitted_datasource_ids(db, user)
+    if permitted_ids is not None:
+        if not permitted_ids:
+            return {"total": 0}
+        q = q.filter(DatasourceConfig.id.in_(permitted_ids))
     if db_type:
         q = q.filter(DatasourceConfig.db_type == db_type)
     if status:

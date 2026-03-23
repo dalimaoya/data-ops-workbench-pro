@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Button, Space, Tag, Input, Select, message, Popconfirm, Card } from 'antd';
+import { Table, Button, Space, Tag, Input, Select, message, Popconfirm, Card, Typography } from 'antd';
 import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import {
   listTableConfigs, countTableConfigs, deleteTableConfig, checkStructure,
@@ -98,6 +98,7 @@ export default function TableConfigList() {
 
   return (
     <div>
+      <Typography.Title level={4} style={{ marginBottom: 16 }}>表配置管理</Typography.Title>
       <Card style={{ marginBottom: 16 }}>
         <Space wrap>
           <Select

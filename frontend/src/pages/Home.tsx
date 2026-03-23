@@ -62,11 +62,11 @@ export default function Home() {
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <Title level={4} style={{ marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <Title level={4} style={{ margin: 0 }}>
           工作台总览
         </Title>
-        <Text type="secondary">
+        <Text type="secondary" style={{ fontSize: 13 }}>
           欢迎回来，{user?.display_name || user?.username || '用户'}
           {user?.role && <Tag style={{ marginLeft: 8 }}>{
             user.role === 'admin' ? '管理员' : user.role === 'operator' ? '操作员' : '只读用户'

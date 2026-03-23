@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Dropdown, Button, Space, Tag, Modal, Form, Input, message, ConfigProvider } from 'antd';
+import { Layout, Dropdown, Button, Space, Tag, Modal, Form, Input, message } from 'antd';
 import {
   DatabaseOutlined,
   TableOutlined,
@@ -14,6 +14,9 @@ import {
   TeamOutlined,
   KeyOutlined,
   EditOutlined,
+  AuditOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
 import { changeMyPassword, updateMyProfile } from '../api/users';
@@ -35,6 +38,7 @@ const allMenuItems: MenuItem[] = [
   { key: '/table-config', icon: <TableOutlined />, label: '表配置管理' },
   { key: '/data-maintenance', icon: <ToolOutlined />, label: '数据维护' },
   { key: '/log-center', icon: <FileTextOutlined />, label: '日志中心' },
+  { key: '/approval-center', icon: <AuditOutlined />, label: '审批中心', roles: ['admin'] },
   { key: '/version-rollback', icon: <HistoryOutlined />, label: '版本回退', roles: ['admin'] },
   { key: '/user-management', icon: <TeamOutlined />, label: '用户管理', roles: ['admin'] },
   { key: '/about', icon: <InfoCircleOutlined />, label: '关于系统' },
@@ -173,49 +177,115 @@ export default function MainLayout() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <ConfigProvider theme={{
-        components: {
-          Menu: {
-            darkItemBg: 'transparent',
-            darkSubMenuItemBg: 'transparent',
-            darkItemSelectedBg: 'rgba(255,255,255,0.1)',
-            darkItemHoverBg: 'rgba(255,255,255,0.06)',
-            darkItemColor: 'rgba(255,255,255,0.65)',
-            darkItemSelectedColor: '#fff',
-            itemHeight: 48,
-            iconSize: 18,
-            fontSize: 15,
-          },
-        },
-      }}>
         <Sider
           collapsible
           collapsed={collapsed}
           onCollapse={setCollapsed}
+          trigger={null}
           theme="dark"
-          style={{ background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 100%)' }}
+          style={{
+            background: 'linear-gradient(180deg, #0B1530 0%, #0E1B3D 55%, #0A234A 100%)',
+            borderRight: '1px solid rgba(255,255,255,0.08)',
+          }}
         >
+          {/* Logo area */}
           <div style={{
-            padding: collapsed ? '16px 8px 8px' : '16px 8px 8px',
+            padding: collapsed ? '16px 8px 12px' : '16px 8px 12px',
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+            background: 'rgba(255,255,255,0.03)',
+            borderBottom: '1px solid rgba(126,167,255,0.15)',
           }}>
             <img src="/logo.png" alt="logo" style={{ width: collapsed ? 48 : '85%', objectFit: 'contain' }} />
             {!collapsed && (
-              <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 22, textAlign: 'center', letterSpacing: 4, whiteSpace: 'nowrap' }}>
+              <span style={{ color: '#F3F7FF', fontWeight: 'bold', fontSize: 22, textAlign: 'center', letterSpacing: 4, whiteSpace: 'nowrap' }}>
                 数据运维工作台
               </span>
             )}
           </div>
-          <Menu
-            theme="dark"
-            mode="inline"
-            selectedKeys={[selectedKey]}
-            items={menuItems}
-            onClick={({ key }) => navigate(key)}
-            style={{ background: 'transparent' }}
-          />
+
+          {/* Custom menu */}
+          <div style={{ padding: '8px 0', flex: 1 }}>
+            {menuItems.map(item => {
+              const isSelected = item.key === selectedKey;
+              return (
+                <div
+                  key={item.key}
+                  onClick={() => navigate(item.key)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    height: 48,
+                    padding: collapsed ? '0 16px' : '0 20px',
+                    margin: '2px 8px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    color: isSelected ? '#F3F7FF' : '#B8C4DA',
+                    background: isSelected
+                      ? 'linear-gradient(90deg, rgba(88,141,255,0.22) 0%, rgba(48,212,191,0.14) 100%)'
+                      : 'transparent',
+                    borderLeft: isSelected ? '3px solid #35D6C1' : '3px solid transparent',
+                    transition: 'all 0.2s',
+                    justifyContent: collapsed ? 'center' : 'flex-start',
+                    fontSize: 15,
+                  }}
+                  onMouseEnter={e => {
+                    if (!isSelected) {
+                      (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)';
+                    }
+                    const iconEl = e.currentTarget.querySelector('.sidebar-icon') as HTMLElement;
+                    if (iconEl && !isSelected) iconEl.style.color = '#DDE8FF';
+                  }}
+                  onMouseLeave={e => {
+                    if (!isSelected) {
+                      (e.currentTarget as HTMLElement).style.background = 'transparent';
+                    }
+                    const iconEl = e.currentTarget.querySelector('.sidebar-icon') as HTMLElement;
+                    if (iconEl && !isSelected) iconEl.style.color = '#AAB6CC';
+                  }}
+                >
+                  <span
+                    className="sidebar-icon"
+                    style={{
+                      fontSize: 18,
+                      color: isSelected ? '#FFFFFF' : '#AAB6CC',
+                      display: 'flex', alignItems: 'center',
+                      transition: 'color 0.2s',
+                    }}
+                  >
+                    {item.icon}
+                  </span>
+                  {!collapsed && <span>{item.label}</span>}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Collapse toggle button */}
+          <div
+            onClick={() => setCollapsed(!collapsed)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: 48,
+              cursor: 'pointer',
+              color: '#7F8CA8',
+              borderTop: '1px solid rgba(255,255,255,0.08)',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)';
+              (e.currentTarget as HTMLElement).style.color = '#DDE8FF';
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = 'transparent';
+              (e.currentTarget as HTMLElement).style.color = '#7F8CA8';
+            }}
+          >
+            {collapsed ? <MenuUnfoldOutlined style={{ fontSize: 16 }} /> : <MenuFoldOutlined style={{ fontSize: 16 }} />}
+          </div>
         </Sider>
-      </ConfigProvider>
       <Layout>
         <Header style={{
           background: '#fff', padding: '0 24px',
