@@ -34,7 +34,7 @@ export default function DiffPreview() {
       content: t('diffPreview.confirmWritebackContent'),
       okText: t('diffPreview.confirmWriteback'),
       okType: 'primary',
-      cancelText: '取消',
+      cancelText: t('common.cancel'),
       onOk: async () => {
         setWritingBack(true);
         try {
@@ -43,7 +43,7 @@ export default function DiffPreview() {
           message.success(t('diffPreview.writebackComplete'));
         } catch (e: unknown) {
           const err = e as { response?: { data?: { detail?: string } } };
-          message.error(err?.response?.data?.detail || '回写失败');
+          message.error(err?.response?.data?.detail || t('diffPreview.writebackFailed'));
         } finally {
           setWritingBack(false);
         }
@@ -53,37 +53,44 @@ export default function DiffPreview() {
 
   // Write result view
   if (writeResult) {
+    const resultStatus = writeResult.status === 'success' ? 'success' : writeResult.status === 'failed' ? 'error' : 'warning';
+    const resultTitle = writeResult.status === 'success'
+      ? t('diffPreview.writebackSuccess')
+      : writeResult.status === 'failed'
+        ? t('diffPreview.writebackFailedResult')
+        : t('diffPreview.writebackPartial');
+
     return (
       <Card>
         <Result
-          status={writeResult.status === 'success' ? 'success' : writeResult.status === 'failed' ? 'error' : 'warning'}
-          title={writeResult.status === 'success' ? '写入成功' : writeResult.status === 'failed' ? '写入失败' : '部分写入成功'}
-          subTitle={`更新 ${writeResult.updated} 条，新增 ${writeResult.inserted} 条，失败 ${writeResult.failed} 条`}
+          status={resultStatus}
+          title={resultTitle}
+          subTitle={t('diffPreview.writebackSummary', { updated: writeResult.updated, inserted: writeResult.inserted, failed: writeResult.failed })}
           extra={[
             <Button key="back" onClick={() => navigate(`/data-maintenance/browse/${diffData?.table_config_id}`)}>
-              返回数据浏览
+              {t('diffPreview.backToBrowse')}
             </Button>,
             <Button key="home" type="primary" onClick={() => navigate('/data-maintenance')}>
-              返回数据维护
+              {t('diffPreview.backToMaintenance')}
             </Button>,
           ]}
         >
           <Descriptions column={2} bordered size="small" style={{ marginTop: 16 }}>
-            <Descriptions.Item label="回写批次号">{writeResult.writeback_batch_no}</Descriptions.Item>
-            <Descriptions.Item label="备份版本号">{writeResult.backup_version_no}</Descriptions.Item>
-            <Descriptions.Item label="备份表名">{writeResult.backup_table}</Descriptions.Item>
-            <Descriptions.Item label="备份记录数">{writeResult.backup_record_count}</Descriptions.Item>
-            <Descriptions.Item label="更新行数">{writeResult.updated}</Descriptions.Item>
-            <Descriptions.Item label="新增行数">{writeResult.inserted}</Descriptions.Item>
-            <Descriptions.Item label="操作人">{writeResult.operator_user}</Descriptions.Item>
-            <Descriptions.Item label="完成时间">{writeResult.finished_at}</Descriptions.Item>
+            <Descriptions.Item label={t('diffPreview.writebackBatchNo')}>{writeResult.writeback_batch_no}</Descriptions.Item>
+            <Descriptions.Item label={t('diffPreview.backupVersionNo')}>{writeResult.backup_version_no}</Descriptions.Item>
+            <Descriptions.Item label={t('diffPreview.backupTableName')}>{writeResult.backup_table}</Descriptions.Item>
+            <Descriptions.Item label={t('diffPreview.backupRecordCount')}>{writeResult.backup_record_count}</Descriptions.Item>
+            <Descriptions.Item label={t('diffPreview.updatedRows')}>{writeResult.updated}</Descriptions.Item>
+            <Descriptions.Item label={t('diffPreview.insertedRows')}>{writeResult.inserted}</Descriptions.Item>
+            <Descriptions.Item label={t('diffPreview.operatorUser')}>{writeResult.operator_user}</Descriptions.Item>
+            <Descriptions.Item label={t('diffPreview.finishedTime')}>{writeResult.finished_at}</Descriptions.Item>
           </Descriptions>
 
           {writeResult.failed_details && writeResult.failed_details.length > 0 && (
-            <Card title="失败明细" size="small" style={{ marginTop: 16 }}>
+            <Card title={t('diffPreview.failedDetails')} size="small" style={{ marginTop: 16 }}>
               {writeResult.failed_details.map((d, i) => (
                 <div key={i} style={{ color: '#ff4d4f', fontSize: 13 }}>
-                  行{d.row_num} (PK: {d.pk_key}): {d.error}
+                  {t('diffPreview.rowNum')}{d.row_num} (PK: {d.pk_key}): {d.error}
                 </div>
               ))}
             </Card>
@@ -94,11 +101,11 @@ export default function DiffPreview() {
   }
 
   const diffColumns = [
-    { title: '行号', dataIndex: 'row_num', key: 'row_num', width: 70 },
-    { title: '主键值', dataIndex: 'pk_key', key: 'pk_key', width: 150 },
-    { title: '字段名', dataIndex: 'field_alias', key: 'field_alias', width: 150 },
+    { title: t('diffPreview.rowNum'), dataIndex: 'row_num', key: 'row_num', width: 70 },
+    { title: t('diffPreview.pkValue'), dataIndex: 'pk_key', key: 'pk_key', width: 150 },
+    { title: t('diffPreview.fieldName'), dataIndex: 'field_alias', key: 'field_alias', width: 150 },
     {
-      title: '原值',
+      title: t('diffPreview.oldValue'),
       dataIndex: 'old_value',
       key: 'old_value',
       render: (v: string | null, record: { change_type?: string }) =>
@@ -107,24 +114,24 @@ export default function DiffPreview() {
           : <span style={{ color: '#999' }}>{v ?? 'NULL'}</span>,
     },
     {
-      title: '新值',
+      title: t('diffPreview.newValue'),
       dataIndex: 'new_value',
       key: 'new_value',
       render: (v: string | null, record: { change_type?: string }) =>
         <span style={{ color: record.change_type === 'insert' ? '#52c41a' : '#1890ff', fontWeight: 500 }}>{v ?? 'NULL'}</span>,
     },
     {
-      title: '类型',
+      title: t('diffPreview.changeType'),
       dataIndex: 'change_type',
       key: 'change_type',
       width: 80,
       render: (v: string) => {
-        const map: Record<string, { color: string; text: string }> = {
-          update: { color: 'orange', text: '更新' },
-          insert: { color: 'green', text: '新增' },
+        const map: Record<string, { color: string; label: string }> = {
+          update: { color: 'orange', label: t('diffPreview.changeUpdate') },
+          insert: { color: 'green', label: t('diffPreview.changeInsert') },
         };
-        const info = map[v] || { color: 'default', text: v };
-        return <Tag color={info.color}>{info.text}</Tag>;
+        const info = map[v] || { color: 'default', label: v };
+        return <Tag color={info.color}>{info.label}</Tag>;
       },
     },
   ];
@@ -147,10 +154,10 @@ export default function DiffPreview() {
       >
         {diffData && (
           <Descriptions column={4} size="small">
-            <Descriptions.Item label="表名">{diffData.table_alias || diffData.table_name}</Descriptions.Item>
-            <Descriptions.Item label="批次号">{diffData.import_batch_no}</Descriptions.Item>
-            <Descriptions.Item label="配置版本">v{diffData.config_version}</Descriptions.Item>
-            <Descriptions.Item label="导入人">{diffData.operator_user}</Descriptions.Item>
+            <Descriptions.Item label={t('common.tableName')}>{diffData.table_alias || diffData.table_name}</Descriptions.Item>
+            <Descriptions.Item label={t('diffPreview.batchNo')}>{diffData.import_batch_no}</Descriptions.Item>
+            <Descriptions.Item label={t('diffPreview.configVersion')}>v{diffData.config_version}</Descriptions.Item>
+            <Descriptions.Item label={t('diffPreview.importer')}>{diffData.operator_user}</Descriptions.Item>
           </Descriptions>
         )}
       </Card>
@@ -160,21 +167,21 @@ export default function DiffPreview() {
         <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
           <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 'bold' }}>{diffData.passed_rows}</div>
-            <div style={{ color: '#666' }}>拟操作记录数</div>
+            <div style={{ color: '#666' }}>{t('diffPreview.operationRecords')}</div>
           </Card>
           <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 'bold', color: '#1890ff' }}>{updateDiffCount}</div>
-            <div style={{ color: '#666' }}>更新差异项</div>
+            <div style={{ color: '#666' }}>{t('diffPreview.updateDiffs')}</div>
           </Card>
           {(diffData.new_count ?? 0) > 0 && (
             <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ fontSize: 24, fontWeight: 'bold', color: '#52c41a' }}>{diffData.new_count}</div>
-              <div style={{ color: '#666' }}>新增行数</div>
+              <div style={{ color: '#666' }}>{t('diffPreview.newRows')}</div>
             </Card>
           )}
           <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
             <div style={{ fontSize: 24, fontWeight: 'bold', color: '#ff4d4f' }}>{diffData.failed_rows}</div>
-            <div style={{ color: '#666' }}>失败记录数</div>
+            <div style={{ color: '#666' }}>{t('diffPreview.failedRecords')}</div>
           </Card>
         </div>
       )}
@@ -186,7 +193,7 @@ export default function DiffPreview() {
           dataSource={diffData?.diff_rows || []}
           loading={loading}
           scroll={{ x: 800 }}
-          pagination={{ pageSize: 50, showTotal: t => `共 ${t} 处差异` }}
+          pagination={{ pageSize: 50, showTotal: (total) => t('diffPreview.totalDiff', { count: total }) }}
           size="small"
           rowClassName={(record) => record.change_type === 'insert' ? 'ant-table-row-insert' : ''}
         />
@@ -205,17 +212,17 @@ export default function DiffPreview() {
                     a.download = `diff_report_${tid}.xlsx`;
                     a.click();
                     window.URL.revokeObjectURL(url);
-                    message.success('对比报告已下载');
+                    message.success(t('diffPreview.diffReportDownloaded'));
                   } catch {
-                    message.error('下载对比报告失败');
+                    message.error(t('diffPreview.diffReportFailed'));
                   }
                 }}
               >
-                导出对比报告
+                {t('diffPreview.exportDiffReport')}
               </Button>
             )}
-            <Button onClick={() => navigate(-1)}>返回校验结果</Button>
-            <Button onClick={() => navigate(`/data-maintenance/browse/${diffData?.table_config_id}`)}>取消本次操作</Button>
+            <Button onClick={() => navigate(-1)}>{t('diffPreview.backToValidation')}</Button>
+            <Button onClick={() => navigate(`/data-maintenance/browse/${diffData?.table_config_id}`)}>{t('diffPreview.cancelOperation')}</Button>
             {canWriteback && (
               <Button
                 type="primary"
@@ -224,11 +231,11 @@ export default function DiffPreview() {
                 disabled={!diffData || diffData.failed_rows > 0}
                 onClick={handleWriteback}
               >
-                确认写入
+                {t('diffPreview.confirmWriteback')}
               </Button>
             )}
             {diffData && diffData.failed_rows > 0 && (
-              <span style={{ color: '#ff4d4f', fontSize: 12 }}>存在失败项，无法写入</span>
+              <span style={{ color: '#ff4d4f', fontSize: 12 }}>{t('diffPreview.hasFailedRows')}</span>
             )}
           </Space>
         </div>

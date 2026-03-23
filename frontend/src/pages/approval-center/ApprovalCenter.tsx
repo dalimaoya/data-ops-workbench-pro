@@ -13,28 +13,29 @@ import type { ApprovalItem, ApprovalDetail } from '../../api/approvals';
 import { formatBeijingTime } from '../../utils/formatTime';
 import { useTranslation } from 'react-i18next';
 
-const requestTypeLabels: Record<string, string> = {
-  writeback: '模板回写',
-  delete: '删除行',
-  batch_insert: '批量新增',
-  inline_update: '在线编辑',
-  inline_insert: '在线新增',
-};
-
 const statusColors: Record<string, string> = {
   pending: 'orange',
   approved: 'green',
   rejected: 'red',
 };
 
-const statusLabels: Record<string, string> = {
-  pending: '待审批',
-  approved: '已通过',
-  rejected: '已拒绝',
-};
-
 export default function ApprovalCenter() {
   const { t } = useTranslation();
+
+  const requestTypeLabels: Record<string, string> = {
+    writeback: t('approval.requestTypeWriteback'),
+    delete: t('approval.requestTypeDelete'),
+    batch_insert: t('approval.requestTypeBatchInsert'),
+    inline_update: t('approval.requestTypeInlineUpdate'),
+    inline_insert: t('approval.requestTypeInlineInsert'),
+  };
+
+  const statusLabels: Record<string, string> = {
+    pending: t('approval.pending'),
+    approved: t('approval.approved'),
+    rejected: t('approval.rejected'),
+  };
+
   const [activeTab, setActiveTab] = useState('pending');
   const [items, setItems] = useState<ApprovalItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -64,7 +65,7 @@ export default function ApprovalCenter() {
       setItems(res.data.items);
       setTotal(res.data.total);
     } catch {
-      message.error('获取审批列表失败');
+      message.error(t('approval.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -84,15 +85,15 @@ export default function ApprovalCenter() {
 
   const handleApprove = async (id: number) => {
     Modal.confirm({
-      title: '确认审批通过？',
-      content: '通过后将自动执行对应操作（备份+写入）',
+      title: t('approval.approveConfirmTitle'),
+      content: t('approval.approveConfirmContent'),
       onOk: async () => {
         try {
           await approveRequest(id);
-          message.success('审批已通过，操作已执行');
+          message.success(t('approval.approveSuccess'));
           fetchData();
         } catch (err: any) {
-          message.error(err?.response?.data?.detail || '审批失败');
+          message.error(err?.response?.data?.detail || t('approval.approveFailed'));
         }
       },
     });
@@ -103,13 +104,13 @@ export default function ApprovalCenter() {
     setRejectLoading(true);
     try {
       await rejectRequest(rejectId, rejectReason);
-      message.success('审批已拒绝');
+      message.success(t('approval.rejectSuccess'));
       setRejectOpen(false);
       setRejectReason('');
       setRejectId(null);
       fetchData();
     } catch (err: any) {
-      message.error(err?.response?.data?.detail || '操作失败');
+      message.error(err?.response?.data?.detail || t('common.failed'));
     } finally {
       setRejectLoading(false);
     }
@@ -122,7 +123,7 @@ export default function ApprovalCenter() {
       const res = await getApprovalDetail(id);
       setDetail(res.data);
     } catch {
-      message.error('获取审批详情失败');
+      message.error(t('approval.detailLoadFailed'));
     } finally {
       setDetailLoading(false);
     }
@@ -133,9 +134,9 @@ export default function ApprovalCenter() {
     try {
       await setApprovalEnabled(checked);
       setApprovalEnabledState(checked);
-      message.success(checked ? '审批流已启用' : '审批流已关闭');
+      message.success(checked ? t('approval.approvalEnabledSuccess') : t('approval.approvalDisabledSuccess'));
     } catch (err: any) {
-      message.error(err?.response?.data?.detail || '设置失败');
+      message.error(err?.response?.data?.detail || t('common.failed'));
     } finally {
       setSwitchLoading(false);
     }
@@ -144,39 +145,39 @@ export default function ApprovalCenter() {
   const columns = [
     { title: 'ID', dataIndex: 'id', key: 'id', width: 60 },
     {
-      title: '操作类型', dataIndex: 'request_type', key: 'request_type', width: 100,
+      title: t('approval.requestType'), dataIndex: 'request_type', key: 'request_type', width: 100,
       render: (v: string) => <Tag>{requestTypeLabels[v] || v}</Tag>,
     },
-    { title: '表名', dataIndex: 'table_alias', key: 'table_alias', width: 150,
+    { title: t('common.tableName'), dataIndex: 'table_alias', key: 'table_alias', width: 150,
       render: (v: string, r: ApprovalItem) => v || r.table_name,
     },
-    { title: '数据源', dataIndex: 'datasource_name', key: 'datasource_name', width: 120 },
-    { title: '申请人', dataIndex: 'requested_by', key: 'requested_by', width: 100 },
+    { title: t('common.datasource'), dataIndex: 'datasource_name', key: 'datasource_name', width: 120 },
+    { title: t('approval.applicant'), dataIndex: 'requested_by', key: 'requested_by', width: 100 },
     {
-      title: '申请时间', dataIndex: 'request_time', key: 'request_time', width: 170,
+      title: t('approval.applyTime'), dataIndex: 'request_time', key: 'request_time', width: 170,
       render: (v: string) => formatBeijingTime(v),
     },
     {
-      title: '状态', dataIndex: 'status', key: 'status', width: 90,
+      title: t('common.status'), dataIndex: 'status', key: 'status', width: 90,
       render: (v: string) => <Tag color={statusColors[v]}>{statusLabels[v] || v}</Tag>,
     },
     ...(activeTab === 'approved' || activeTab === 'rejected' ? [
-      { title: '审批人', dataIndex: 'approved_by', key: 'approved_by', width: 100 },
+      { title: t('approval.approver'), dataIndex: 'approved_by', key: 'approved_by', width: 100 },
       {
-        title: '审批时间', dataIndex: 'approve_time', key: 'approve_time', width: 170,
+        title: t('approval.approveTime'), dataIndex: 'approve_time', key: 'approve_time', width: 170,
         render: (v: string) => formatBeijingTime(v),
       },
     ] : []),
     ...(activeTab === 'rejected' ? [
-      { title: '拒绝原因', dataIndex: 'reject_reason', key: 'reject_reason', width: 200 },
+      { title: t('approval.rejectReason'), dataIndex: 'reject_reason', key: 'reject_reason', width: 200 },
     ] : []),
     {
-      title: '操作', key: 'action', width: activeTab === 'pending' ? 220 : 80,
+      title: t('common.operation'), key: 'action', width: activeTab === 'pending' ? 220 : 80,
       render: (_: unknown, record: ApprovalItem) => (
         <Space size="small">
-          <Tooltip title="查看详情">
+          <Tooltip title={t('common.detail')}>
             <Button size="small" icon={<EyeOutlined />} onClick={() => handleViewDetail(record.id)}>
-              详情
+              {t('common.detail')}
             </Button>
           </Tooltip>
           {activeTab === 'pending' && (
@@ -187,7 +188,7 @@ export default function ApprovalCenter() {
                 icon={<CheckCircleOutlined />}
                 onClick={() => handleApprove(record.id)}
               >
-                通过
+                {t('approval.approve')}
               </Button>
               <Button
                 size="small"
@@ -195,7 +196,7 @@ export default function ApprovalCenter() {
                 icon={<CloseCircleOutlined />}
                 onClick={() => { setRejectId(record.id); setRejectOpen(true); }}
               >
-                拒绝
+                {t('approval.reject')}
               </Button>
             </>
           )}
@@ -211,13 +212,13 @@ export default function ApprovalCenter() {
         extra={
           <Space>
             <SettingOutlined />
-            <span>审批流：</span>
+            <span>{t('approval.approvalFlow')}</span>
             <Switch
               checked={approvalEnabled}
               loading={switchLoading}
               onChange={handleSwitchChange}
-              checkedChildren="启用"
-              unCheckedChildren="关闭"
+              checkedChildren={t('common.enable')}
+              unCheckedChildren={t('common.close')}
             />
           </Space>
         }
@@ -226,9 +227,9 @@ export default function ApprovalCenter() {
           activeKey={activeTab}
           onChange={(k) => { setActiveTab(k); setPage(1); }}
           items={[
-            { key: 'pending', label: '待审批' },
-            { key: 'approved', label: '已通过' },
-            { key: 'rejected', label: '已拒绝' },
+            { key: 'pending', label: t('approval.pending') },
+            { key: 'approved', label: t('approval.approved') },
+            { key: 'rejected', label: t('approval.rejected') },
           ]}
         />
         <Table
@@ -241,7 +242,7 @@ export default function ApprovalCenter() {
             pageSize,
             total,
             onChange: (p) => setPage(p),
-            showTotal: (t) => `共 ${t} 条`,
+            showTotal: (total) => t('common.total', { count: total }),
           }}
           size="middle"
         />
@@ -249,7 +250,7 @@ export default function ApprovalCenter() {
 
       {/* Detail modal */}
       <Modal
-        title={`审批详情 #${detail?.id || ''}`}
+        title={`${t('approval.detailTitle')} #${detail?.id || ''}`}
         open={detailOpen}
         onCancel={() => { setDetailOpen(false); setDetail(null); }}
         footer={null}
@@ -257,25 +258,25 @@ export default function ApprovalCenter() {
       >
         {detail && (
           <Descriptions bordered column={2} size="small">
-            <Descriptions.Item label="操作类型">{requestTypeLabels[detail.request_type] || detail.request_type}</Descriptions.Item>
-            <Descriptions.Item label="状态">
+            <Descriptions.Item label={t('approval.requestType')}>{requestTypeLabels[detail.request_type] || detail.request_type}</Descriptions.Item>
+            <Descriptions.Item label={t('common.status')}>
               <Tag color={statusColors[detail.status]}>{statusLabels[detail.status] || detail.status}</Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="表名">{detail.table_alias || detail.table_name}</Descriptions.Item>
-            <Descriptions.Item label="数据源">{detail.datasource_name}</Descriptions.Item>
-            <Descriptions.Item label="申请人">{detail.requested_by}</Descriptions.Item>
-            <Descriptions.Item label="申请时间">{formatBeijingTime(detail.request_time)}</Descriptions.Item>
+            <Descriptions.Item label={t('common.tableName')}>{detail.table_alias || detail.table_name}</Descriptions.Item>
+            <Descriptions.Item label={t('common.datasource')}>{detail.datasource_name}</Descriptions.Item>
+            <Descriptions.Item label={t('approval.applicant')}>{detail.requested_by}</Descriptions.Item>
+            <Descriptions.Item label={t('approval.applyTime')}>{formatBeijingTime(detail.request_time)}</Descriptions.Item>
             {detail.approved_by && (
               <>
-                <Descriptions.Item label="审批人">{detail.approved_by}</Descriptions.Item>
-                <Descriptions.Item label="审批时间">{formatBeijingTime(detail.approve_time)}</Descriptions.Item>
+                <Descriptions.Item label={t('approval.approver')}>{detail.approved_by}</Descriptions.Item>
+                <Descriptions.Item label={t('approval.approveTime')}>{formatBeijingTime(detail.approve_time)}</Descriptions.Item>
               </>
             )}
             {detail.reject_reason && (
-              <Descriptions.Item label="拒绝原因" span={2}>{detail.reject_reason}</Descriptions.Item>
+              <Descriptions.Item label={t('approval.rejectReason')} span={2}>{detail.reject_reason}</Descriptions.Item>
             )}
             {detail.diff_preview && detail.diff_preview.diff_rows && detail.diff_preview.diff_rows.length > 0 && (
-              <Descriptions.Item label="差异预览" span={2}>
+              <Descriptions.Item label={t('approval.diffPreview')} span={2}>
                 <div style={{ maxHeight: 300, overflow: 'auto' }}>
                   <Table
                     size="small"
@@ -283,18 +284,18 @@ export default function ApprovalCenter() {
                     dataSource={detail.diff_preview.diff_rows.map((r: any, i: number) => ({ ...r, _key: i }))}
                     rowKey="_key"
                     columns={[
-                      { title: '主键', dataIndex: 'pk_key', width: 100 },
-                      { title: '字段', dataIndex: 'field_alias', width: 100 },
+                      { title: t('diffPreview.pkValue'), dataIndex: 'pk_key', width: 100 },
+                      { title: t('diffPreview.fieldName'), dataIndex: 'field_alias', width: 100 },
                       {
-                        title: '原值', dataIndex: 'old_value', width: 120,
+                        title: t('diffPreview.oldValue'), dataIndex: 'old_value', width: 120,
                         render: (v: string) => <span style={{ color: '#999' }}>{v ?? '-'}</span>,
                       },
                       {
-                        title: '新值', dataIndex: 'new_value', width: 120,
+                        title: t('diffPreview.newValue'), dataIndex: 'new_value', width: 120,
                         render: (v: string) => <span style={{ color: '#1890ff', fontWeight: 500 }}>{v ?? '-'}</span>,
                       },
                       {
-                        title: '类型', dataIndex: 'change_type', width: 80,
+                        title: t('diffPreview.changeType'), dataIndex: 'change_type', width: 80,
                         render: (v: string) => (
                           <Tag color={v === 'insert' ? 'green' : v === 'update' ? 'blue' : 'default'}>{v}</Tag>
                         ),
@@ -310,7 +311,7 @@ export default function ApprovalCenter() {
 
       {/* Reject modal */}
       <Modal
-        title="拒绝审批"
+        title={t('approval.rejectTitle')}
         open={rejectOpen}
         onOk={handleRejectConfirm}
         onCancel={() => { setRejectOpen(false); setRejectReason(''); setRejectId(null); }}
@@ -318,7 +319,7 @@ export default function ApprovalCenter() {
         destroyOnClose
       >
         <Input.TextArea
-          placeholder="请输入拒绝原因（可选）"
+          placeholder={t('approval.rejectReasonPlaceholder')}
           rows={3}
           value={rejectReason}
           onChange={(e) => setRejectReason(e.target.value)}

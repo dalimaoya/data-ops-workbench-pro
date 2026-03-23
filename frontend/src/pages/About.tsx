@@ -22,7 +22,7 @@ export default function About() {
 
       <Divider />
 
-      {/* User Manual - kept in Chinese as documentation */}
+      {/* User Manual */}
       <Collapse
         items={[
           {
@@ -35,60 +35,60 @@ export default function About() {
             ),
             children: isZh ? (
               <Typography>
-                <Title level={4}>一、系统概述</Title>
+                <Title level={4}>{t('about.manualOverviewTitle')}</Title>
                 <Paragraph>
-                  数据运维工作台是一个轻量级的数据安全修订平台，帮助运维和业务人员在不直接接触数据库的前提下，通过标准化流程完成结果数据表的查看、修改、新增和删除，全程操作留痕、可追溯、可回退。
+                  {t('about.manualOverviewDesc')}
                 </Paragraph>
-                <Title level={5}>角色说明</Title>
+                <Title level={5}>{t('about.roleDescription')}</Title>
                 <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
                   <thead>
                     <tr style={{ background: '#fafafa' }}>
-                      <th style={{ border: '1px solid #f0f0f0', padding: '8px 12px', textAlign: 'left' }}>角色</th>
-                      <th style={{ border: '1px solid #f0f0f0', padding: '8px 12px', textAlign: 'left' }}>权限范围</th>
+                      <th style={{ border: '1px solid #f0f0f0', padding: '8px 12px', textAlign: 'left' }}>{t('about.roleColumn')}</th>
+                      <th style={{ border: '1px solid #f0f0f0', padding: '8px 12px', textAlign: 'left' }}>{t('about.permissionColumn')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>管理员</Text></td>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>所有功能</td>
+                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>{t('role.admin')}</Text></td>
+                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>{t('about.adminPerm')}</td>
                     </tr>
                     <tr>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>操作员</Text></td>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>数据维护（查看/编辑/导出/导入/回写/删除）、日志查看</td>
+                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>{t('role.operator')}</Text></td>
+                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>{t('about.operatorPerm')}</td>
                     </tr>
                     <tr>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>只读用户</Text></td>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>数据查看、模板导出、日志查看</td>
+                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>{t('role.readonly')}</Text></td>
+                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>{t('about.readonlyPerm')}</td>
                     </tr>
                   </tbody>
                 </table>
               </Typography>
             ) : (
               <Typography>
-                <Title level={4}>1. System Overview</Title>
+                <Title level={4}>{t('about.manualOverviewTitle')}</Title>
                 <Paragraph>
-                  Data Ops Workbench is a lightweight data revision platform that helps O&M and business staff view, modify, add and delete result data tables through standardized workflows without direct database access. All operations are traceable and reversible.
+                  {t('about.manualOverviewDesc')}
                 </Paragraph>
-                <Title level={5}>Role Description</Title>
+                <Title level={5}>{t('about.roleDescription')}</Title>
                 <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
                   <thead>
                     <tr style={{ background: '#fafafa' }}>
-                      <th style={{ border: '1px solid #f0f0f0', padding: '8px 12px', textAlign: 'left' }}>Role</th>
-                      <th style={{ border: '1px solid #f0f0f0', padding: '8px 12px', textAlign: 'left' }}>Permissions</th>
+                      <th style={{ border: '1px solid #f0f0f0', padding: '8px 12px', textAlign: 'left' }}>{t('about.roleColumn')}</th>
+                      <th style={{ border: '1px solid #f0f0f0', padding: '8px 12px', textAlign: 'left' }}>{t('about.permissionColumn')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>Admin</Text></td>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>All features</td>
+                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>{t('role.admin')}</Text></td>
+                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>{t('about.adminPerm')}</td>
                     </tr>
                     <tr>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>Operator</Text></td>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>Data maintenance (view/edit/export/import/writeback/delete), log viewing</td>
+                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>{t('role.operator')}</Text></td>
+                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>{t('about.operatorPerm')}</td>
                     </tr>
                     <tr>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>Readonly</Text></td>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>Data viewing, template export, log viewing</td>
+                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>{t('role.readonly')}</Text></td>
+                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>{t('about.readonlyPerm')}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -110,20 +110,12 @@ export default function About() {
                 <Text strong>{t('about.systemInfo')}</Text>
               </Space>
             ),
-            children: isZh ? (
+            children: (
               <Typography>
-                <Title level={5}>产品定位</Title>
+                <Title level={5}>{t('about.productPositioning')}</Title>
                 <Paragraph>
-                  数据运维工作台不是数据库开发工具，也不是传统数据填报平台。它聚焦于一件事：
-                  <Text strong>让改数据这件事变得安全、可控、可追溯。</Text>
-                </Paragraph>
-              </Typography>
-            ) : (
-              <Typography>
-                <Title level={5}>Product Positioning</Title>
-                <Paragraph>
-                  Data Ops Workbench is not a database development tool, nor a traditional data entry platform. It focuses on one thing:
-                  <Text strong> Making data modification safe, controlled, and traceable.</Text>
+                  {t('about.productPositioningDesc')}
+                  <Text strong>{t('about.productPositioningHighlight')}</Text>
                 </Paragraph>
               </Typography>
             ),

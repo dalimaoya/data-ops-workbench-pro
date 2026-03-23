@@ -38,7 +38,9 @@
     "datasource": "数据源",
     "operator": "操作人",
     "time": "时间",
-    "type": "类型"
+    "type": "类型",
+    "langZh": "中文",
+    "langEn": "English"
   },
 
   "menu": {
@@ -185,7 +187,14 @@
     "listFailed": "获取数据源列表失败",
     "testFailed": "测试连接请求失败",
     "fillFormFirst": "请先完善表单必填项",
-    "saveChanges": "保存修改"
+    "saveChanges": "保存修改",
+    "dbTypeMySQL": "MySQL",
+    "dbTypePostgreSQL": "PostgreSQL",
+    "dbTypeSQLServer": "SQL Server",
+    "dbTypeOracle": "Oracle",
+    "dbTypeDM": "达梦 (DM)",
+    "dbTypeKingbase": "人大金仓 (KingbaseES)",
+    "dbTypeSQLite": "SQLite"
   },
 
   "tableConfig": {
@@ -633,6 +642,17 @@
     "frontend": "前端",
     "backend": "后端",
     "database": "数据库",
-    "templateEngine": "模板引擎"
+    "templateEngine": "模板引擎",
+    "manualOverviewTitle": "一、系统概述",
+    "manualOverviewDesc": "数据运维工作台是一个轻量级的数据安全修订平台，帮助运维和业务人员在不直接接触数据库的前提下，通过标准化流程完成结果数据表的查看、修改、新增和删除，全程操作留痕、可追溯、可回退。",
+    "roleDescription": "角色说明",
+    "roleColumn": "角色",
+    "permissionColumn": "权限范围",
+    "adminPerm": "所有功能",
+    "operatorPerm": "数据维护（查看/编辑/导出/导入/回写/删除）、日志查看",
+    "readonlyPerm": "数据查看、模板导出、日志查看",
+    "productPositioning": "产品定位",
+    "productPositioningDesc": "数据运维工作台不是数据库开发工具，也不是传统数据填报平台。它聚焦于一件事：",
+    "productPositioningHighlight": "让改数据这件事变得安全、可控、可追溯。"
   }
 }

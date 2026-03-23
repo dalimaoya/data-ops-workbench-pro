@@ -79,6 +79,16 @@ def test_connection(db_type: str, host: str, port: int, username: str,
             conn.close()
             return True, "人大金仓 连接成功"
 
+        elif db_type == "sqlite":
+            import sqlite3
+            db_path = database_name or host  # SQLite uses file path as database_name or host
+            if not db_path:
+                return False, "SQLite 需要指定数据库文件路径"
+            conn = sqlite3.connect(db_path, timeout=timeout)
+            conn.execute("SELECT 1")
+            conn.close()
+            return True, "SQLite 连接成功"
+
         else:
             return False, f"不支持的数据库类型: {db_type}"
     except Exception as e:
