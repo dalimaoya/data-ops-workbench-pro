@@ -50,8 +50,8 @@ export default function Login() {
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <DatabaseOutlined style={{ fontSize: 48, color: '#667eea' }} />
-          <Title level={3} style={{ marginTop: 12, marginBottom: 4 }}>
+          <img src="/logo.png" alt="DataOps Workbench" style={{ height: 64, marginBottom: 12 }} />
+          <Title level={3} style={{ marginTop: 0, marginBottom: 4 }}>
             数据运维工作台
           </Title>
           <Text type="secondary">Data Ops Workbench</Text>
