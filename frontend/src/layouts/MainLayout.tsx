@@ -35,7 +35,7 @@ const allMenuItems: MenuItem[] = [
   { key: '/log-center', icon: <FileTextOutlined />, label: '日志中心' },
   { key: '/version-rollback', icon: <HistoryOutlined />, label: '版本回退', roles: ['admin'] },
   { key: '/user-management', icon: <TeamOutlined />, label: '用户管理', roles: ['admin'] },
-  { key: '/about', icon: <InfoCircleOutlined />, label: '关于' },
+  { key: '/about', icon: <InfoCircleOutlined />, label: '关于系统' },
 ];
 
 const roleLabels: Record<string, string> = {
@@ -178,12 +178,12 @@ export default function MainLayout() {
         theme="dark"
       >
         <div style={{
-          padding: collapsed ? '16px 0 8px' : '16px 12px 8px',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+          padding: collapsed ? '16px 8px 8px' : '16px 8px 8px',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
         }}>
-          <img src="/logo.png" alt="logo" style={{ height: collapsed ? 32 : 40 }} />
+          <img src="/logo.png" alt="logo" style={{ width: collapsed ? 48 : '85%', objectFit: 'contain' }} />
           {!collapsed && (
-            <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 13, textAlign: 'center', lineHeight: 1.3 }}>
+            <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 16, textAlign: 'center', letterSpacing: 2 }}>
               数据运维工作台
             </span>
           )}
