@@ -11,9 +11,15 @@ const dbTypeOptions = [
   { label: 'MySQL', value: 'mysql' },
   { label: 'PostgreSQL', value: 'postgresql' },
   { label: 'SQL Server', value: 'sqlserver' },
+  { label: 'Oracle', value: 'oracle' },
+  { label: '达梦 (DM)', value: 'dm' },
+  { label: '人大金仓 (KingbaseES)', value: 'kingbase' },
 ];
 
-const defaultPorts: Record<string, number> = { mysql: 3306, postgresql: 5432, sqlserver: 1433 };
+const defaultPorts: Record<string, number> = {
+  mysql: 3306, postgresql: 5432, sqlserver: 1433,
+  oracle: 1521, dm: 5236, kingbase: 54321,
+};
 
 export default function DatasourceForm() {
   const { id } = useParams<{ id: string }>();

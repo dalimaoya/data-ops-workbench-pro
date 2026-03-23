@@ -74,12 +74,16 @@ def _get_fields(db: Session, tc_id: int) -> List[FieldConfig]:
 
 
 def _qualified_table(db_type: str, table_name: str, schema: Optional[str]) -> str:
-    if db_type == "postgresql":
+    if db_type in ("postgresql", "kingbase"):
         sch = schema or "public"
         return f'"{sch}"."{table_name}"'
     elif db_type == "sqlserver":
         sch = schema or "dbo"
         return f"[{sch}].[{table_name}]"
+    elif db_type == "oracle":
+        return f'"{table_name.upper()}"'
+    elif db_type == "dm":
+        return f'"{table_name.upper()}"'
     return f"`{table_name}`"
 
 
@@ -89,11 +93,76 @@ def _quote_col(db_type: str, col: str) -> str:
         return f"[{col}]"
     elif db_type == "mysql":
         return f"`{col}`"
+    elif db_type in ("oracle", "dm"):
+        return f'"{col.upper()}"'
     return f'"{col}"'
 
 
 def _placeholder(db_type: str) -> str:
-    return "?" if db_type == "sqlserver" else "%s"
+    """Always return %s. Use _exec() to execute SQL which converts placeholders for each DB."""
+    return "%s"
+
+
+def _exec(cur, db_type: str, sql: str, params: list) -> None:
+    """Execute SQL with params, converting placeholder style for Oracle.
+    Assumes SQL uses %s placeholders (like MySQL/PG). Converts:
+    - Oracle: %s -> :1, :2, ...
+    - SQL Server/DM: %s -> ?
+    """
+    if db_type in ("oracle",):
+        idx = [0]
+        def _repl(m):
+            idx[0] += 1
+            return f":{idx[0]}"
+        import re
+        converted = re.sub(r'%s', lambda m: _repl(m), sql)
+        cur.execute(converted, params)
+    elif db_type in ("sqlserver", "dm"):
+        converted = sql.replace("%s", "?")
+        cur.execute(converted, params)
+    else:
+        cur.execute(sql, params)
+
+
+def _cast_to_text(db_type: str, col_expr: str) -> str:
+    """Wrap a column expression with CAST to text for LIKE comparisons."""
+    if db_type == "sqlserver":
+        return f"CAST({col_expr} AS NVARCHAR(MAX))"
+    elif db_type in ("postgresql", "kingbase"):
+        return f"CAST({col_expr} AS TEXT)"
+    elif db_type in ("oracle", "dm"):
+        return f"TO_CHAR({col_expr})"
+    return f"CAST({col_expr} AS CHAR)"
+
+
+def _create_backup_table(cur, db_type: str, source_qt: str, backup_table_name: str, schema: Optional[str]) -> None:
+    """Create a backup table as a copy of the source table. DB-dialect aware."""
+    if db_type == "mysql":
+        cur.execute(f"CREATE TABLE `{backup_table_name}` AS SELECT * FROM {source_qt}")
+    elif db_type in ("postgresql", "kingbase"):
+        sch = schema or "public"
+        cur.execute(f'CREATE TABLE "{sch}"."{backup_table_name}" AS SELECT * FROM {source_qt}')
+    elif db_type == "sqlserver":
+        sch = schema or "dbo"
+        cur.execute(f"SELECT * INTO [{sch}].[{backup_table_name}] FROM {source_qt}")
+    elif db_type == "oracle":
+        cur.execute(f'CREATE TABLE "{backup_table_name.upper()}" AS SELECT * FROM {source_qt}')
+    elif db_type == "dm":
+        cur.execute(f'CREATE TABLE "{backup_table_name.upper()}" AS SELECT * FROM {source_qt}')
+
+
+def _drop_table_if_exists(cur, db_type: str, table_qt: str) -> None:
+    """Drop a table if it exists. DB-dialect aware."""
+    if db_type == "sqlserver":
+        cur.execute(f"IF OBJECT_ID('{table_qt}') IS NOT NULL DROP TABLE {table_qt}")
+    elif db_type in ("oracle", "dm"):
+        # Oracle/DM: use PL/SQL block or just try DROP
+        try:
+            cur.execute(f"DROP TABLE {table_qt}")
+        except Exception:
+            pass  # table doesn't exist
+    else:
+        cur.execute(f"DROP TABLE IF EXISTS {table_qt}")
 
 
 # ─────────────────────────────────────────────
@@ -184,7 +253,7 @@ def browse_table_data(
         if keyword:
             kw_parts = []
             for f in display_fields:
-                kw_parts.append(f"CAST({_quote_col(ds.db_type, f.field_name)} AS {'NVARCHAR(MAX)' if ds.db_type == 'sqlserver' else 'TEXT' if ds.db_type == 'postgresql' else 'CHAR'}) LIKE {ph}")
+                kw_parts.append(f"{_cast_to_text(ds.db_type, _quote_col(ds.db_type, f.field_name))} LIKE {ph}")
                 params.append(f"%{keyword}%")
             if kw_parts:
                 where_parts.append(f"({' OR '.join(kw_parts)})")
@@ -194,7 +263,7 @@ def browse_table_data(
                 ff = json.loads(field_filters)
                 for fname, fval in ff.items():
                     if fval and any(f.field_name == fname for f in display_fields):
-                        where_parts.append(f"CAST({_quote_col(ds.db_type, fname)} AS {'NVARCHAR(MAX)' if ds.db_type == 'sqlserver' else 'TEXT' if ds.db_type == 'postgresql' else 'CHAR'}) LIKE {ph}")
+                        where_parts.append(f"{_cast_to_text(ds.db_type, _quote_col(ds.db_type, fname))} LIKE {ph}")
                         params.append(f"%{fval}%")
             except (json.JSONDecodeError, TypeError):
                 pass
@@ -204,7 +273,7 @@ def browse_table_data(
             where_sql = " WHERE " + " AND ".join(where_parts)
 
         # Count
-        cur.execute(f"SELECT COUNT(*) FROM {qt}{where_sql}", params)
+        _exec(cur, ds.db_type, f"SELECT COUNT(*) FROM {qt}{where_sql}", params)
         total = cur.fetchone()[0]
 
         # Select columns
@@ -215,10 +284,18 @@ def browse_table_data(
             pk_fields = tc.primary_key_fields.split(",")
             order_col = _quote_col(ds.db_type, pk_fields[0].strip())
             data_sql = f"SELECT {cols_sql} FROM {qt}{where_sql} ORDER BY {order_col} OFFSET {ph} ROWS FETCH NEXT {ph} ROWS ONLY"
-            cur.execute(data_sql, params + [offset_val, page_size])
+            _exec(cur, ds.db_type, data_sql, params + [offset_val, page_size])
+        elif ds.db_type in ("oracle", "dm"):
+            # Oracle/达梦 使用 OFFSET-FETCH (12c+) 或 ROWNUM 嵌套
+            pk_fields = tc.primary_key_fields.split(",")
+            order_col = _quote_col(ds.db_type, pk_fields[0].strip())
+            # 使用子查询 + ROWNUM 兼容老版本 Oracle 和达梦
+            inner_where = where_sql
+            data_sql = f"SELECT * FROM (SELECT a.*, ROWNUM rn FROM (SELECT {cols_sql} FROM {qt}{inner_where} ORDER BY {order_col}) a WHERE ROWNUM <= {offset_val + page_size}) WHERE rn > {offset_val}"
+            _exec(cur, ds.db_type, data_sql, params)
         else:
             data_sql = f"SELECT {cols_sql} FROM {qt}{where_sql} LIMIT {ph} OFFSET {ph}"
-            cur.execute(data_sql, params + [page_size, offset_val])
+            _exec(cur, ds.db_type, data_sql, params + [page_size, offset_val])
 
         raw_rows = cur.fetchall()
         rows = []
@@ -299,7 +376,7 @@ def export_template(
             if keyword:
                 kw_parts = []
                 for f in export_fields:
-                    kw_parts.append(f"CAST({_quote_col(ds.db_type, f.field_name)} AS {'NVARCHAR(MAX)' if ds.db_type == 'sqlserver' else 'TEXT' if ds.db_type == 'postgresql' else 'CHAR'}) LIKE {ph}")
+                    kw_parts.append(f"{_cast_to_text(ds.db_type, _quote_col(ds.db_type, f.field_name))} LIKE {ph}")
                     params.append(f"%{keyword}%")
                 where_parts.append(f"({' OR '.join(kw_parts)})")
             if field_filters:
@@ -307,7 +384,7 @@ def export_template(
                     ff = json.loads(field_filters)
                     for fname, fval in ff.items():
                         if fval and any(f.field_name == fname for f in export_fields):
-                            where_parts.append(f"CAST({_quote_col(ds.db_type, fname)} AS {'NVARCHAR(MAX)' if ds.db_type == 'sqlserver' else 'TEXT' if ds.db_type == 'postgresql' else 'CHAR'}) LIKE {ph}")
+                            where_parts.append(f"{_cast_to_text(ds.db_type, _quote_col(ds.db_type, fname))} LIKE {ph}")
                             params.append(f"%{fval}%")
                 except (json.JSONDecodeError, TypeError):
                     pass
@@ -318,7 +395,7 @@ def export_template(
 
         cols_sql = ", ".join(_quote_col(ds.db_type, c) for c in col_names)
         data_sql = f"SELECT {cols_sql} FROM {qt}{where_sql}"
-        cur.execute(data_sql, params)
+        _exec(cur, ds.db_type, data_sql, params)
         raw_rows = cur.fetchall()
     except Exception as e:
         raise HTTPException(500, f"查询数据失败: {str(e)}")
@@ -1025,14 +1102,7 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
         ts = _now_bjt().strftime("%Y%m%d%H%M%S")
         backup_table_name = f"{tc.table_name}_bak_{ts}"
 
-        if ds.db_type == "mysql":
-            cur.execute(f"CREATE TABLE `{backup_table_name}` AS SELECT * FROM {qt}")
-        elif ds.db_type == "postgresql":
-            sch = tc.schema_name or "public"
-            cur.execute(f'CREATE TABLE "{sch}"."{backup_table_name}" AS SELECT * FROM {qt}')
-        elif ds.db_type == "sqlserver":
-            sch = tc.schema_name or "dbo"
-            cur.execute(f"SELECT * INTO [{sch}].[{backup_table_name}] FROM {qt}")
+        _create_backup_table(cur, ds.db_type, qt, backup_table_name, tc.schema_name)
 
         # Count backup rows
         bk_qt = _qualified_table(ds.db_type, backup_table_name, tc.schema_name)
@@ -1075,10 +1145,7 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
             for old_bk in old_backups[tc.backup_keep_count:]:
                 try:
                     old_bk_qt = _qualified_table(ds.db_type, old_bk.backup_table_name, old_bk.source_schema_name)
-                    if ds.db_type == "sqlserver":
-                        cur.execute(f"IF OBJECT_ID('{old_bk_qt}') IS NOT NULL DROP TABLE {old_bk_qt}")
-                    else:
-                        cur.execute(f"DROP TABLE IF EXISTS {old_bk_qt}")
+                    _drop_table_if_exists(cur, ds.db_type, old_bk_qt)
                     conn.commit()
                 except Exception:
                     pass
@@ -1124,12 +1191,12 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
             pk_vals = pk_key.split("|")
             for i, pkf in enumerate(pk_fields_list):
                 pk_val = pk_vals[i] if i < len(pk_vals) else ""
-                where_parts.append(f"CAST({_quote_col(ds.db_type, pkf)} AS {'NVARCHAR(MAX)' if ds.db_type == 'sqlserver' else 'TEXT' if ds.db_type == 'postgresql' else 'CHAR'}) = {ph}")
+                where_parts.append(f"{_cast_to_text(ds.db_type, _quote_col(ds.db_type, pkf))} = {ph}")
                 where_params.append(pk_val)
 
             update_sql = f"UPDATE {qt} SET {', '.join(set_parts)} WHERE {' AND '.join(where_parts)}"
             try:
-                cur.execute(update_sql, set_params + where_params)
+                _exec(cur, ds.db_type, update_sql, set_params + where_params)
                 success_count += 1
                 update_count += 1
 
@@ -1173,7 +1240,7 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
 
                 insert_sql = f"INSERT INTO {qt} ({insert_cols_sql}) VALUES ({placeholders})"
                 try:
-                    cur.execute(insert_sql, vals)
+                    _exec(cur, ds.db_type, insert_sql, vals)
                     success_count += 1
                     insert_count += 1
 
@@ -1273,6 +1340,372 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
 
 
 # ─────────────────────────────────────────────
+# v2.1: 在线编辑模式 — 行内编辑 + 单行新增
+# ─────────────────────────────────────────────
+
+class InlineChange(BaseModel):
+    pk_values: Dict[str, str]
+    updates: Dict[str, Optional[str]]
+
+
+class InlineUpdateRequest(BaseModel):
+    changes: List[InlineChange]
+
+
+class InlineInsertRequest(BaseModel):
+    row_data: Dict[str, Optional[str]]
+
+
+@router.put("/{table_config_id}/inline-update")
+def inline_update(
+    table_config_id: int,
+    body: InlineUpdateRequest,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin", "operator")),
+):
+    """行内编辑：写前备份 → 逐行 UPDATE → 记录 writeback_log + field_change_log。"""
+    tc = _get_tc(db, table_config_id)
+    ds = _get_ds(db, tc.datasource_id)
+    pwd = decrypt_password(ds.password_encrypted)
+    fields = _get_fields(db, tc.id)
+    field_name_map = {f.field_name: f for f in fields}
+    pk_fields_list = [p.strip() for p in tc.primary_key_fields.split(",")]
+
+    if not body.changes:
+        raise HTTPException(400, "没有变更内容")
+
+    wb_batch = _gen_batch("INL")
+    bk_batch = _gen_batch("BK")
+    started_at = _now_bjt()
+
+    conn = _connect(
+        ds.db_type, ds.host, ds.port, ds.username, pwd,
+        tc.db_name, tc.schema_name, ds.charset, ds.connect_timeout_seconds or 10,
+    )
+    try:
+        cur = conn.cursor()
+        qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
+        ph = _placeholder(ds.db_type)
+
+        # ── Step 1: Full table backup ──
+        ts = _now_bjt().strftime("%Y%m%d%H%M%S")
+        backup_table_name = f"{tc.table_name}_bak_{ts}"
+        _create_backup_table(cur, ds.db_type, qt, backup_table_name, tc.schema_name)
+
+        bk_qt = _qualified_table(ds.db_type, backup_table_name, tc.schema_name)
+        cur.execute(f"SELECT COUNT(*) FROM {bk_qt}")
+        backup_count = cur.fetchone()[0]
+        conn.commit()
+
+        backup_rec = TableBackupVersion(
+            backup_version_no=bk_batch,
+            table_config_id=tc.id,
+            datasource_id=tc.datasource_id,
+            backup_table_name=backup_table_name,
+            source_table_name=tc.table_name,
+            source_db_name=tc.db_name,
+            source_schema_name=tc.schema_name,
+            trigger_type="triggered_by_inline_update",
+            related_writeback_batch_no=wb_batch,
+            record_count=backup_count,
+            storage_status="valid",
+            can_rollback=1,
+            backup_started_at=started_at,
+            backup_finished_at=_now_bjt(),
+            operator_user=_get_username(user),
+        )
+        db.add(backup_rec)
+        db.flush()
+
+        # ── Step 2: Read old values & execute UPDATEs ──
+        success_count = 0
+        fail_count = 0
+        failed_details = []  # type: List[dict]
+        change_logs = []  # type: List[dict]
+
+        for change in body.changes:
+            pk_values = change.pk_values
+            updates = change.updates
+
+            # Filter to only editable fields
+            valid_updates = {}  # type: Dict[str, Optional[str]]
+            for fn, new_val in updates.items():
+                fc = field_name_map.get(fn)
+                if fc and fc.is_editable and not fc.is_primary_key and not fc.is_system_field:
+                    valid_updates[fn] = new_val
+
+            if not valid_updates:
+                continue
+
+            # Build WHERE from pk_values
+            where_parts = []  # type: List[str]
+            where_params = []  # type: list
+            for pkf in pk_fields_list:
+                pv = pk_values.get(pkf, "")
+                where_parts.append(f"{_cast_to_text(ds.db_type, _quote_col(ds.db_type, pkf))} = %s")
+                where_params.append(pv)
+
+            where_sql = " AND ".join(where_parts)
+            pk_key = "|".join(pk_values.get(pkf, "") for pkf in pk_fields_list)
+
+            # Fetch old values
+            old_col_names = list(valid_updates.keys())
+            old_cols_sql = ", ".join(_quote_col(ds.db_type, c) for c in old_col_names)
+            try:
+                _exec(cur, ds.db_type, f"SELECT {old_cols_sql} FROM {qt} WHERE {where_sql}", where_params)
+                old_row = cur.fetchone()
+            except Exception:
+                old_row = None
+
+            # Build SET clause
+            set_parts = []  # type: List[str]
+            set_params = []  # type: list
+            for fn, new_val in valid_updates.items():
+                set_parts.append(f"{_quote_col(ds.db_type, fn)} = %s")
+                set_params.append(new_val)
+
+            update_sql = f"UPDATE {qt} SET {', '.join(set_parts)} WHERE {where_sql}"
+            try:
+                _exec(cur, ds.db_type, update_sql, set_params + where_params)
+                success_count += 1
+
+                # Record field-level changes
+                for idx_col, fn in enumerate(old_col_names):
+                    old_val = str(old_row[idx_col]) if old_row and old_row[idx_col] is not None else None
+                    new_val = valid_updates[fn]
+                    if old_val != new_val:
+                        change_logs.append({
+                            "row_pk_value": pk_key,
+                            "field_name": fn,
+                            "old_value": old_val,
+                            "new_value": new_val,
+                            "change_type": "update",
+                        })
+            except Exception as e:
+                fail_count += 1
+                failed_details.append({"pk_key": pk_key, "error": str(e)})
+
+        conn.commit()
+        finished_at = _now_bjt()
+        wb_status = "success" if fail_count == 0 else ("failed" if success_count == 0 else "partial")
+
+        # Record writeback log
+        wb_log = WritebackLog(
+            writeback_batch_no=wb_batch,
+            import_task_id=0,
+            table_config_id=tc.id,
+            datasource_id=tc.datasource_id,
+            backup_version_no=bk_batch,
+            total_row_count=len(body.changes),
+            success_row_count=success_count,
+            failed_row_count=fail_count,
+            skipped_row_count=0,
+            inserted_row_count=0,
+            updated_row_count=success_count,
+            deleted_row_count=0,
+            writeback_status=wb_status,
+            writeback_message=f"在线编辑更新 {success_count} 行，失败 {fail_count} 行",
+            failed_detail_json=json.dumps(failed_details, ensure_ascii=False) if failed_details else None,
+            operator_user=_get_username(user),
+            started_at=started_at,
+            finished_at=finished_at,
+        )
+        db.add(wb_log)
+        db.flush()
+
+        for cl in change_logs:
+            db.add(FieldChangeLog(
+                writeback_log_id=wb_log.id,
+                row_pk_value=cl["row_pk_value"],
+                field_name=cl["field_name"],
+                old_value=cl["old_value"],
+                new_value=cl["new_value"],
+                change_type=cl["change_type"],
+            ))
+
+        log_operation(db, "数据维护", "在线编辑", wb_status,
+                      target_id=tc.id, target_name=tc.table_name,
+                      message=f"在线编辑 {wb_batch}，更新 {success_count}，失败 {fail_count}，备份 {bk_batch}",
+                      operator=_get_username(user))
+        db.commit()
+
+        return {
+            "writeback_batch_no": wb_batch,
+            "backup_version_no": bk_batch,
+            "status": wb_status,
+            "total": len(body.changes),
+            "success": success_count,
+            "failed": fail_count,
+            "updated": success_count,
+            "backup_table": backup_table_name,
+            "backup_record_count": backup_count,
+            "change_count": len(change_logs),
+            "failed_details": failed_details[:50],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, f"在线编辑失败: {str(e)}")
+    finally:
+        conn.close()
+
+
+@router.post("/{table_config_id}/inline-insert")
+def inline_insert(
+    table_config_id: int,
+    body: InlineInsertRequest,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin", "operator")),
+):
+    """单行新增：写前备份 → INSERT → 记录日志。"""
+    tc = _get_tc(db, table_config_id)
+    if not tc.allow_insert_rows:
+        raise HTTPException(403, "该纳管表未启用新增行功能")
+
+    ds = _get_ds(db, tc.datasource_id)
+    pwd = decrypt_password(ds.password_encrypted)
+    fields = _get_fields(db, tc.id)
+    pk_fields_list = [p.strip() for p in tc.primary_key_fields.split(",")]
+
+    if not body.row_data:
+        raise HTTPException(400, "没有数据")
+
+    # Validate PK fields are provided
+    for pkf in pk_fields_list:
+        pv = body.row_data.get(pkf)
+        if not pv or str(pv).strip() == "":
+            raise HTTPException(400, f"主键字段 {pkf} 不能为空")
+
+    wb_batch = _gen_batch("INS")
+    bk_batch = _gen_batch("BK")
+    started_at = _now_bjt()
+
+    conn = _connect(
+        ds.db_type, ds.host, ds.port, ds.username, pwd,
+        tc.db_name, tc.schema_name, ds.charset, ds.connect_timeout_seconds or 10,
+    )
+    try:
+        cur = conn.cursor()
+        qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
+
+        # Backup
+        ts = _now_bjt().strftime("%Y%m%d%H%M%S")
+        backup_table_name = f"{tc.table_name}_bak_{ts}"
+        _create_backup_table(cur, ds.db_type, qt, backup_table_name, tc.schema_name)
+
+        bk_qt = _qualified_table(ds.db_type, backup_table_name, tc.schema_name)
+        cur.execute(f"SELECT COUNT(*) FROM {bk_qt}")
+        backup_count = cur.fetchone()[0]
+        conn.commit()
+
+        backup_rec = TableBackupVersion(
+            backup_version_no=bk_batch,
+            table_config_id=tc.id,
+            datasource_id=tc.datasource_id,
+            backup_table_name=backup_table_name,
+            source_table_name=tc.table_name,
+            source_db_name=tc.db_name,
+            source_schema_name=tc.schema_name,
+            trigger_type="triggered_by_inline_insert",
+            related_writeback_batch_no=wb_batch,
+            record_count=backup_count,
+            storage_status="valid",
+            can_rollback=1,
+            backup_started_at=started_at,
+            backup_finished_at=_now_bjt(),
+            operator_user=_get_username(user),
+        )
+        db.add(backup_rec)
+        db.flush()
+
+        # Build INSERT
+        export_fields = [f for f in fields if f.include_in_export]
+        insert_col_names = [f.field_name for f in export_fields]
+        insert_cols_sql = ", ".join(_quote_col(ds.db_type, c) for c in insert_col_names)
+        placeholders = ", ".join(["%s"] * len(insert_col_names))
+
+        vals = []  # type: list
+        for fn in insert_col_names:
+            v = body.row_data.get(fn)
+            if v is not None and str(v).strip() != "":
+                vals.append(str(v).strip())
+            else:
+                vals.append(None)
+
+        pk_key = "|".join(body.row_data.get(pkf, "") for pkf in pk_fields_list)
+
+        insert_sql = f"INSERT INTO {qt} ({insert_cols_sql}) VALUES ({placeholders})"
+        try:
+            _exec(cur, ds.db_type, insert_sql, vals)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise HTTPException(500, f"新增行失败: {str(e)}")
+
+        finished_at = _now_bjt()
+
+        # Record writeback log
+        wb_log = WritebackLog(
+            writeback_batch_no=wb_batch,
+            import_task_id=0,
+            table_config_id=tc.id,
+            datasource_id=tc.datasource_id,
+            backup_version_no=bk_batch,
+            total_row_count=1,
+            success_row_count=1,
+            failed_row_count=0,
+            skipped_row_count=0,
+            inserted_row_count=1,
+            updated_row_count=0,
+            deleted_row_count=0,
+            writeback_status="success",
+            writeback_message=f"在线新增 1 行",
+            operator_user=_get_username(user),
+            started_at=started_at,
+            finished_at=finished_at,
+        )
+        db.add(wb_log)
+        db.flush()
+
+        # Record field-level change logs
+        for fn, val in zip(insert_col_names, vals):
+            if val is not None:
+                db.add(FieldChangeLog(
+                    writeback_log_id=wb_log.id,
+                    row_pk_value=pk_key,
+                    field_name=fn,
+                    old_value=None,
+                    new_value=str(val),
+                    change_type="insert",
+                ))
+
+        log_operation(db, "数据维护", "在线新增行", "success",
+                      target_id=tc.id, target_name=tc.table_name,
+                      message=f"在线新增行 {wb_batch}，备份 {bk_batch}",
+                      operator=_get_username(user))
+        db.commit()
+
+        return {
+            "writeback_batch_no": wb_batch,
+            "backup_version_no": bk_batch,
+            "status": "success",
+            "pk_key": pk_key,
+            "backup_table": backup_table_name,
+            "backup_record_count": backup_count,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, f"新增行失败: {str(e)}")
+    finally:
+        conn.close()
+
+
+# ─────────────────────────────────────────────
 # v2.0 Task 2: 数据浏览页面直接删除行
 # ─────────────────────────────────────────────
 
@@ -1319,14 +1752,7 @@ def delete_rows(
         ts = _now_bjt().strftime("%Y%m%d%H%M%S")
         backup_table_name = f"{tc.table_name}_bak_{ts}"
 
-        if ds.db_type == "mysql":
-            cur.execute(f"CREATE TABLE `{backup_table_name}` AS SELECT * FROM {qt}")
-        elif ds.db_type == "postgresql":
-            sch = tc.schema_name or "public"
-            cur.execute(f'CREATE TABLE "{sch}"."{backup_table_name}" AS SELECT * FROM {qt}')
-        elif ds.db_type == "sqlserver":
-            sch = tc.schema_name or "dbo"
-            cur.execute(f"SELECT * INTO [{sch}].[{backup_table_name}] FROM {qt}")
+        _create_backup_table(cur, ds.db_type, qt, backup_table_name, tc.schema_name)
 
         bk_qt = _qualified_table(ds.db_type, backup_table_name, tc.schema_name)
         cur.execute(f"SELECT COUNT(*) FROM {bk_qt}")
@@ -1369,18 +1795,18 @@ def delete_rows(
             where_params = []
             for i, pkf in enumerate(pk_fields_list):
                 pv = pk_vals[i] if i < len(pk_vals) else ""
-                where_parts.append(f"CAST({_quote_col(ds.db_type, pkf)} AS {'NVARCHAR(MAX)' if ds.db_type == 'sqlserver' else 'TEXT' if ds.db_type == 'postgresql' else 'CHAR'}) = {ph}")
+                where_parts.append(f"{_cast_to_text(ds.db_type, _quote_col(ds.db_type, pkf))} = {ph}")
                 where_params.append(pv)
 
             where_sql = " AND ".join(where_parts)
 
             try:
                 # Read row before delete
-                cur.execute(f"SELECT {cols_sql} FROM {qt} WHERE {where_sql}", where_params)
+                _exec(cur, ds.db_type, f"SELECT {cols_sql} FROM {qt} WHERE {where_sql}", where_params)
                 row_before = cur.fetchone()
 
                 # DELETE
-                cur.execute(f"DELETE FROM {qt} WHERE {where_sql}", where_params)
+                _exec(cur, ds.db_type, f"DELETE FROM {qt} WHERE {where_sql}", where_params)
                 success_count += 1
 
                 # Record change log

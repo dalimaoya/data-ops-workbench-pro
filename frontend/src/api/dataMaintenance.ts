@@ -199,3 +199,39 @@ export const deleteRows = (tableConfigId: number, pkValues: string[]) =>
   api.delete<DeleteRowsResult>(`/data-maintenance/${tableConfigId}/rows`, {
     data: { pk_values: pkValues },
   });
+
+// v2.1: 在线编辑 — 行内更新
+export interface InlineChange {
+  pk_values: Record<string, string>;
+  updates: Record<string, string | null>;
+}
+
+export interface InlineUpdateResult {
+  writeback_batch_no: string;
+  backup_version_no: string;
+  status: string;
+  total: number;
+  success: number;
+  failed: number;
+  updated: number;
+  backup_table: string;
+  backup_record_count: number;
+  change_count: number;
+  failed_details: Array<{ pk_key: string; error: string }>;
+}
+
+export const inlineUpdate = (tableConfigId: number, changes: InlineChange[]) =>
+  api.put<InlineUpdateResult>(`/data-maintenance/${tableConfigId}/inline-update`, { changes });
+
+// v2.1: 在线编辑 — 单行新增
+export interface InlineInsertResult {
+  writeback_batch_no: string;
+  backup_version_no: string;
+  status: string;
+  pk_key: string;
+  backup_table: string;
+  backup_record_count: number;
+}
+
+export const inlineInsert = (tableConfigId: number, rowData: Record<string, string | null>) =>
+  api.post<InlineInsertResult>(`/data-maintenance/${tableConfigId}/inline-insert`, { row_data: rowData });

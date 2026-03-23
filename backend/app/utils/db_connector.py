@@ -45,6 +45,40 @@ def test_connection(db_type: str, host: str, port: int, username: str,
             conn = pyodbc.connect(conn_str, timeout=timeout)
             conn.close()
             return True, "SQL Server 连接成功"
+
+        elif db_type == "oracle":
+            import oracledb
+            dsn = oracledb.makedsn(host, port, service_name=database_name or "ORCL")
+            conn = oracledb.connect(user=username, password=password, dsn=dsn)
+            conn.ping()
+            conn.close()
+            return True, "Oracle 连接成功"
+
+        elif db_type == "dm":
+            # 达梦通过 pyodbc + DM ODBC 驱动连接
+            import pyodbc
+            conn_str = (
+                f"DRIVER={{DM8 ODBC DRIVER}};"
+                f"SERVER={host};"
+                f"PORT={port};"
+                f"UID={username};PWD={password};"
+            )
+            if database_name:
+                conn_str += f"DATABASE={database_name};"
+            conn = pyodbc.connect(conn_str, timeout=timeout)
+            conn.close()
+            return True, "达梦 连接成功"
+
+        elif db_type == "kingbase":
+            # 人大金仓兼容 PostgreSQL 协议，使用 psycopg2
+            import psycopg2
+            dsn = f"host={host} port={port} user={username} password={password} connect_timeout={timeout}"
+            if database_name:
+                dsn += f" dbname={database_name}"
+            conn = psycopg2.connect(dsn)
+            conn.close()
+            return True, "人大金仓 连接成功"
+
         else:
             return False, f"不支持的数据库类型: {db_type}"
     except Exception as e:

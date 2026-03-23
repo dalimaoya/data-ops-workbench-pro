@@ -22,12 +22,14 @@ router = APIRouter(prefix="/api/backup-versions", tags=["版本回退"])
 
 
 def _qualified_table(db_type: str, table_name: str, schema: Optional[str]) -> str:
-    if db_type == "postgresql":
+    if db_type in ("postgresql", "kingbase"):
         sch = schema or "public"
         return f'"{sch}"."{table_name}"'
     elif db_type == "sqlserver":
         sch = schema or "dbo"
         return f"[{sch}].[{table_name}]"
+    elif db_type in ("oracle", "dm"):
+        return f'"{table_name.upper()}"'
     return f"`{table_name}`"
 
 
@@ -204,15 +206,17 @@ def rollback_version(version_id: int, db: Session = Depends(get_db), user: UserA
 
         if ds.db_type == "mysql":
             cur.execute(f"CREATE TABLE `{pre_rollback_backup_name}` AS SELECT * FROM {qt_source}")
-            cur.execute(f"SELECT COUNT(*) FROM `{pre_rollback_backup_name}`")
-        elif ds.db_type == "postgresql":
+        elif ds.db_type in ("postgresql", "kingbase"):
             sch = tc.schema_name or "public"
             cur.execute(f'CREATE TABLE "{sch}"."{pre_rollback_backup_name}" AS SELECT * FROM {qt_source}')
-            cur.execute(f'SELECT COUNT(*) FROM "{sch}"."{pre_rollback_backup_name}"')
         elif ds.db_type == "sqlserver":
             sch = tc.schema_name or "dbo"
             cur.execute(f"SELECT * INTO [{sch}].[{pre_rollback_backup_name}] FROM {qt_source}")
-            cur.execute(f"SELECT COUNT(*) FROM [{sch}].[{pre_rollback_backup_name}]")
+        elif ds.db_type in ("oracle", "dm"):
+            cur.execute(f'CREATE TABLE "{pre_rollback_backup_name.upper()}" AS SELECT * FROM {qt_source}')
+
+        pre_rb_qt = _qualified_table(ds.db_type, pre_rollback_backup_name, tc.schema_name)
+        cur.execute(f"SELECT COUNT(*) FROM {pre_rb_qt}")
 
         pre_rb_count = cur.fetchone()[0]
         conn.commit()
@@ -245,13 +249,8 @@ def rollback_version(version_id: int, db: Session = Depends(get_db), user: UserA
         # Delete all rows from source table
         cur.execute(f"DELETE FROM {qt_source}")
 
-        # Insert from backup table
-        if ds.db_type == "mysql":
-            cur.execute(f"INSERT INTO {qt_source} SELECT * FROM {qt_backup}")
-        elif ds.db_type == "postgresql":
-            cur.execute(f"INSERT INTO {qt_source} SELECT * FROM {qt_backup}")
-        elif ds.db_type == "sqlserver":
-            cur.execute(f"INSERT INTO {qt_source} SELECT * FROM {qt_backup}")
+        # Insert from backup table (standard SQL, works for all supported DB types)
+        cur.execute(f"INSERT INTO {qt_source} SELECT * FROM {qt_backup}")
 
         # Count restored rows
         cur.execute(f"SELECT COUNT(*) FROM {qt_source}")
