@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Card, message, Typography } from 'antd';
-import { UserOutlined, LockOutlined, DatabaseOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, message, Typography, Space } from 'antd';
+import { UserOutlined, LockOutlined, GithubOutlined, LinkOutlined } from '@ant-design/icons';
 import { login as loginApi } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 
@@ -92,6 +92,21 @@ export default function Login() {
             </Button>
           </Form.Item>
         </Form>
+        <div style={{ textAlign: 'center', marginTop: 16 }}>
+          <Space size={16}>
+            <a href="https://github.com/dalimaoya/data-ops-workbench" target="_blank" rel="noopener noreferrer"
+               style={{ color: '#999', fontSize: 20 }} title="GitHub">
+              <GithubOutlined />
+            </a>
+            <a href="https://gitee.com/dalimaoya/data-ops-workbench" target="_blank" rel="noopener noreferrer"
+               style={{ color: '#999', fontSize: 20 }} title="Gitee">
+              <LinkOutlined />
+            </a>
+          </Space>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 12, color: '#bbb', fontSize: 12 }}>
+          &copy; {new Date().getFullYear()} DataOps Workbench. All rights reserved.
+        </div>
       </Card>
     </div>
   );
