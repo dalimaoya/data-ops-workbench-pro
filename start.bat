@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 chcp 65001 >nul 2>&1
 title 数据运维工作台
 
@@ -48,12 +49,12 @@ if not exist "%WEB_DIR%\index.html" (
     if exist "%FRONTEND_DIR%\package.json" (
         cd /d "%FRONTEND_DIR%"
         where pnpm >nul 2>&1
-        if %errorlevel% equ 0 (
+        if !errorlevel! equ 0 (
             pnpm install
             pnpm run build
         ) else (
             where npm >nul 2>&1
-            if %errorlevel% equ 0 (
+            if !errorlevel! equ 0 (
                 npm install
                 npm run build
             ) else (
