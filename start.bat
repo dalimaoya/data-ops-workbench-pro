@@ -11,12 +11,9 @@ echo.
 set "SCRIPT_DIR=%~dp0"
 set "PORT=8580"
 
-:: ── 检测打包产物 ──
+:: --- Detect packaged binary ---
 set "SERVER_BIN=%SCRIPT_DIR%server\app\app.exe"
 if exist "%SERVER_BIN%" (
-    :: ═══════════════════════════════════════════
-    ::  打包模式：直接运行独立可执行文件
-    :: ═══════════════════════════════════════════
     echo [MODE] Packaged mode - no Python required
     echo.
 
@@ -37,9 +34,7 @@ if exist "%SERVER_BIN%" (
     goto :end
 )
 
-:: ═══════════════════════════════════════════
-::  开发模式：需要 Python 环境
-:: ═══════════════════════════════════════════
+:: --- Development mode ---
 echo [MODE] Development mode - Python required
 echo.
 
@@ -52,7 +47,7 @@ set "DATA_DIR=%SCRIPT_DIR%data"
 where python >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] Python not found. Please install Python 3.9+
-    echo         Or use the packaged version (run build.bat)
+    echo         Or use the packaged version.
     pause
     exit /b 1
 )
@@ -126,7 +121,7 @@ if !errorlevel! neq 0 (
     exit /b 1
 )
 
-:: Step 5.5: Clean __pycache__ to avoid stale .pyc issues
+:: Step 5.5: Clean pycache to avoid stale .pyc issues
 for /d /r "%BACKEND_DIR%\app" %%d in (__pycache__) do (
     if exist "%%d" rd /s /q "%%d" 2>nul
 )
