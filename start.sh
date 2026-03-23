@@ -119,6 +119,9 @@ db.close()
 print('✅ 数据库初始化完成，默认管理员账号已创建')
 "
 
+  # ── Step 5.5: Clean __pycache__ to avoid stale .pyc issues ──
+  find "$BACKEND_DIR/app" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+
   # ── Step 6: Start backend server ──
   echo ""
   echo "🚀 启动后端服务..."

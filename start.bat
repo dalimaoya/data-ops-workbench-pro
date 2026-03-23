@@ -126,6 +126,11 @@ if !errorlevel! neq 0 (
     exit /b 1
 )
 
+:: Step 5.5: Clean __pycache__ to avoid stale .pyc issues
+for /d /r "%BACKEND_DIR%\app" %%d in (__pycache__) do (
+    if exist "%%d" rd /s /q "%%d" 2>nul
+)
+
 :: Step 6: Start server
 echo.
 echo ============================================
