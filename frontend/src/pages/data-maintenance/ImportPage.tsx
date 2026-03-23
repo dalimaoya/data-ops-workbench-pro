@@ -4,10 +4,12 @@ import { Card, Upload, Button, Space, message, Descriptions, Alert } from 'antd'
 import { InboxOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { importTemplate } from '../../api/dataMaintenance';
 import type { ImportResult } from '../../api/dataMaintenance';
+import { useTranslation } from 'react-i18next';
 
 const { Dragger } = Upload;
 
 export default function ImportPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const tableConfigId = Number(id);
@@ -18,7 +20,7 @@ export default function ImportPage() {
 
   const handleUpload = async () => {
     if (!file) {
-      message.warning('请先选择文件');
+      message.warning(t('importPage.selectFileFirst'));
       return;
     }
     setUploading(true);
@@ -26,9 +28,9 @@ export default function ImportPage() {
       const res = await importTemplate(tableConfigId, file);
       setResult(res.data);
       if (res.data.validation_status === 'failed') {
-        message.error('校验失败，请查看错误详情');
+        message.error(t('importPage.validationFailedMsg'));
       } else {
-        message.success('校验完成');
+        message.success(t('importPage.validationComplete'));
       }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
@@ -45,7 +47,7 @@ export default function ImportPage() {
           title={
             <Space>
               <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => setResult(null)} />
-              <span>导入校验结果</span>
+              <span>{t('importPage.validationResult')}</span>
             </Space>
           }
         >
@@ -53,23 +55,23 @@ export default function ImportPage() {
           <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
             <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ fontSize: 28, fontWeight: 'bold' }}>{result.total}</div>
-              <div style={{ color: '#666' }}>总记录数</div>
+              <div style={{ color: '#666' }}>{t('importPage.totalRecords')}</div>
             </Card>
             <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ fontSize: 28, fontWeight: 'bold', color: '#52c41a' }}>{result.passed}</div>
-              <div style={{ color: '#666' }}>通过</div>
+              <div style={{ color: '#666' }}>{t('importPage.passed')}</div>
             </Card>
             <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ fontSize: 28, fontWeight: 'bold', color: '#ff4d4f' }}>{result.failed}</div>
-              <div style={{ color: '#666' }}>失败</div>
+              <div style={{ color: '#666' }}>{t('importPage.failedCount')}</div>
             </Card>
             <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ fontSize: 28, fontWeight: 'bold', color: '#faad14' }}>{result.warnings}</div>
-              <div style={{ color: '#666' }}>警告</div>
+              <div style={{ color: '#666' }}>{t('importPage.warnings')}</div>
             </Card>
             <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ fontSize: 28, fontWeight: 'bold', color: '#1890ff' }}>{result.diff_count}</div>
-              <div style={{ color: '#666' }}>差异项</div>
+              <div style={{ color: '#666' }}>{t('importPage.diffCount')}</div>
             </Card>
           </div>
 
@@ -120,8 +122,8 @@ export default function ImportPage() {
                 查看差异预览
               </Button>
             )}
-            <Button onClick={() => { setResult(null); setFile(null); }}>重新上传</Button>
-            <Button onClick={() => navigate(`/data-maintenance/browse/${tableConfigId}`)}>返回数据浏览</Button>
+            <Button onClick={() => { setResult(null); setFile(null); }}>{t('importPage.reUpload')}</Button>
+            <Button onClick={() => navigate(`/data-maintenance/browse/${tableConfigId}`)}>{t('importPage.backToBrowse')}</Button>
           </Space>
         </Card>
       </div>
@@ -133,7 +135,7 @@ export default function ImportPage() {
       title={
         <Space>
           <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate(`/data-maintenance/browse/${tableConfigId}`)} />
-          <span>模板导入</span>
+          <span>{t('importPage.title')}</span>
         </Space>
       }
     >
@@ -148,8 +150,8 @@ export default function ImportPage() {
         fileList={file ? [{ uid: '-1', name: file.name, status: 'done' }] : []}
       >
         <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-        <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
-        <p className="ant-upload-hint">仅支持平台导出的 .xlsx 模板文件</p>
+        <p className="ant-upload-text">{t('importPage.uploadHint')}</p>
+        <p className="ant-upload-hint">{t('importPage.uploadSubHint')}</p>
       </Dragger>
 
       {file && (
@@ -161,7 +163,7 @@ export default function ImportPage() {
 
       <div style={{ marginTop: 16, textAlign: 'right' }}>
         <Space>
-          <Button onClick={() => navigate(`/data-maintenance/browse/${tableConfigId}`)}>返回</Button>
+          <Button onClick={() => navigate(`/data-maintenance/browse/${tableConfigId}`)}>{t('common.back')}</Button>
           <Button type="primary" onClick={handleUpload} loading={uploading} disabled={!file}>
             开始校验
           </Button>

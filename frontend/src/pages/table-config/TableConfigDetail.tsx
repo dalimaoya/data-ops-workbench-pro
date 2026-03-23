@@ -7,8 +7,10 @@ import {
   getTableConfig, updateTableConfig, getSampleData, checkStructure, syncFields,
   type TableConfig as TC, type SampleDataResponse,
 } from '../../api/tableConfig';
+import { useTranslation } from 'react-i18next';
 
 export default function TableConfigDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [tc, setTc] = useState<TC | null>(null);
@@ -59,10 +61,10 @@ export default function TableConfigDetail() {
         strict_template_version: v.strict_template_version ? 1 : 0,
         strict_field_order: v.strict_field_order ? 1 : 0,
       });
-      message.success('保存成功');
+      message.success(t('tableDetail.saveSuccess'));
       fetchData();
     } catch (e: any) {
-      message.error(e?.response?.data?.detail || '保存失败');
+      message.error(e?.response?.data?.detail || t('common.failed'));
     } finally {
       setSaving(false);
     }
@@ -79,18 +81,18 @@ export default function TableConfigDetail() {
   const handleSyncFields = async () => {
     try {
       await syncFields(tcId);
-      message.success('字段已重新同步');
+      message.success(t('tableDetail.fieldsSynced'));
       fetchData();
     } catch (e: any) {
-      message.error(e?.response?.data?.detail || '同步失败');
+      message.error(e?.response?.data?.detail || t('common.failed'));
     }
   };
 
   if (loading) return <Spin style={{ display: 'block', margin: '40px auto' }} />;
-  if (!tc) return <div>纳管表不存在</div>;
+  if (!tc) return <div>{t('tableDetail.notFound')}</div>;
 
   const structColor: Record<string, string> = { normal: 'green', changed: 'red', error: 'orange' };
-  const structText: Record<string, string> = { normal: '正常', changed: '已变化', error: '检查失败' };
+  const structTextKey: Record<string, string> = { normal: 'tableConfig.structureNormal', changed: 'tableConfig.structureChanged', error: 'tableConfig.structureError' };
 
   const sampleColumns = sample?.columns.map(c => ({
     title: c, dataIndex: c, key: c, ellipsis: true, width: 140,
@@ -103,77 +105,54 @@ export default function TableConfigDetail() {
 
   return (
     <div>
-      <Card title="表基础信息" style={{ marginBottom: 16 }} extra={
+      <Card title={t('tableDetail.basicInfo')} style={{ marginBottom: 16 }} extra={
         <Space>
-          <Button size="small" onClick={handleCheckStructure}>检查表结构</Button>
-          <Button size="small" onClick={handleSyncFields}>重新拉取字段</Button>
-          <Button size="small" type="primary" onClick={() => navigate(`/table-config/fields/${tcId}`)}>配置字段</Button>
+          <Button size="small" onClick={handleCheckStructure}>{t('tableDetail.checkStructure')}</Button>
+          <Button size="small" onClick={handleSyncFields}>{t('tableDetail.syncFields')}</Button>
+          <Button size="small" type="primary" onClick={() => navigate(`/table-config/fields/${tcId}`)}>{t('tableDetail.configFields')}</Button>
         </Space>
       }>
         <Descriptions column={3} bordered size="small">
-          <Descriptions.Item label="数据源">{tc.datasource_name}</Descriptions.Item>
-          <Descriptions.Item label="库/Schema">{tc.db_name || tc.schema_name || '-'}</Descriptions.Item>
-          <Descriptions.Item label="表名">{tc.table_name}</Descriptions.Item>
-          <Descriptions.Item label="表别名">{tc.table_alias || '-'}</Descriptions.Item>
-          <Descriptions.Item label="配置版本">v{tc.config_version}</Descriptions.Item>
-          <Descriptions.Item label="字段数">{tc.field_count}</Descriptions.Item>
-          <Descriptions.Item label="主键字段">{tc.primary_key_fields}</Descriptions.Item>
-          <Descriptions.Item label="结构状态">
+          <Descriptions.Item label={t('common.datasource')}>{tc.datasource_name}</Descriptions.Item>
+          <Descriptions.Item label={t('tableConfig.dbSchema')}>{tc.db_name || tc.schema_name || '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('common.tableName')}>{tc.table_name}</Descriptions.Item>
+          <Descriptions.Item label={t('tableConfig.tableAlias')}>{tc.table_alias || '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('tableConfig.configVersion')}>v{tc.config_version}</Descriptions.Item>
+          <Descriptions.Item label={t('tableConfig.fieldCount')}>{tc.field_count}</Descriptions.Item>
+          <Descriptions.Item label={t('tableConfig.primaryKeyFields')}>{tc.primary_key_fields}</Descriptions.Item>
+          <Descriptions.Item label={t('tableConfig.structureStatus')}>
             <Tag color={structColor[tc.structure_check_status || ''] || 'default'}>
-              {structText[tc.structure_check_status || ''] || '未检查'}
+              {structTextKey[tc.structure_check_status || ''] ? t(structTextKey[tc.structure_check_status || '']) : t('tableConfig.structureUnchecked')}
             </Tag>
           </Descriptions.Item>
-          <Descriptions.Item label="最近同步">{tc.last_sync_at || '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('tableDetail.lastSync')}>{tc.last_sync_at || '-'}</Descriptions.Item>
         </Descriptions>
       </Card>
 
-      <Card title="维护规则" style={{ marginBottom: 16 }}>
+      <Card title={t('tableDetail.maintenanceRules')} style={{ marginBottom: 16 }}>
         <Form form={form} layout="inline" style={{ flexWrap: 'wrap', gap: 16 }}>
-          <Form.Item name="allow_export_current" label="允许导出当前" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item name="allow_export_all" label="允许导出全量" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item name="allow_import_writeback" label="允许上传回写" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item name="allow_insert_rows" label="允许新增记录" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item name="allow_delete_rows" label="允许删除记录" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item name="backup_keep_count" label="备份保留数">
-            <InputNumber min={1} max={10} />
-          </Form.Item>
-          <Form.Item name="strict_template_version" label="强校验模板版本" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item name="strict_field_order" label="强校验字段顺序" valuePropName="checked">
-            <Switch />
-          </Form.Item>
+          <Form.Item name="allow_export_current" label={t('tableDetail.allowExportCurrent')} valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item name="allow_export_all" label={t('tableDetail.allowExportAll')} valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item name="allow_import_writeback" label={t('tableDetail.allowImportWriteback')} valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item name="allow_insert_rows" label={t('tableDetail.allowInsertRows')} valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item name="allow_delete_rows" label={t('tableDetail.allowDeleteRows')} valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item name="backup_keep_count" label={t('tableDetail.backupKeepCount')}><InputNumber min={1} max={10} /></Form.Item>
+          <Form.Item name="strict_template_version" label={t('tableDetail.strictTemplateVersion')} valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item name="strict_field_order" label={t('tableDetail.strictFieldOrder')} valuePropName="checked"><Switch /></Form.Item>
         </Form>
         <div style={{ marginTop: 16 }}>
           <Space>
-            <Button type="primary" loading={saving} onClick={handleSave}>保存配置</Button>
-            <Button onClick={() => navigate('/table-config')}>返回列表</Button>
+            <Button type="primary" loading={saving} onClick={handleSave}>{t('tableDetail.saveConfig')}</Button>
+            <Button onClick={() => navigate('/table-config')}>{t('tableDetail.backToList')}</Button>
           </Space>
         </div>
       </Card>
 
-      <Card title="样例数据预览">
+      <Card title={t('tableDetail.sampleData')}>
         {sample && sample.rows.length > 0 ? (
-          <Table
-            rowKey="_key"
-            columns={sampleColumns}
-            dataSource={sampleData}
-            size="small"
-            pagination={false}
-            scroll={{ x: sampleColumns.length * 140 }}
-          />
+          <Table rowKey="_key" columns={sampleColumns} dataSource={sampleData} size="small" pagination={false} scroll={{ x: sampleColumns.length * 140 }} />
         ) : (
-          <div>暂无样例数据（可能数据源连接失败或表为空）</div>
+          <div>{t('tableDetail.noSampleData')}</div>
         )}
       </Card>
     </div>

@@ -11,6 +11,7 @@ import {
 } from '../../api/approvals';
 import type { ApprovalItem, ApprovalDetail } from '../../api/approvals';
 import { formatBeijingTime } from '../../utils/formatTime';
+import { useTranslation } from 'react-i18next';
 
 const requestTypeLabels: Record<string, string> = {
   writeback: '模板回写',
@@ -33,6 +34,7 @@ const statusLabels: Record<string, string> = {
 };
 
 export default function ApprovalCenter() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('pending');
   const [items, setItems] = useState<ApprovalItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -205,7 +207,7 @@ export default function ApprovalCenter() {
   return (
     <div>
       <Card
-        title="审批中心"
+        title={t('approval.title')}
         extra={
           <Space>
             <SettingOutlined />

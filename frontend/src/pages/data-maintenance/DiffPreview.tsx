@@ -5,8 +5,10 @@ import { ArrowLeftOutlined, CheckCircleOutlined, DownloadOutlined } from '@ant-d
 import { getImportDiff, executeWriteback, downloadDiffReport } from '../../api/dataMaintenance';
 import type { DiffResponse, WritebackResult } from '../../api/dataMaintenance';
 import { useAuth } from '../../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 export default function DiffPreview() {
+  const { t } = useTranslation();
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -22,15 +24,15 @@ export default function DiffPreview() {
     setLoading(true);
     getImportDiff(tid)
       .then(res => setDiffData(res.data))
-      .catch(() => message.error('获取差异数据失败'))
+      .catch(() => message.error(t('diffPreview.diffFetchFailed')))
       .finally(() => setLoading(false));
   }, [tid]);
 
   const handleWriteback = () => {
     Modal.confirm({
-      title: '确认写入',
-      content: '确认将差异数据写入业务数据库？写入前将自动备份全表。',
-      okText: '确认写入',
+      title: t('diffPreview.confirmWritebackTitle'),
+      content: t('diffPreview.confirmWritebackContent'),
+      okText: t('diffPreview.confirmWriteback'),
       okType: 'primary',
       cancelText: '取消',
       onOk: async () => {
@@ -38,7 +40,7 @@ export default function DiffPreview() {
         try {
           const res = await executeWriteback(tid);
           setWriteResult(res.data);
-          message.success('回写完成');
+          message.success(t('diffPreview.writebackComplete'));
         } catch (e: unknown) {
           const err = e as { response?: { data?: { detail?: string } } };
           message.error(err?.response?.data?.detail || '回写失败');
@@ -138,7 +140,7 @@ export default function DiffPreview() {
         title={
           <Space>
             <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate(-1)} />
-            <span>差异预览</span>
+            <span>{t('diffPreview.title')}</span>
           </Space>
         }
         style={{ marginBottom: 16 }}

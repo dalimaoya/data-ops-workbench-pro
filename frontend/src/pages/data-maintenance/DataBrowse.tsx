@@ -12,11 +12,13 @@ import { browseTableData, getExportInfo, exportTemplate, deleteRows, inlineUpdat
 import type { ColumnMeta, InlineChange } from '../../api/dataMaintenance';
 import { getTableConfig } from '../../api/tableConfig';
 import { useAuth } from '../../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 export default function DataBrowse() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const canOperate = user?.role === 'admin' || user?.role === 'operator';
   const tableConfigId = Number(id);
 
@@ -91,7 +93,7 @@ export default function DataBrowse() {
       }
       originalRowsRef.current = origMap;
     } catch {
-      message.error('获取数据失败');
+      message.error(t('dataBrowse.dataFetchFailed'));
     } finally {
       setLoading(false);
     }
@@ -213,10 +215,10 @@ export default function DataBrowse() {
   const handleCancelEdit = () => {
     if (getChangeCount() > 0) {
       Modal.confirm({
-        title: '放弃修改',
+        title: t('dataBrowse.cancelEditTitle'),
         content: `有 ${getChangeCount()} 处未保存的修改，确定要放弃吗？`,
-        okText: '确定放弃',
-        cancelText: '继续编辑',
+        okText: t('dataBrowse.cancelEditOk'),
+        cancelText: t('dataBrowse.cancelEditCancel'),
         onOk: () => {
           setEditMode(false);
           setEditedCells({});
@@ -232,7 +234,7 @@ export default function DataBrowse() {
   const handleSaveClick = () => {
     const changes = collectChanges();
     if (changes.length === 0) {
-      message.info('没有需要保存的修改');
+      message.info(t('dataBrowse.noChanges'));
       return;
     }
     setDiffData(buildDiffData());
@@ -332,7 +334,7 @@ export default function DataBrowse() {
       Object.values(row).some(v => v !== null && String(v).trim() !== '')
     );
     if (validRows.length === 0) {
-      message.warning('没有填写任何数据');
+      message.warning(t('dataBrowse.batchInsertEmpty'));
       return;
     }
     // Validate PK fields
@@ -415,7 +417,7 @@ export default function DataBrowse() {
       setExportInfo(res.data as unknown as Record<string, unknown>);
       setExportModalOpen(true);
     } catch {
-      message.error('获取导出信息失败');
+      message.error(t('dataBrowse.exportInfoFailed'));
     }
   };
 
@@ -454,11 +456,11 @@ export default function DataBrowse() {
         a.download = filename;
         a.click();
         window.URL.revokeObjectURL(url);
-        message.success('导出成功');
+        message.success(t('dataBrowse.exportSuccess'));
         setExportModalOpen(false);
       }
     } catch {
-      message.error('导出失败');
+      message.error(t('dataBrowse.exportFailed'));
     } finally {
       setExporting(false);
     }
@@ -467,16 +469,16 @@ export default function DataBrowse() {
   // v2.0: Delete selected rows
   const handleDeleteRows = () => {
     if (selectedRowKeys.length === 0) {
-      message.warning('请先勾选要删除的行');
+      message.warning(t('dataBrowse.deleteSelectFirst'));
       return;
     }
     Modal.confirm({
-      title: '确认删除',
+      title: t('dataBrowse.confirmDelete'),
       icon: <ExclamationCircleOutlined />,
       content: `确定要删除选中的 ${selectedRowKeys.length} 行数据吗？删除前将自动备份全表。此操作不可撤销。`,
-      okText: '确认删除',
+      okText: t('dataBrowse.confirmDeleteOk'),
       okType: 'danger',
-      cancelText: '取消',
+      cancelText: t('common.cancel'),
       onOk: async () => {
         setDeleting(true);
         try {
@@ -512,8 +514,8 @@ export default function DataBrowse() {
         title={
           <Space>
             <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate('/data-maintenance')} />
-            <span>数据浏览 - {(tableInfo as { table_alias?: string }).table_alias || (tableInfo as { table_name?: string }).table_name || ''}</span>
-            {editMode && <Tag color="orange">编辑模式</Tag>}
+            <span>{t('dataBrowse.title')} - {(tableInfo as { table_alias?: string }).table_alias || (tableInfo as { table_name?: string }).table_name || ''}</span>
+            {editMode && <Tag color="orange">{t('dataBrowse.editMode')}</Tag>}
           </Space>
         }
         style={{ marginBottom: 16 }}
@@ -543,7 +545,7 @@ export default function DataBrowse() {
             {!editMode ? (
               <Space wrap>
                 <Input
-                  placeholder="全局关键字搜索"
+                  placeholder={t('dataBrowse.globalSearch')}
                   prefix={<SearchOutlined />}
                   value={keyword}
                   onChange={e => setKeyword(e.target.value)}
@@ -552,7 +554,7 @@ export default function DataBrowse() {
                   allowClear
                 />
                 <Select
-                  placeholder="按字段筛选"
+                  placeholder={t('dataBrowse.fieldFilter')}
                   allowClear
                   style={{ width: 160 }}
                   value={filterField}
@@ -601,10 +603,10 @@ export default function DataBrowse() {
               ) : (
                 <>
                   {canOperate && (
-                    <Button icon={<EditOutlined />} onClick={handleEnterEditMode}>编辑模式</Button>
+                    <Button icon={<EditOutlined />} onClick={handleEnterEditMode}>{t('dataBrowse.enterEditMode')}</Button>
                   )}
                   {canOperate && allowInsert && !editMode && (
-                    <Button icon={<PlusOutlined />} onClick={handleAddRow}>新增行</Button>
+                    <Button icon={<PlusOutlined />} onClick={handleAddRow}>{t('dataBrowse.addRow')}</Button>
                   )}
                   {canOperate && allowDelete && selectedRowKeys.length > 0 && (
                     <Button
@@ -616,8 +618,8 @@ export default function DataBrowse() {
                       删除选中行 ({selectedRowKeys.length})
                     </Button>
                   )}
-                  <Button icon={<DownloadOutlined />} onClick={handleExportClick}>导出模板</Button>
-                  {canOperate && <Button icon={<UploadOutlined />} onClick={() => navigate(`/data-maintenance/import/${tableConfigId}`)}>上传修订模板</Button>}
+                  <Button icon={<DownloadOutlined />} onClick={handleExportClick}>{t('dataBrowse.exportTemplate')}</Button>
+                  {canOperate && <Button icon={<UploadOutlined />} onClick={() => navigate(`/data-maintenance/import/${tableConfigId}`)}>{t('dataBrowse.uploadTemplate')}</Button>}
                 </>
               )}
             </Space>
@@ -648,12 +650,12 @@ export default function DataBrowse() {
 
       {/* Export Modal */}
       <Modal
-        title="导出确认"
+        title={t('dataBrowse.exportTitle')}
         open={exportModalOpen}
         onCancel={() => setExportModalOpen(false)}
         onOk={handleExport}
         confirmLoading={exporting}
-        okText="确认导出"
+        okText={t('dataBrowse.confirmExport')}
       >
         <div style={{ marginBottom: 16 }}>
           <p><strong>导出类型：</strong></p>
@@ -690,8 +692,8 @@ export default function DataBrowse() {
         onCancel={() => { setBatchInsertOpen(false); setBatchRows([]); }}
         onOk={handleConfirmBatchInsert}
         confirmLoading={insertSaving}
-        okText="确认新增"
-        cancelText="取消"
+        okText={t('dataBrowse.batchInsertConfirm')}
+        cancelText={t('common.cancel')}
         width={Math.min(columns.filter(c => !c.is_system_field).length * 160 + 100, 1200)}
         destroyOnClose
       >
@@ -749,13 +751,13 @@ export default function DataBrowse() {
 
       {/* Diff Preview Modal (v2.1) */}
       <Modal
-        title="修改预览"
+        title={t('dataBrowse.diffPreview')}
         open={diffModalOpen}
         onCancel={() => setDiffModalOpen(false)}
         onOk={handleConfirmSave}
         confirmLoading={saving}
-        okText="确认保存"
-        cancelText="取消"
+        okText={t('dataBrowse.confirmSave')}
+        cancelText={t('common.cancel')}
         width={700}
       >
         <p style={{ marginBottom: 12 }}>

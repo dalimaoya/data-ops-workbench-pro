@@ -20,11 +20,13 @@ import {
   MenuUnfoldOutlined,
   BellOutlined,
   CheckOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
 import { changeMyPassword, updateMyProfile } from '../api/users';
 import { listNotifications, markNotificationRead, markAllNotificationsRead } from '../api/notifications';
 import type { NotificationItem } from '../api/notifications';
+import { useTranslation } from 'react-i18next';
 
 const EXPANDED_WIDTH = 240;
 const COLLAPSED_WIDTH = 72;
@@ -32,29 +34,24 @@ const COLLAPSED_WIDTH = 72;
 interface MenuItem {
   key: string;
   icon: React.ReactNode;
-  label: string;
+  labelKey: string;
   roles?: string[];
 }
 
 const allMenuItems: MenuItem[] = [
-  { key: '/', icon: <HomeOutlined />, label: '工作台总览' },
-  { key: '/datasource', icon: <DatabaseOutlined />, label: '数据源管理', roles: ['admin'] },
-  { key: '/table-config', icon: <TableOutlined />, label: '表配置管理' },
-  { key: '/data-maintenance', icon: <ToolOutlined />, label: '数据维护' },
-  { key: '/log-center', icon: <FileTextOutlined />, label: '日志中心' },
-  { key: '/approval-center', icon: <AuditOutlined />, label: '审批中心', roles: ['admin'] },
-  { key: '/version-rollback', icon: <HistoryOutlined />, label: '版本回退', roles: ['admin'] },
-  { key: '/user-management', icon: <TeamOutlined />, label: '用户管理', roles: ['admin'] },
-  { key: '/about', icon: <InfoCircleOutlined />, label: '关于系统' },
+  { key: '/', icon: <HomeOutlined />, labelKey: 'menu.dashboard' },
+  { key: '/datasource', icon: <DatabaseOutlined />, labelKey: 'menu.datasource', roles: ['admin'] },
+  { key: '/table-config', icon: <TableOutlined />, labelKey: 'menu.tableConfig' },
+  { key: '/data-maintenance', icon: <ToolOutlined />, labelKey: 'menu.dataMaintenance' },
+  { key: '/log-center', icon: <FileTextOutlined />, labelKey: 'menu.logCenter' },
+  { key: '/approval-center', icon: <AuditOutlined />, labelKey: 'menu.approvalCenter', roles: ['admin'] },
+  { key: '/version-rollback', icon: <HistoryOutlined />, labelKey: 'menu.versionRollback', roles: ['admin'] },
+  { key: '/user-management', icon: <TeamOutlined />, labelKey: 'menu.userManagement', roles: ['admin'] },
+  { key: '/about', icon: <InfoCircleOutlined />, labelKey: 'menu.about' },
 ];
 
-const roleLabels: Record<string, string> = {
-  admin: '管理员',
-  operator: '操作员',
-  readonly: '只读用户',
-};
-
 export default function MainLayout() {
+  const { t, i18n } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const [collapseHover, setCollapseHover] = useState(false);
@@ -119,7 +116,7 @@ export default function MainLayout() {
 
   const menuItems = allMenuItems
     .filter(item => !item.roles || item.roles.includes(userRole))
-    .map(({ key, icon, label }) => ({ key, icon, label }));
+    .map(({ key, icon, labelKey }) => ({ key, icon, label: t(labelKey) }));
 
   const selectedKey = menuItems
     .filter(i => location.pathname.startsWith(i.key) && i.key !== '/')
@@ -136,7 +133,7 @@ export default function MainLayout() {
       const values = await pwdForm.validateFields();
       setPwdLoading(true);
       await changeMyPassword(values.old_password, values.new_password);
-      message.success('密码修改成功，请重新登录');
+      message.success(t('password.changeSuccess'));
       setPwdOpen(false);
       pwdForm.resetFields();
       setTimeout(() => {
@@ -157,7 +154,7 @@ export default function MainLayout() {
       const values = await profileForm.validateFields();
       setProfileLoading(true);
       await updateMyProfile(values.display_name);
-      message.success('显示名修改成功');
+      message.success(t('profile.changeSuccess'));
       setProfileOpen(false);
       profileForm.resetFields();
       if (user && token) {
@@ -172,6 +169,23 @@ export default function MainLayout() {
     }
   };
 
+  const handleLanguageChange = (lang: string) => {
+    i18n.changeLanguage(lang);
+  };
+
+  const languageMenuItems = [
+    {
+      key: 'zh',
+      label: '中文',
+      onClick: () => handleLanguageChange('zh'),
+    },
+    {
+      key: 'en',
+      label: 'English',
+      onClick: () => handleLanguageChange('en'),
+    },
+  ];
+
   const userMenuItems = [
     {
       key: 'info',
@@ -179,7 +193,7 @@ export default function MainLayout() {
         <Space>
           <UserOutlined />
           {user?.display_name || user?.username}
-          <Tag>{roleLabels[user?.role || ''] || user?.role}</Tag>
+          <Tag>{t(`role.${user?.role || ''}`) || user?.role}</Tag>
         </Space>
       ),
       disabled: true,
@@ -190,7 +204,7 @@ export default function MainLayout() {
       label: (
         <Space>
           <KeyOutlined />
-          修改密码
+          {t('header.changePassword')}
         </Space>
       ),
       onClick: () => setPwdOpen(true),
@@ -200,7 +214,7 @@ export default function MainLayout() {
       label: (
         <Space>
           <EditOutlined />
-          修改显示名
+          {t('header.changeName')}
         </Space>
       ),
       onClick: () => {
@@ -214,7 +228,7 @@ export default function MainLayout() {
       label: (
         <Space>
           <LogoutOutlined />
-          退出登录
+          {t('header.logout')}
         </Space>
       ),
       onClick: handleLogout,
@@ -387,7 +401,7 @@ export default function MainLayout() {
               : <MenuFoldOutlined style={{ fontSize: 19 }} />
             }
             {!collapsed && (
-              <span style={{ fontSize: 14, fontWeight: 400 }}>收起菜单</span>
+              <span style={{ fontSize: 14, fontWeight: 400 }}>{t('menu.collapse')}</span>
             )}
           </div>
         </div>
@@ -417,6 +431,13 @@ export default function MainLayout() {
           }}
         >
           <Space size={8}>
+            {/* Language Switcher */}
+            <Dropdown menu={{ items: languageMenuItems, selectedKeys: [i18n.language] }} placement="bottomRight">
+              <Button type="text" icon={<GlobalOutlined />}>
+                {i18n.language === 'zh' ? '中文' : 'EN'}
+              </Button>
+            </Dropdown>
+
             <Popover
               open={notifOpen}
               onOpenChange={setNotifOpen}
@@ -424,10 +445,10 @@ export default function MainLayout() {
               placement="bottomRight"
               title={
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>通知</span>
+                  <span>{t('header.notifications')}</span>
                   {unreadCount > 0 && (
                     <Button type="link" size="small" icon={<CheckOutlined />} onClick={handleMarkAllRead}>
-                      全部已读
+                      {t('header.markAllRead')}
                     </Button>
                   )}
                 </div>
@@ -435,7 +456,7 @@ export default function MainLayout() {
               content={
                 <div style={{ width: 340, maxHeight: 400, overflow: 'auto' }}>
                   {notifications.length === 0 ? (
-                    <Empty description="暂无通知" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                    <Empty description={t('header.noNotifications')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
                   ) : (
                     <List
                       size="small"
@@ -462,7 +483,7 @@ export default function MainLayout() {
                               <div>
                                 <div style={{ fontSize: 12, color: '#666' }}>{item.message}</div>
                                 <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
-                                  {item.created_at ? new Date(item.created_at).toLocaleString('zh-CN') : ''}
+                                  {item.created_at ? new Date(item.created_at).toLocaleString(i18n.language === 'zh' ? 'zh-CN' : 'en-US') : ''}
                                 </div>
                               </div>
                             }
@@ -494,7 +515,7 @@ export default function MainLayout() {
 
       {/* Password Modal */}
       <Modal
-        title="修改密码"
+        title={t('password.title')}
         open={pwdOpen}
         onOk={handleChangePassword}
         onCancel={() => { setPwdOpen(false); pwdForm.resetFields(); }}
@@ -502,36 +523,36 @@ export default function MainLayout() {
         destroyOnClose
       >
         <Form form={pwdForm} layout="vertical">
-          <Form.Item name="old_password" label="旧密码" rules={[{ required: true, message: '请输入旧密码' }]}>
-            <Input.Password placeholder="请输入旧密码" />
+          <Form.Item name="old_password" label={t('password.oldPassword')} rules={[{ required: true, message: t('password.oldPasswordRequired') }]}>
+            <Input.Password placeholder={t('password.oldPasswordPlaceholder')} />
           </Form.Item>
-          <Form.Item name="new_password" label="新密码" rules={[{ required: true, message: '请输入新密码' }, { min: 4, message: '密码至少4位' }]}>
-            <Input.Password placeholder="请输入新密码" />
+          <Form.Item name="new_password" label={t('password.newPassword')} rules={[{ required: true, message: t('password.newPasswordRequired') }, { min: 4, message: t('password.passwordMinLength') }]}>
+            <Input.Password placeholder={t('password.newPasswordPlaceholder')} />
           </Form.Item>
           <Form.Item
             name="confirm_password"
-            label="确认新密码"
+            label={t('password.confirmPassword')}
             dependencies={['new_password']}
             rules={[
-              { required: true, message: '请确认新密码' },
+              { required: true, message: t('password.confirmPasswordRequired') },
               ({ getFieldValue }) => ({
                 validator(_, value) {
                   if (!value || getFieldValue('new_password') === value) {
                     return Promise.resolve();
                   }
-                  return Promise.reject(new Error('两次输入的密码不一致'));
+                  return Promise.reject(new Error(t('password.passwordMismatch')));
                 },
               }),
             ]}
           >
-            <Input.Password placeholder="请再次输入新密码" />
+            <Input.Password placeholder={t('password.confirmPasswordPlaceholder')} />
           </Form.Item>
         </Form>
       </Modal>
 
       {/* Profile Modal */}
       <Modal
-        title="修改显示名"
+        title={t('profile.title')}
         open={profileOpen}
         onOk={handleUpdateProfile}
         onCancel={() => { setProfileOpen(false); profileForm.resetFields(); }}
@@ -539,8 +560,8 @@ export default function MainLayout() {
         destroyOnClose
       >
         <Form form={profileForm} layout="vertical">
-          <Form.Item name="display_name" label="显示名" rules={[{ required: true, message: '请输入显示名' }]}>
-            <Input placeholder="请输入新的显示名" />
+          <Form.Item name="display_name" label={t('profile.displayName')} rules={[{ required: true, message: t('profile.displayNameRequired') }]}>
+            <Input placeholder={t('profile.displayNamePlaceholder')} />
           </Form.Item>
         </Form>
       </Modal>

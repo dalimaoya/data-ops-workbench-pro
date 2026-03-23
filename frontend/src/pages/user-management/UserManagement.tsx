@@ -13,6 +13,7 @@ import {
 } from '../../api/users';
 import type { UserItem } from '../../api/users';
 import { formatBeijingTime } from '../../utils/formatTime';
+import { useTranslation } from 'react-i18next';
 
 const roleOptions = [
   { label: '管理员', value: 'admin' },
@@ -33,6 +34,7 @@ const roleColors: Record<string, string> = {
 };
 
 export default function UserManagement() {
+  const { t } = useTranslation();
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -250,7 +252,7 @@ export default function UserManagement() {
   return (
     <div>
       <Card
-        title="用户管理"
+        title={t('userManagement.title')}
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
             新增用户

@@ -4,10 +4,12 @@ import { Form, Input, Button, Card, message, Typography, Space } from 'antd';
 import { UserOutlined, LockOutlined, SafetyOutlined, GithubOutlined, LinkOutlined } from '@ant-design/icons';
 import { login as loginApi, getCaptcha } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 const { Title, Text } = Typography;
 
 export default function Login() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [captchaId, setCaptchaId] = useState('');
   const [captchaImage, setCaptchaImage] = useState('');
@@ -22,11 +24,11 @@ export default function Login() {
       setCaptchaId(res.data.captcha_id);
       setCaptchaImage(res.data.image);
     } catch {
-      message.error('获取验证码失败');
+      message.error(t('login.captchaFailed'));
     } finally {
       setCaptchaLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     refreshCaptcha();
@@ -47,12 +49,11 @@ export default function Login() {
         role: data.role,
         display_name: data.display_name,
       });
-      message.success('登录成功');
+      message.success(t('login.loginSuccess'));
       navigate('/', { replace: true });
     } catch (err: any) {
-      const msg = err.response?.data?.detail || '登录失败，请检查用户名和密码';
+      const msg = err.response?.data?.detail || t('login.loginFailed');
       message.error(msg);
-      // Refresh captcha on failure
       refreshCaptcha();
     } finally {
       setLoading(false);
@@ -79,9 +80,9 @@ export default function Login() {
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <img src="/logo.png" alt="DataOps Workbench" style={{ height: 64, marginBottom: 12 }} />
           <Title level={3} style={{ marginTop: 0, marginBottom: 4 }}>
-            数据运维工作台
+            {t('login.title')}
           </Title>
-          <Text type="secondary">Data Ops Workbench</Text>
+          <Text type="secondary">{t('login.subtitle')}</Text>
         </div>
         <Form
           name="login"
@@ -91,20 +92,20 @@ export default function Login() {
         >
           <Form.Item
             name="username"
-            rules={[{ required: true, message: '请输入用户名' }]}
+            rules={[{ required: true, message: t('login.usernameRequired') }]}
           >
             <Input
               prefix={<UserOutlined />}
-              placeholder="用户名"
+              placeholder={t('login.usernamePlaceholder')}
             />
           </Form.Item>
           <Form.Item
             name="password"
-            rules={[{ required: true, message: '请输入密码' }]}
+            rules={[{ required: true, message: t('login.passwordRequired') }]}
           >
             <Input.Password
               prefix={<LockOutlined />}
-              placeholder="密码"
+              placeholder={t('login.passwordPlaceholder')}
             />
           </Form.Item>
           <Form.Item>
@@ -112,18 +113,18 @@ export default function Login() {
               <Form.Item
                 name="captcha_code"
                 noStyle
-                rules={[{ required: true, message: '请输入验证码' }]}
+                rules={[{ required: true, message: t('login.captchaRequired') }]}
               >
                 <Input
                   prefix={<SafetyOutlined />}
-                  placeholder="验证码"
+                  placeholder={t('login.captchaPlaceholder')}
                   maxLength={4}
                   style={{ flex: 1 }}
                 />
               </Form.Item>
               <img
                 src={captchaImage ? `data:image/png;base64,${captchaImage}` : ''}
-                alt="验证码"
+                alt={t('login.captcha')}
                 onClick={refreshCaptcha}
                 style={{
                   height: 40,
@@ -135,7 +136,7 @@ export default function Login() {
                   objectFit: 'contain',
                   background: '#fafafa',
                 }}
-                title="点击刷新验证码"
+                title={t('login.captchaRefresh')}
               />
             </div>
           </Form.Item>
@@ -147,7 +148,7 @@ export default function Login() {
               block
               style={{ height: 44, borderRadius: 8 }}
             >
-              登 录
+              {t('login.login')}
             </Button>
           </Form.Item>
         </Form>
@@ -164,7 +165,7 @@ export default function Login() {
           </Space>
         </div>
         <div style={{ textAlign: 'center', marginTop: 12, color: '#bbb', fontSize: 12 }}>
-          &copy; {new Date().getFullYear()} DataOps Workbench. All rights reserved.
+          {t('login.copyright', { year: new Date().getFullYear() })}
         </div>
       </Card>
     </div>
