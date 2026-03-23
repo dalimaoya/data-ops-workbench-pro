@@ -1,6 +1,7 @@
 """FastAPI application entry point."""
 
 import os
+import sys
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -62,7 +63,12 @@ def health():
 
 
 # Mount frontend static files (production)
-STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
+# When frozen by PyInstaller, look for web/ in the bundle's _MEIPASS directory
+if getattr(sys, 'frozen', False):
+    _bundle_dir = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+    STATIC_DIR = os.path.join(_bundle_dir, "web")
+else:
+    STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
 if os.path.isdir(STATIC_DIR):
     ASSETS_DIR = os.path.join(STATIC_DIR, "assets")
     if os.path.isdir(ASSETS_DIR):

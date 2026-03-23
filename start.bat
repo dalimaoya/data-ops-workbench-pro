@@ -9,16 +9,50 @@ echo ============================================
 echo.
 
 set "SCRIPT_DIR=%~dp0"
+set "PORT=8580"
+
+:: ── 检测打包产物 ──
+set "SERVER_BIN=%SCRIPT_DIR%server\app\app.exe"
+if exist "%SERVER_BIN%" (
+    :: ═══════════════════════════════════════════
+    ::  打包模式：直接运行独立可执行文件
+    :: ═══════════════════════════════════════════
+    echo [MODE] Packaged mode - no Python required
+    echo.
+
+    set "DATA_OPS_BASE_DIR=%SCRIPT_DIR%"
+    set "DATA_OPS_DATA_DIR=%SCRIPT_DIR%data"
+    if not exist "%SCRIPT_DIR%data" mkdir "%SCRIPT_DIR%data"
+    if not exist "%SCRIPT_DIR%backups" mkdir "%SCRIPT_DIR%backups"
+    if not exist "%SCRIPT_DIR%logs" mkdir "%SCRIPT_DIR%logs"
+
+    echo ============================================
+    echo   URL:     http://localhost:%PORT%
+    echo   Account: admin / admin123
+    echo   Press Ctrl+C to stop
+    echo ============================================
+    echo.
+
+    "%SERVER_BIN%" --port %PORT%
+    goto :end
+)
+
+:: ═══════════════════════════════════════════
+::  开发模式：需要 Python 环境
+:: ═══════════════════════════════════════════
+echo [MODE] Development mode - Python required
+echo.
+
 set "BACKEND_DIR=%SCRIPT_DIR%backend"
 set "FRONTEND_DIR=%SCRIPT_DIR%frontend"
 set "WEB_DIR=%BACKEND_DIR%\web"
 set "DATA_DIR=%SCRIPT_DIR%data"
-set "PORT=8580"
 
 :: Step 1: Check Python
 where python >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] Python not found. Please install Python 3.9+
+    echo         Or use the packaged version (run build.bat)
     pause
     exit /b 1
 )
@@ -103,4 +137,5 @@ echo.
 
 python -m uvicorn app.main:app --host 0.0.0.0 --port %PORT%
 
+:end
 pause
