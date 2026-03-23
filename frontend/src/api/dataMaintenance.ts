@@ -251,3 +251,40 @@ export interface BatchInsertResult {
 
 export const batchInsert = (tableConfigId: number, rows: Record<string, string | null>[]) =>
   api.post<BatchInsertResult>(`/data-maintenance/${tableConfigId}/batch-insert`, { rows });
+
+// v2.3: Async export
+export interface AsyncExportResult {
+  task_id: string;
+  status: string;
+  message: string;
+}
+
+export const asyncExport = (tableConfigId: number, params?: Record<string, unknown>) =>
+  api.post<AsyncExportResult>(`/data-maintenance/${tableConfigId}/async-export`, null, { params });
+
+// v2.3: Export tasks
+export interface ExportTaskItem {
+  id: number;
+  task_id: string;
+  table_config_id: number;
+  table_name?: string;
+  table_alias?: string;
+  export_type: string;
+  status: string;
+  row_count?: number;
+  file_name?: string;
+  error_message?: string;
+  operator_user: string;
+  created_at?: string;
+  finished_at?: string;
+}
+
+export const listExportTasks = (params?: Record<string, unknown>) =>
+  api.get<{ total: number; items: ExportTaskItem[] }>('/data-maintenance/export-tasks', { params });
+
+export const downloadExportTask = (taskId: string) =>
+  api.get(`/data-maintenance/export-tasks/${taskId}/download`, { responseType: 'blob' });
+
+// v2.3: Batch export (multi-table zip)
+export const batchExportTables = (tableConfigIds: number[]) =>
+  api.post('/data-maintenance/batch-export', { table_config_ids: tableConfigIds }, { responseType: 'blob' });

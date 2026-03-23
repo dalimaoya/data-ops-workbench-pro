@@ -8,7 +8,7 @@ import {
   SearchOutlined, DownloadOutlined, UploadOutlined, ReloadOutlined, ArrowLeftOutlined,
   DeleteOutlined, ExclamationCircleOutlined, EditOutlined, PlusOutlined, SaveOutlined, CloseOutlined,
 } from '@ant-design/icons';
-import { browseTableData, getExportInfo, exportTemplate, deleteRows, inlineUpdate, batchInsert } from '../../api/dataMaintenance';
+import { browseTableData, getExportInfo, exportTemplate, deleteRows, inlineUpdate, batchInsert, asyncExport } from '../../api/dataMaintenance';
 import type { ColumnMeta, InlineChange } from '../../api/dataMaintenance';
 import { getTableConfig } from '../../api/tableConfig';
 import { useAuth } from '../../context/AuthContext';
@@ -422,27 +422,41 @@ export default function DataBrowse() {
   const handleExport = async () => {
     setExporting(true);
     try {
+      const estimatedRows = (exportInfo as { estimated_rows?: number }).estimated_rows ?? 0;
       const fieldFilters: Record<string, string> = {};
       if (filterField && filterValue) fieldFilters[filterField] = filterValue;
-      const res = await exportTemplate(tableConfigId, {
-        export_type: exportType,
-        keyword: exportType === 'current' ? keyword || undefined : undefined,
-        field_filters: exportType === 'current' && Object.keys(fieldFilters).length ? JSON.stringify(fieldFilters) : undefined,
-      });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const a = document.createElement('a');
-      a.href = url;
-      const disposition = res.headers['content-disposition'];
-      let filename = `export_${tableConfigId}.xlsx`;
-      if (disposition) {
-        const m = disposition.match(/filename\*?=(?:UTF-8'')?([^;\n]+)/i);
-        if (m) filename = decodeURIComponent(m[1].replace(/"/g, ''));
+
+      if (estimatedRows > 5000) {
+        // Async export for large tables
+        await asyncExport(tableConfigId, {
+          export_type: exportType,
+          keyword: exportType === 'current' ? keyword || undefined : undefined,
+          field_filters: exportType === 'current' && Object.keys(fieldFilters).length ? JSON.stringify(fieldFilters) : undefined,
+        });
+        message.success('导出任务已创建，将在后台执行，完成后可在日志中心的导出日志中下载');
+        setExportModalOpen(false);
+      } else {
+        // Sync export for small tables
+        const res = await exportTemplate(tableConfigId, {
+          export_type: exportType,
+          keyword: exportType === 'current' ? keyword || undefined : undefined,
+          field_filters: exportType === 'current' && Object.keys(fieldFilters).length ? JSON.stringify(fieldFilters) : undefined,
+        });
+        const url = window.URL.createObjectURL(new Blob([res.data]));
+        const a = document.createElement('a');
+        a.href = url;
+        const disposition = res.headers['content-disposition'];
+        let filename = `export_${tableConfigId}.xlsx`;
+        if (disposition) {
+          const m = disposition.match(/filename\*?=(?:UTF-8'')?([^;\n]+)/i);
+          if (m) filename = decodeURIComponent(m[1].replace(/"/g, ''));
+        }
+        a.download = filename;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        message.success('导出成功');
+        setExportModalOpen(false);
       }
-      a.download = filename;
-      a.click();
-      window.URL.revokeObjectURL(url);
-      message.success('导出成功');
-      setExportModalOpen(false);
     } catch {
       message.error('导出失败');
     } finally {
@@ -653,6 +667,11 @@ export default function DataBrowse() {
           <Descriptions.Item label="导出字段数">{String((exportInfo as { field_count?: number }).field_count ?? '-')}</Descriptions.Item>
           <Descriptions.Item label="配置版本">v{String((exportInfo as { config_version?: number }).config_version ?? 0)}</Descriptions.Item>
         </Descriptions>
+        {((exportInfo as { estimated_rows?: number }).estimated_rows ?? 0) > 5000 && (
+          <p style={{ marginTop: 12, color: '#fa8c16', fontSize: 13, fontWeight: 500 }}>
+            ⚠ 数据量较大（超过 5000 行），将在后台生成，完成后可在导出记录中下载。
+          </p>
+        )}
         <p style={{ marginTop: 12, color: '#999', fontSize: 12 }}>
           说明：仅支持使用平台导出的模板回传，请勿修改模板中字段顺序与隐藏信息。
         </p>

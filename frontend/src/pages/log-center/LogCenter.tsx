@@ -8,6 +8,7 @@ import {
   type SystemLog, type ExportLog, type ImportLog, type WritebackLogItem, type FieldChangeItem,
 } from '../../api/logs';
 import { listDatasources } from '../../api/datasource';
+import { listExportTasks, downloadExportTask, type ExportTaskItem } from '../../api/dataMaintenance';
 import { formatBeijingTime } from '../../utils/formatTime';
 
 const { RangePicker } = DatePicker;
@@ -484,6 +485,102 @@ function WritebackLogTab({ dsOptions }: { dsOptions: { value: number; label: str
   );
 }
 
+// ─── Export Tasks Tab (v2.3) ───
+function ExportTaskTab() {
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<ExportTaskItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await listExportTasks({ page, page_size: pageSize });
+      setData(res.data.items);
+      setTotal(res.data.total);
+    } catch { message.error('加载导出任务失败'); }
+    finally { setLoading(false); }
+  }, [page, pageSize]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Auto refresh every 5s if there are processing tasks
+  useEffect(() => {
+    if (data.some(d => d.status === 'processing')) {
+      const timer = setInterval(fetchData, 5000);
+      return () => clearInterval(timer);
+    }
+  }, [data, fetchData]);
+
+  const handleDownload = async (taskId: string, fileName?: string) => {
+    try {
+      const res = await downloadExportTask(taskId);
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName || 'export.xlsx';
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      message.error('下载失败');
+    }
+  };
+
+  const columns: ColumnsType<ExportTaskItem> = [
+    { title: '任务ID', dataIndex: 'task_id', width: 160 },
+    { title: '表名', dataIndex: 'table_alias', width: 150, render: (v, r) => v || r.table_name || '-' },
+    { title: '导出类型', dataIndex: 'export_type', width: 100 },
+    { title: '行数', dataIndex: 'row_count', width: 80, render: v => v ?? '-' },
+    {
+      title: '状态', dataIndex: 'status', width: 100,
+      render: (v: string) => {
+        const map: Record<string, { color: string; text: string }> = {
+          processing: { color: 'blue', text: '处理中' },
+          completed: { color: 'green', text: '已完成' },
+          failed: { color: 'red', text: '失败' },
+        };
+        const info = map[v] || { color: 'default', text: v };
+        return <Tag color={info.color}>{info.text}</Tag>;
+      },
+    },
+    { title: '操作人', dataIndex: 'operator_user', width: 100 },
+    { title: '创建时间', dataIndex: 'created_at', width: 180, render: (v: string) => formatBeijingTime(v) },
+    { title: '完成时间', dataIndex: 'finished_at', width: 180, render: (v: string) => v ? formatBeijingTime(v) : '-' },
+    {
+      title: '操作', width: 100, fixed: 'right',
+      render: (_: unknown, record: ExportTaskItem) => {
+        if (record.status === 'completed') {
+          return (
+            <Button type="link" size="small" onClick={() => handleDownload(record.task_id, record.file_name || undefined)}>
+              下载
+            </Button>
+          );
+        }
+        if (record.status === 'failed') {
+          return <Tag color="red" style={{ fontSize: 11 }}>{record.error_message?.slice(0, 30) || '失败'}</Tag>;
+        }
+        return <Tag color="blue">处理中...</Tag>;
+      },
+    },
+  ];
+
+  return (
+    <>
+      <div style={{ marginBottom: 12 }}>
+        <Button onClick={() => fetchData()}>刷新</Button>
+      </div>
+      <Table rowKey="id" columns={columns} dataSource={data} loading={loading}
+        scroll={{ x: 1100 }}
+        pagination={{ current: page, pageSize, total, showSizeChanger: true,
+          pageSizeOptions: ['20','50','100'], showTotal: t => `共 ${t} 条`,
+          onChange: (p, ps) => { setPage(p); setPageSize(ps); },
+        }}
+      />
+    </>
+  );
+}
+
 // ─── Main Component ───
 export default function LogCenter() {
   const [dsOptions, setDsOptions] = useState<{ value: number; label: string }[]>([]);
@@ -498,6 +595,7 @@ export default function LogCenter() {
   const items = [
     { key: 'system', label: '系统操作日志', children: <SystemLogTab dsOptions={dsOptions} /> },
     { key: 'export', label: '模板导出日志', children: <ExportLogTab dsOptions={dsOptions} /> },
+    { key: 'export-tasks', label: '异步导出任务', children: <ExportTaskTab /> },
     { key: 'import', label: '模板导入日志', children: <ImportLogTab dsOptions={dsOptions} /> },
     { key: 'writeback', label: '回写日志', children: <WritebackLogTab dsOptions={dsOptions} /> },
   ];

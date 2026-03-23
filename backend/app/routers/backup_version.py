@@ -200,8 +200,10 @@ def rollback_version(version_id: int, db: Session = Depends(get_db), user: UserA
         qt_source = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
 
         # ── Step 1: Backup current data before rollback ──
-        ts = _now_bjt().strftime("%Y%m%d%H%M%S")
-        pre_rollback_backup_name = f"{tc.table_name}_pre_rb_{ts}"
+        import uuid as _uuid
+        ts = _now_bjt().strftime("%Y%m%d_%H%M%S")
+        rand_suffix = _uuid.uuid4().hex[:4].upper()
+        pre_rollback_backup_name = f"{tc.table_name}_pre_rb_{ts}_{rand_suffix}"
         pre_rb_batch = _gen_batch("BK")
 
         if ds.db_type == "mysql":

@@ -1,10 +1,12 @@
-"""Data maintenance endpoints: browse, export, import, diff, writeback, delete rows."""
+"""Data maintenance endpoints: browse, export, import, diff, writeback, delete rows, async export, batch export."""
 
 from __future__ import annotations
 import json
 import os
 import uuid
 import tempfile
+import threading
+import zipfile
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
@@ -17,7 +19,7 @@ from app.database import get_db, DATA_DIR
 from app.models import (
     TableConfig, DatasourceConfig, FieldConfig,
     TemplateExportLog, ImportTaskLog, WritebackLog, TableBackupVersion,
-    FieldChangeLog, _now_bjt,
+    FieldChangeLog, ExportTask, _now_bjt,
 )
 from app.utils.crypto import decrypt_password
 from app.utils.remote_db import _connect, fetch_sample_data, compute_structure_hash, list_columns
@@ -1164,8 +1166,9 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
         ph = _placeholder(ds.db_type)
 
         # ── Step 1: Full table backup ──
-        ts = _now_bjt().strftime("%Y%m%d%H%M%S")
-        backup_table_name = f"{tc.table_name}_bak_{ts}"
+        ts = _now_bjt().strftime("%Y%m%d_%H%M%S")
+        rand_suffix = uuid.uuid4().hex[:4].upper()
+        backup_table_name = f"{tc.table_name}_bak_{ts}_{rand_suffix}"
 
         _create_backup_table(cur, ds.db_type, qt, backup_table_name, tc.schema_name)
 
@@ -1372,6 +1375,18 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
                       message=f"回写 {wb_batch}，更新 {update_count}，新增 {insert_count}，失败 {fail_count}，备份 {bk_batch}",
                       operator=_get_username(user))
 
+        # v2.3: Notification
+        from app.utils.notifications import notify_user_by_username
+        ntype = "success" if wb_status == "success" else ("error" if wb_status == "failed" else "warning")
+        notify_user_by_username(
+            db, _get_username(user),
+            "回写%s" % ("成功" if wb_status == "success" else "完成"),
+            "表「%s」回写 %s，更新 %d，新增 %d，失败 %d" % (
+                tc.table_alias or tc.table_name, wb_batch, update_count, insert_count, fail_count),
+            ntype=ntype,
+            related_url="/log-center",
+        )
+
         # Update import task status
         task.import_status = "confirmed"
         task.updated_at = _now_bjt()
@@ -1463,8 +1478,9 @@ def inline_update(
         ph = _placeholder(ds.db_type)
 
         # ── Step 1: Full table backup ──
-        ts = _now_bjt().strftime("%Y%m%d%H%M%S")
-        backup_table_name = f"{tc.table_name}_bak_{ts}"
+        ts = _now_bjt().strftime("%Y%m%d_%H%M%S")
+        rand_suffix = uuid.uuid4().hex[:4].upper()
+        backup_table_name = f"{tc.table_name}_bak_{ts}_{rand_suffix}"
         _create_backup_table(cur, ds.db_type, qt, backup_table_name, tc.schema_name)
 
         bk_qt = _qualified_table(ds.db_type, backup_table_name, tc.schema_name)
@@ -1675,8 +1691,9 @@ def inline_insert(
         qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
 
         # Backup
-        ts = _now_bjt().strftime("%Y%m%d%H%M%S")
-        backup_table_name = f"{tc.table_name}_bak_{ts}"
+        ts = _now_bjt().strftime("%Y%m%d_%H%M%S")
+        rand_suffix = uuid.uuid4().hex[:4].upper()
+        backup_table_name = f"{tc.table_name}_bak_{ts}_{rand_suffix}"
         _create_backup_table(cur, ds.db_type, qt, backup_table_name, tc.schema_name)
 
         bk_qt = _qualified_table(ds.db_type, backup_table_name, tc.schema_name)
@@ -1842,8 +1859,9 @@ def delete_rows(
         bk_batch = _gen_batch("BK")
         started_at = _now_bjt()
 
-        ts = _now_bjt().strftime("%Y%m%d%H%M%S")
-        backup_table_name = f"{tc.table_name}_bak_{ts}"
+        ts = _now_bjt().strftime("%Y%m%d_%H%M%S")
+        rand_suffix = uuid.uuid4().hex[:4].upper()
+        backup_table_name = f"{tc.table_name}_bak_{ts}_{rand_suffix}"
 
         _create_backup_table(cur, ds.db_type, qt, backup_table_name, tc.schema_name)
 
@@ -2049,8 +2067,9 @@ def batch_insert(
         qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
 
         # ── Step 1: Backup ──
-        ts = _now_bjt().strftime("%Y%m%d%H%M%S")
-        backup_table_name = "%s_bak_%s" % (tc.table_name, ts)
+        ts = _now_bjt().strftime("%Y%m%d_%H%M%S")
+        rand_suffix = uuid.uuid4().hex[:4].upper()
+        backup_table_name = "%s_bak_%s_%s" % (tc.table_name, ts, rand_suffix)
         _create_backup_table(cur, ds.db_type, qt, backup_table_name, tc.schema_name)
 
         bk_qt = _qualified_table(ds.db_type, backup_table_name, tc.schema_name)
@@ -2185,3 +2204,462 @@ def batch_insert(
         raise HTTPException(500, "批量新增失败: %s" % str(e))
     finally:
         conn.close()
+
+
+# ─────────────────────────────────────────────
+# v2.3: 异步导出（大表）
+# ─────────────────────────────────────────────
+
+def _run_async_export(task_id: str, table_config_id: int, export_type: str,
+                      keyword: Optional[str], field_filters: Optional[str],
+                      operator_user: str):
+    """Background thread: execute export and update task status."""
+    import openpyxl
+    from openpyxl.utils import get_column_letter
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        task = db.query(ExportTask).filter(ExportTask.task_id == task_id).first()
+        if not task:
+            return
+
+        tc = db.query(TableConfig).filter(TableConfig.id == table_config_id).first()
+        ds = db.query(DatasourceConfig).filter(DatasourceConfig.id == tc.datasource_id).first()
+        pwd = decrypt_password(ds.password_encrypted)
+        fields = db.query(FieldConfig).filter(
+            FieldConfig.table_config_id == table_config_id,
+            FieldConfig.is_deleted == 0,
+        ).order_by(FieldConfig.field_order_no).all()
+        export_fields = [f for f in fields if f.include_in_export]
+        if not export_fields:
+            task.status = "failed"
+            task.error_message = "没有可导出的字段"
+            task.finished_at = _now_bjt()
+            db.commit()
+            return
+
+        col_names = [f.field_name for f in export_fields]
+        pk_set = set(f.strip() for f in tc.primary_key_fields.split(","))
+        ph = _placeholder(ds.db_type)
+
+        conn = _connect(
+            ds.db_type, ds.host, ds.port, ds.username, pwd,
+            tc.db_name, tc.schema_name, ds.charset, ds.connect_timeout_seconds or 10,
+        )
+        try:
+            cur = conn.cursor()
+            qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
+
+            where_parts = []  # type: List[str]
+            params = []  # type: list
+            if export_type == "current" and (keyword or field_filters):
+                if keyword:
+                    kw_parts = []
+                    for f in export_fields:
+                        kw_parts.append(
+                            "%s LIKE %s" % (_cast_to_text(ds.db_type, _quote_col(ds.db_type, f.field_name)), ph)
+                        )
+                        params.append("%%%s%%" % keyword)
+                    where_parts.append("(%s)" % " OR ".join(kw_parts))
+                if field_filters:
+                    try:
+                        ff = json.loads(field_filters)
+                        for fname, fval in ff.items():
+                            if fval and any(f.field_name == fname for f in export_fields):
+                                where_parts.append(
+                                    "%s LIKE %s" % (_cast_to_text(ds.db_type, _quote_col(ds.db_type, fname)), ph)
+                                )
+                                params.append("%%%s%%" % fval)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+            where_sql = ""
+            if where_parts:
+                where_sql = " WHERE " + " AND ".join(where_parts)
+
+            cols_sql = ", ".join(_quote_col(ds.db_type, c) for c in col_names)
+            data_sql = "SELECT %s FROM %s%s" % (cols_sql, qt, where_sql)
+            _exec(cur, ds.db_type, data_sql, params)
+            raw_rows = cur.fetchall()
+        except Exception as e:
+            task.status = "failed"
+            task.error_message = "查询数据失败: %s" % str(e)
+            task.finished_at = _now_bjt()
+            db.commit()
+            return
+        finally:
+            conn.close()
+
+        # Generate Excel
+        from openpyxl.styles import Protection as CellProtection
+        from openpyxl.worksheet.protection import SheetProtection
+
+        batch_no = _gen_batch("EXP")
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "数据"
+        locked_cell = CellProtection(locked=True)
+        unlocked_cell = CellProtection(locked=False)
+        editable_field_names = set(f.field_name for f in export_fields if f.is_editable)
+        data_row_count = len(raw_rows)
+        RESERVED_BLANK_ROWS = 50
+
+        for i, f in enumerate(export_fields, 1):
+            cell = ws.cell(row=1, column=i, value=f.field_alias or f.field_name)
+            cell.font = openpyxl.styles.Font(bold=True)
+            cell.protection = locked_cell
+
+        for row_idx, raw in enumerate(raw_rows, 2):
+            for col_idx, (val, ef) in enumerate(zip(raw, export_fields), 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=str(val) if val is not None else "")
+                if ef.field_name in pk_set:
+                    cell.protection = locked_cell
+                elif ef.field_name in editable_field_names:
+                    cell.protection = unlocked_cell
+                else:
+                    cell.protection = locked_cell
+
+        blank_start = 2 + data_row_count
+        for row_idx in range(blank_start, blank_start + RESERVED_BLANK_ROWS):
+            for col_idx, ef in enumerate(export_fields, 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value="")
+                if ef.field_name in pk_set:
+                    cell.protection = unlocked_cell
+                elif ef.field_name in editable_field_names:
+                    cell.protection = unlocked_cell
+                else:
+                    cell.protection = locked_cell
+
+        ws.protection = SheetProtection(
+            sheet=True, formatColumns=False, formatRows=False, formatCells=False,
+            insertRows=False, deleteRows=True, deleteColumns=True, insertColumns=True,
+            sort=False, autoFilter=False,
+        )
+
+        meta_ws = wb.create_sheet("_meta")
+        meta_info = {
+            "datasource_id": tc.datasource_id,
+            "table_config_id": tc.id,
+            "config_version": tc.config_version,
+            "export_time": _now_bjt().isoformat(),
+            "export_batch_no": batch_no,
+            "field_codes": [f.field_name for f in export_fields],
+            "field_aliases": [f.field_alias or f.field_name for f in export_fields],
+            "primary_key_fields": list(pk_set),
+            "structure_hash": tc.structure_version_hash,
+            "data_row_count": data_row_count,
+            "blank_row_start": blank_start,
+            "reserved_blank_rows": RESERVED_BLANK_ROWS,
+            "allow_insert_rows": tc.allow_insert_rows,
+        }
+        meta_ws.cell(row=1, column=1, value=json.dumps(meta_info, ensure_ascii=False))
+        meta_ws.sheet_state = "hidden"
+
+        for i, f in enumerate(export_fields, 1):
+            col_letter = get_column_letter(i)
+            ws.column_dimensions[col_letter].width = max(12, len(f.field_alias or f.field_name) * 2 + 4)
+
+        file_name = "%s_%s.xlsx" % (tc.table_alias or tc.table_name, batch_no)
+        file_path = os.path.join(EXPORT_DIR, file_name)
+        wb.save(file_path)
+
+        # Update task
+        task.status = "completed"
+        task.row_count = data_row_count
+        task.file_name = file_name
+        task.file_path = file_path
+        task.finished_at = _now_bjt()
+
+        # Record export log
+        log = TemplateExportLog(
+            export_batch_no=batch_no,
+            table_config_id=tc.id,
+            datasource_id=tc.datasource_id,
+            export_type=export_type,
+            row_count=data_row_count,
+            field_count=len(export_fields),
+            template_version=tc.config_version,
+            file_name=file_name,
+            file_path=file_path,
+            export_filters_json=json.dumps(
+                {"keyword": keyword, "field_filters": field_filters}, ensure_ascii=False
+            ) if keyword or field_filters else None,
+            operator_user=operator_user,
+        )
+        db.add(log)
+        log_operation(db, "数据维护", "异步导出模板", "success",
+                      target_id=tc.id, target_name=tc.table_name,
+                      message="异步导出模板 %s，%d 行" % (file_name, data_row_count),
+                      operator=operator_user)
+
+        # Send notification to operator
+        from app.utils.notifications import notify_user_by_username
+        notify_user_by_username(
+            db, operator_user,
+            "导出完成",
+            "表「%s」的导出已完成，共 %d 行数据" % (tc.table_alias or tc.table_name, data_row_count),
+            ntype="success",
+            related_url="/log-center",
+        )
+
+        db.commit()
+
+    except Exception as e:
+        try:
+            task_obj = db.query(ExportTask).filter(ExportTask.task_id == task_id).first()
+            if task_obj:
+                task_obj.status = "failed"
+                task_obj.error_message = str(e)[:1000]
+                task_obj.finished_at = _now_bjt()
+                db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
+@router.post("/{table_config_id}/async-export")
+def async_export(
+    table_config_id: int,
+    export_type: str = Query("all", regex="^(current|all)$"),
+    keyword: Optional[str] = None,
+    field_filters: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
+):
+    """Create async export task for large tables."""
+    tc = _get_tc(db, table_config_id)
+    ds = _get_ds(db, tc.datasource_id)
+
+    task_id = uuid.uuid4().hex[:16].upper()
+    task = ExportTask(
+        task_id=task_id,
+        table_config_id=tc.id,
+        datasource_id=tc.datasource_id,
+        export_type=export_type,
+        export_filters_json=json.dumps(
+            {"keyword": keyword, "field_filters": field_filters}, ensure_ascii=False
+        ) if keyword or field_filters else None,
+        status="processing",
+        operator_user=_get_username(user),
+    )
+    db.add(task)
+    db.commit()
+
+    # Start background thread
+    t = threading.Thread(
+        target=_run_async_export,
+        args=(task_id, table_config_id, export_type, keyword, field_filters, _get_username(user)),
+        daemon=True,
+    )
+    t.start()
+
+    return {
+        "task_id": task_id,
+        "status": "processing",
+        "message": "导出任务已创建，将在后台执行",
+    }
+
+
+@router.get("/export-tasks")
+def list_export_tasks(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
+):
+    """List async export tasks."""
+    q = db.query(ExportTask)
+    if user.role != "admin":
+        q = q.filter(ExportTask.operator_user == user.username)
+
+    total = q.count()
+    rows = q.order_by(ExportTask.id.desc()).offset(
+        (page - 1) * page_size
+    ).limit(page_size).all()
+
+    items = []
+    for r in rows:
+        tc = db.query(TableConfig).filter(TableConfig.id == r.table_config_id).first()
+        items.append({
+            "id": r.id,
+            "task_id": r.task_id,
+            "table_config_id": r.table_config_id,
+            "table_name": tc.table_name if tc else None,
+            "table_alias": tc.table_alias if tc else None,
+            "export_type": r.export_type,
+            "status": r.status,
+            "row_count": r.row_count,
+            "file_name": r.file_name,
+            "error_message": r.error_message,
+            "operator_user": r.operator_user,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "finished_at": r.finished_at.isoformat() if r.finished_at else None,
+        })
+
+    return {"total": total, "items": items}
+
+
+@router.get("/export-tasks/{task_id}/download")
+def download_export_task(
+    task_id: str,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
+):
+    """Download completed async export file."""
+    task = db.query(ExportTask).filter(ExportTask.task_id == task_id).first()
+    if not task:
+        raise HTTPException(404, "导出任务不存在")
+    if task.status != "completed":
+        raise HTTPException(400, "导出任务未完成，当前状态: %s" % task.status)
+    if not task.file_path or not os.path.isfile(task.file_path):
+        raise HTTPException(404, "导出文件不存在")
+
+    return FileResponse(
+        task.file_path,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=task.file_name or "export.xlsx",
+    )
+
+
+# ─────────────────────────────────────────────
+# v2.3: 批量表导出（多表 zip）
+# ─────────────────────────────────────────────
+
+class BatchExportRequest(BaseModel):
+    table_config_ids: List[int]
+
+
+@router.post("/batch-export")
+def batch_export(
+    body: BatchExportRequest,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
+):
+    """Export multiple tables and package as zip."""
+    import openpyxl
+    from openpyxl.utils import get_column_letter
+
+    if not body.table_config_ids:
+        raise HTTPException(400, "未选择要导出的表")
+    if len(body.table_config_ids) > 20:
+        raise HTTPException(400, "单次最多导出 20 张表")
+
+    zip_batch = _gen_batch("BEXP")
+    zip_name = "batch_export_%s.zip" % zip_batch
+    zip_path = os.path.join(EXPORT_DIR, zip_name)
+
+    exported_files = []  # type: List[str]
+    errors = []  # type: List[dict]
+
+    for tc_id in body.table_config_ids:
+        try:
+            tc = db.query(TableConfig).filter(
+                TableConfig.id == tc_id,
+                TableConfig.is_deleted == 0,
+                TableConfig.status == "enabled",
+            ).first()
+            if not tc:
+                errors.append({"table_config_id": tc_id, "error": "纳管表不存在或未启用"})
+                continue
+
+            ds = db.query(DatasourceConfig).filter(
+                DatasourceConfig.id == tc.datasource_id,
+                DatasourceConfig.is_deleted == 0,
+            ).first()
+            if not ds:
+                errors.append({"table_config_id": tc_id, "error": "数据源不存在"})
+                continue
+
+            pwd = decrypt_password(ds.password_encrypted)
+            fields = (
+                db.query(FieldConfig)
+                .filter(FieldConfig.table_config_id == tc_id, FieldConfig.is_deleted == 0)
+                .order_by(FieldConfig.field_order_no)
+                .all()
+            )
+            export_fields = [f for f in fields if f.include_in_export]
+            if not export_fields:
+                errors.append({"table_config_id": tc_id, "error": "没有可导出的字段"})
+                continue
+
+            col_names = [f.field_name for f in export_fields]
+
+            conn = _connect(
+                ds.db_type, ds.host, ds.port, ds.username, pwd,
+                tc.db_name, tc.schema_name, ds.charset, ds.connect_timeout_seconds or 10,
+            )
+            try:
+                cur = conn.cursor()
+                qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
+                cols_sql = ", ".join(_quote_col(ds.db_type, c) for c in col_names)
+                cur.execute("SELECT %s FROM %s" % (cols_sql, qt))
+                raw_rows = cur.fetchall()
+            except Exception as e:
+                errors.append({"table_config_id": tc_id, "error": "查询失败: %s" % str(e)})
+                continue
+            finally:
+                conn.close()
+
+            # Build Excel
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "数据"
+
+            for i, f in enumerate(export_fields, 1):
+                cell = ws.cell(row=1, column=i, value=f.field_alias or f.field_name)
+                cell.font = openpyxl.styles.Font(bold=True)
+
+            for row_idx, raw in enumerate(raw_rows, 2):
+                for col_idx, val in enumerate(raw, 1):
+                    ws.cell(row=row_idx, column=col_idx, value=str(val) if val is not None else "")
+
+            for i, f in enumerate(export_fields, 1):
+                col_letter = get_column_letter(i)
+                ws.column_dimensions[col_letter].width = max(12, len(f.field_alias or f.field_name) * 2 + 4)
+
+            single_batch = _gen_batch("EXP")
+            single_name = "%s_%s.xlsx" % (tc.table_alias or tc.table_name, single_batch)
+            single_path = os.path.join(EXPORT_DIR, single_name)
+            wb.save(single_path)
+            exported_files.append(single_path)
+
+            # Record log
+            log = TemplateExportLog(
+                export_batch_no=single_batch,
+                table_config_id=tc.id,
+                datasource_id=tc.datasource_id,
+                export_type="all",
+                row_count=len(raw_rows),
+                field_count=len(export_fields),
+                template_version=tc.config_version,
+                file_name=single_name,
+                file_path=single_path,
+                operator_user=_get_username(user),
+                remark="批量导出 %s" % zip_batch,
+            )
+            db.add(log)
+
+        except Exception as e:
+            errors.append({"table_config_id": tc_id, "error": str(e)})
+
+    if not exported_files:
+        db.commit()
+        raise HTTPException(400, "所有表导出失败: %s" % json.dumps(errors, ensure_ascii=False))
+
+    # Package zip
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fp in exported_files:
+            zf.write(fp, os.path.basename(fp))
+
+    log_operation(db, "数据维护", "批量导出", "success",
+                  message="批量导出 %d 张表，%d 个错误" % (len(exported_files), len(errors)),
+                  operator=_get_username(user))
+    db.commit()
+
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename=zip_name,
+    )

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Dropdown, Button, Space, Tag, Modal, Form, Input, message } from 'antd';
+import { Dropdown, Button, Space, Tag, Modal, Form, Input, message, Badge, List, Typography, Popover, Empty } from 'antd';
+const { Text: TypoText } = Typography;
 import {
   DatabaseOutlined,
   TableOutlined,
@@ -17,9 +18,13 @@ import {
   AuditOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  BellOutlined,
+  CheckOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
 import { changeMyPassword, updateMyProfile } from '../api/users';
+import { listNotifications, markNotificationRead, markAllNotificationsRead } from '../api/notifications';
+import type { NotificationItem } from '../api/notifications';
 
 const EXPANDED_WIDTH = 240;
 const COLLAPSED_WIDTH = 72;
@@ -65,6 +70,49 @@ export default function MainLayout() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileForm] = Form.useForm();
   const [profileLoading, setProfileLoading] = useState(false);
+
+  // v2.3: Notifications
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await listNotifications({ page_size: 10 });
+      setNotifications(res.data.items);
+      setUnreadCount(res.data.unread_count);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+    const timer = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(timer);
+  }, [fetchNotifications]);
+
+  const handleMarkRead = async (id: number) => {
+    try {
+      await markNotificationRead(id);
+      fetchNotifications();
+    } catch { /* ignore */ }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      fetchNotifications();
+    } catch { /* ignore */ }
+  };
+
+  const handleNotifClick = (item: NotificationItem) => {
+    if (item.is_read === 0) {
+      handleMarkRead(item.id);
+    }
+    if (item.related_url) {
+      navigate(item.related_url);
+      setNotifOpen(false);
+    }
+  };
 
   const userRole = user?.role || '';
   const siderWidth = collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
@@ -368,11 +416,74 @@ export default function MainLayout() {
             flexShrink: 0,
           }}
         >
-          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-            <Button type="text" icon={<UserOutlined />}>
-              {user?.display_name || user?.username}
-            </Button>
-          </Dropdown>
+          <Space size={8}>
+            <Popover
+              open={notifOpen}
+              onOpenChange={setNotifOpen}
+              trigger="click"
+              placement="bottomRight"
+              title={
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>通知</span>
+                  {unreadCount > 0 && (
+                    <Button type="link" size="small" icon={<CheckOutlined />} onClick={handleMarkAllRead}>
+                      全部已读
+                    </Button>
+                  )}
+                </div>
+              }
+              content={
+                <div style={{ width: 340, maxHeight: 400, overflow: 'auto' }}>
+                  {notifications.length === 0 ? (
+                    <Empty description="暂无通知" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                  ) : (
+                    <List
+                      size="small"
+                      dataSource={notifications}
+                      renderItem={(item) => (
+                        <List.Item
+                          style={{
+                            cursor: item.related_url ? 'pointer' : 'default',
+                            background: item.is_read === 0 ? '#f6ffed' : 'transparent',
+                            padding: '8px 4px',
+                          }}
+                          onClick={() => handleNotifClick(item)}
+                        >
+                          <List.Item.Meta
+                            title={
+                              <Space>
+                                {item.is_read === 0 && <Badge status="processing" />}
+                                <TypoText strong={item.is_read === 0} style={{ fontSize: 13 }}>
+                                  {item.title}
+                                </TypoText>
+                              </Space>
+                            }
+                            description={
+                              <div>
+                                <div style={{ fontSize: 12, color: '#666' }}>{item.message}</div>
+                                <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
+                                  {item.created_at ? new Date(item.created_at).toLocaleString('zh-CN') : ''}
+                                </div>
+                              </div>
+                            }
+                          />
+                        </List.Item>
+                      )}
+                    />
+                  )}
+                </div>
+              }
+            >
+              <Badge count={unreadCount} size="small" offset={[-2, 2]}>
+                <Button type="text" icon={<BellOutlined style={{ fontSize: 18 }} />} />
+              </Badge>
+            </Popover>
+            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+              <Button type="text" icon={<UserOutlined />}>
+                {user?.display_name || user?.username}
+              </Button>
+            </Dropdown>
+          </Space>
         </div>
 
         {/* Content */}

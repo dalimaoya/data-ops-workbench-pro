@@ -14,6 +14,7 @@ from app.routers import auth as auth_router
 from app.routers import dashboard as dashboard_router
 from app.routers import users as users_router
 from app.routers import approvals as approvals_router
+from app.routers import notifications as notifications_router
 from app.utils.auth import init_default_admin
 
 
@@ -57,6 +58,7 @@ app.include_router(backup_version.router)
 app.include_router(logs.router)
 app.include_router(users_router.router)
 app.include_router(approvals_router.router)
+app.include_router(notifications_router.router)
 
 
 @app.get("/api/health")

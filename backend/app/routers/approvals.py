@@ -122,6 +122,15 @@ def create_approval(
         message="用户 %s 提交 %s 审批" % (user.username, body.request_type),
         operator=user.username,
     )
+    # v2.3: notify admins
+    from app.utils.notifications import notify_admins
+    notify_admins(
+        db,
+        "新审批请求",
+        "用户 %s 提交了「%s」的 %s 审批请求" % (user.username, tc.table_name, body.request_type),
+        ntype="info",
+        related_url="/approval-center",
+    )
     db.commit()
     db.refresh(approval)
     return {
@@ -256,6 +265,16 @@ def approve_request(
         ),
         operator=user.username,
     )
+    # v2.3: notify requester
+    from app.utils.notifications import notify_user_by_username
+    notify_user_by_username(
+        db, approval.requested_by,
+        "审批已通过",
+        "您对表「%s」的 %s 审批已被管理员 %s 通过" % (
+            tc.table_name if tc else "未知", approval.request_type, user.username),
+        ntype="success",
+        related_url="/approval-center",
+    )
     db.commit()
 
     # Execute the actual operation
@@ -296,6 +315,16 @@ def reject_request(
             body.reject_reason or "无",
         ),
         operator=user.username,
+    )
+    # v2.3: notify requester
+    from app.utils.notifications import notify_user_by_username
+    notify_user_by_username(
+        db, approval.requested_by,
+        "审批被拒绝",
+        "您对表「%s」的 %s 审批已被拒绝，原因：%s" % (
+            tc.table_name if tc else "未知", approval.request_type, body.reject_reason or "无"),
+        ntype="error",
+        related_url="/approval-center",
     )
     db.commit()
     return {
