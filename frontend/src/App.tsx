@@ -15,12 +15,21 @@ import ImportPage from './pages/data-maintenance/ImportPage';
 import DiffPreview from './pages/data-maintenance/DiffPreview';
 import LogCenter from './pages/log-center/LogCenter';
 import VersionRollback from './pages/version-rollback/VersionRollback';
+import UserManagement from './pages/user-management/UserManagement';
 import About from './pages/About';
 
 function RequireAuth({ children }: { children: React.JSX.Element }) {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+  return children;
+}
+
+function RequireRole({ roles, children }: { roles: string[]; children: React.JSX.Element }) {
+  const { user } = useAuth();
+  if (!user || !roles.includes(user.role)) {
+    return <Navigate to="/" replace />;
   }
   return children;
 }
@@ -37,9 +46,9 @@ function App() {
         }
       >
         <Route path="/" element={<Home />} />
-        <Route path="/datasource" element={<DatasourceList />} />
-        <Route path="/datasource/create" element={<DatasourceForm />} />
-        <Route path="/datasource/edit/:id" element={<DatasourceForm />} />
+        <Route path="/datasource" element={<RequireRole roles={['admin']}><DatasourceList /></RequireRole>} />
+        <Route path="/datasource/create" element={<RequireRole roles={['admin']}><DatasourceForm /></RequireRole>} />
+        <Route path="/datasource/edit/:id" element={<RequireRole roles={['admin']}><DatasourceForm /></RequireRole>} />
         <Route path="/table-config" element={<TableConfigList />} />
         <Route path="/table-config/create" element={<TableConfigCreate />} />
         <Route path="/table-config/detail/:id" element={<TableConfigDetail />} />
@@ -49,21 +58,12 @@ function App() {
         <Route path="/data-maintenance/import/:id" element={<ImportPage />} />
         <Route path="/data-maintenance/diff/:taskId" element={<DiffPreview />} />
         <Route path="/log-center" element={<LogCenter />} />
-        <Route path="/version-rollback" element={<VersionRollback />} />
+        <Route path="/version-rollback" element={<RequireRole roles={['admin']}><VersionRollback /></RequireRole>} />
+        <Route path="/user-management" element={<RequireRole roles={['admin']}><UserManagement /></RequireRole>} />
         <Route path="/about" element={<About />} />
-        <Route path="/system-settings" element={<PlaceHolder title="系统设置" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
-  );
-}
-
-function PlaceHolder({ title }: { title: string }) {
-  return (
-    <div style={{ padding: 24 }}>
-      <h2>{title}</h2>
-      <p>开发中，敬请期待...</p>
-    </div>
   );
 }
 

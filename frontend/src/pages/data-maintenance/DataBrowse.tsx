@@ -9,10 +9,13 @@ import {
 import { browseTableData, getExportInfo, exportTemplate } from '../../api/dataMaintenance';
 import type { ColumnMeta } from '../../api/dataMaintenance';
 import { getTableConfig } from '../../api/tableConfig';
+import { useAuth } from '../../context/AuthContext';
 
 export default function DataBrowse() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canUpload = user?.role === 'admin' || user?.role === 'operator';
   const tableConfigId = Number(id);
 
   const [columns, setColumns] = useState<ColumnMeta[]>([]);
@@ -186,7 +189,7 @@ export default function DataBrowse() {
           <Col>
             <Space>
               <Button icon={<DownloadOutlined />} onClick={handleExportClick}>导出模板</Button>
-              <Button icon={<UploadOutlined />} onClick={() => navigate(`/data-maintenance/import/${tableConfigId}`)}>上传修订模板</Button>
+              {canUpload && <Button icon={<UploadOutlined />} onClick={() => navigate(`/data-maintenance/import/${tableConfigId}`)}>上传修订模板</Button>}
             </Space>
           </Col>
         </Row>

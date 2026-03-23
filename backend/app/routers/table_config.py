@@ -57,6 +57,7 @@ def get_remote_tables(
     db_name: Optional[str] = None,
     schema_name: Optional[str] = None,
     db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
 ):
     """获取远程数据库的库表清单。"""
     ds = _get_ds(db, ds_id)
@@ -89,6 +90,7 @@ def list_table_configs(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
 ):
     q = db.query(TableConfig).filter(TableConfig.is_deleted == 0)
     if datasource_id:
@@ -123,6 +125,7 @@ def count_table_configs(
     status: Optional[str] = None,
     keyword: Optional[str] = None,
     db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
 ):
     q = db.query(TableConfig).filter(TableConfig.is_deleted == 0)
     if datasource_id:
@@ -139,7 +142,7 @@ def count_table_configs(
 
 # ── Get single table config ──
 @router.get("/{tc_id}", response_model=TableConfigOut)
-def get_table_config(tc_id: int, db: Session = Depends(get_db)):
+def get_table_config(tc_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(get_current_user)):
     row = db.query(TableConfig).filter(
         TableConfig.id == tc_id, TableConfig.is_deleted == 0
     ).first()
@@ -158,7 +161,7 @@ def get_table_config(tc_id: int, db: Session = Depends(get_db)):
 
 # ── Create table config ──
 @router.post("", response_model=TableConfigOut)
-def create_table_config(body: TableConfigCreate, db: Session = Depends(get_db)):
+def create_table_config(body: TableConfigCreate, db: Session = Depends(get_db), user: UserAccount = Depends(require_role("admin"))):
     ds = _get_ds(db, body.datasource_id)
 
     # Check duplicate
@@ -212,8 +215,8 @@ def create_table_config(body: TableConfigCreate, db: Session = Depends(get_db)):
         structure_check_status="normal",
         last_structure_check_at=datetime.utcnow(),
         last_sync_at=datetime.utcnow(),
-        created_by="admin",
-        updated_by="admin",
+        created_by=user.username,
+        updated_by=user.username,
     )
     db.add(row)
     db.flush()
@@ -246,7 +249,8 @@ def create_table_config(body: TableConfigCreate, db: Session = Depends(get_db)):
     log_operation(db, "纳管表配置", "创建纳管表", "success",
                   target_id=row.id, target_code=row.table_config_code,
                   target_name=row.table_name,
-                  message=f"创建纳管表 {row.table_alias or row.table_name}")
+                  message=f"创建纳管表 {row.table_alias or row.table_name}",
+                  operator=user.username)
 
     db.commit()
     db.refresh(row)
@@ -257,7 +261,7 @@ def create_table_config(body: TableConfigCreate, db: Session = Depends(get_db)):
     return out
 
 
-def _merge_fields(db: Session, table_config_id: int, columns: list, pk_fields_str: str):
+def _merge_fields(db: Session, table_config_id: int, columns: list, pk_fields_str: str, operator_name: str = "system"):
     """Merge remote columns into existing field configs, preserving user customizations."""
     pk_set = set(f.strip() for f in pk_fields_str.split(","))
     system_keywords = {"created_at", "updated_at", "created_by", "updated_by", "is_deleted",
@@ -285,7 +289,7 @@ def _merge_fields(db: Session, table_config_id: int, columns: list, pk_fields_st
             existing.is_system_field = 1 if is_sys else 0
             if col.get("sample_value") is not None:
                 existing.sample_value = str(col["sample_value"])
-            existing.updated_by = "admin"
+            existing.updated_by = operator_name
             existing.updated_at = datetime.utcnow()
         else:
             # New field — create with defaults
@@ -304,8 +308,8 @@ def _merge_fields(db: Session, table_config_id: int, columns: list, pk_fields_st
                 is_system_field=1 if is_sys else 0,
                 include_in_export=1,
                 include_in_import=0 if is_pk or is_sys else 1,
-                created_by="admin",
-                updated_by="admin",
+                created_by=operator_name,
+                updated_by=operator_name,
             )
             db.add(fc)
 
@@ -316,7 +320,7 @@ def _merge_fields(db: Session, table_config_id: int, columns: list, pk_fields_st
             existing.updated_at = datetime.utcnow()
 
 
-def _auto_generate_fields(db: Session, table_config_id: int, columns: list, pk_fields_str: str):
+def _auto_generate_fields(db: Session, table_config_id: int, columns: list, pk_fields_str: str, operator_name: str = "system"):
     """Generate FieldConfig records from remote column info."""
     pk_set = set(f.strip() for f in pk_fields_str.split(","))
     system_keywords = {"created_at", "updated_at", "created_by", "updated_by", "is_deleted",
@@ -340,15 +344,15 @@ def _auto_generate_fields(db: Session, table_config_id: int, columns: list, pk_f
             is_system_field=1 if is_sys else 0,
             include_in_export=1,
             include_in_import=0 if is_pk or is_sys else 1,
-            created_by="admin",
-            updated_by="admin",
+            created_by=operator_name,
+            updated_by=operator_name,
         )
         db.add(fc)
 
 
 # ── Update table config ──
 @router.put("/{tc_id}", response_model=TableConfigOut)
-def update_table_config(tc_id: int, body: TableConfigUpdate, db: Session = Depends(get_db)):
+def update_table_config(tc_id: int, body: TableConfigUpdate, db: Session = Depends(get_db), user: UserAccount = Depends(require_role("admin"))):
     row = db.query(TableConfig).filter(
         TableConfig.id == tc_id, TableConfig.is_deleted == 0
     ).first()
@@ -357,13 +361,14 @@ def update_table_config(tc_id: int, body: TableConfigUpdate, db: Session = Depen
     updates = body.model_dump(exclude_unset=True)
     for k, v in updates.items():
         setattr(row, k, v)
-    row.updated_by = "admin"
+    row.updated_by = user.username
     row.updated_at = datetime.utcnow()
     row.config_version = row.config_version + 1
     log_operation(db, "纳管表配置", "编辑纳管表", "success",
                   target_id=row.id, target_code=row.table_config_code,
                   target_name=row.table_name,
-                  message=f"编辑纳管表 {row.table_alias or row.table_name}")
+                  message=f"编辑纳管表 {row.table_alias or row.table_name}",
+                  operator=user.username)
     db.commit()
     db.refresh(row)
     return _enrich_out(db, row)
@@ -371,7 +376,7 @@ def update_table_config(tc_id: int, body: TableConfigUpdate, db: Session = Depen
 
 # ── Delete table config ──
 @router.delete("/{tc_id}")
-def delete_table_config(tc_id: int, db: Session = Depends(get_db)):
+def delete_table_config(tc_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(require_role("admin"))):
     row = db.query(TableConfig).filter(
         TableConfig.id == tc_id, TableConfig.is_deleted == 0
     ).first()
@@ -386,14 +391,15 @@ def delete_table_config(tc_id: int, db: Session = Depends(get_db)):
     log_operation(db, "纳管表配置", "删除纳管表", "success",
                   target_id=row.id, target_code=row.table_config_code,
                   target_name=row.table_name,
-                  message=f"删除纳管表 {row.table_alias or row.table_name}")
+                  message=f"删除纳管表 {row.table_alias or row.table_name}",
+                  operator=user.username)
     db.commit()
     return {"detail": "已删除"}
 
 
 # ── Structure check ──
 @router.post("/{tc_id}/check-structure", response_model=StructureCheckResponse)
-def check_structure(tc_id: int, db: Session = Depends(get_db)):
+def check_structure(tc_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(get_current_user)):
     """检测表结构变化：对比远程当前结构 hash 与已保存 hash。"""
     row = db.query(TableConfig).filter(
         TableConfig.id == tc_id, TableConfig.is_deleted == 0
@@ -427,7 +433,8 @@ def check_structure(tc_id: int, db: Session = Depends(get_db)):
         row.last_structure_check_at = datetime.utcnow()
         log_operation(db, "纳管表配置", "结构检测", "success",
                       target_id=row.id, target_name=row.table_name,
-                      message="表结构未发生变化")
+                      message="表结构未发生变化",
+                      operator=user.username)
         db.commit()
         return StructureCheckResponse(
             status="normal", message="表结构未发生变化",
@@ -438,7 +445,8 @@ def check_structure(tc_id: int, db: Session = Depends(get_db)):
         row.last_structure_check_at = datetime.utcnow()
         log_operation(db, "纳管表配置", "结构检测", "warning",
                       target_id=row.id, target_name=row.table_name,
-                      message="表结构已发生变化")
+                      message="表结构已发生变化",
+                      operator=user.username)
         db.commit()
         return StructureCheckResponse(
             status="changed", message="表结构已发生变化，请重新配置字段后再操作",
@@ -448,7 +456,7 @@ def check_structure(tc_id: int, db: Session = Depends(get_db)):
 
 # ── Sync fields (re-pull from remote) ──
 @router.post("/{tc_id}/sync-fields")
-def sync_fields(tc_id: int, db: Session = Depends(get_db)):
+def sync_fields(tc_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(require_role("admin"))):
     """重新从远程数据库拉取字段并更新字段配置。"""
     row = db.query(TableConfig).filter(
         TableConfig.id == tc_id, TableConfig.is_deleted == 0
@@ -501,7 +509,8 @@ def sync_fields(tc_id: int, db: Session = Depends(get_db)):
     row.updated_at = datetime.utcnow()
     log_operation(db, "纳管表配置", "字段同步", "success",
                   target_id=row.id, target_name=row.table_name,
-                  message=f"字段同步完成，{len(columns)} 个字段")
+                  message=f"字段同步完成，{len(columns)} 个字段",
+                  operator=user.username)
     db.commit()
 
     return {"detail": "字段已重新同步", "field_count": len(columns), "structure_hash": new_hash}
@@ -513,6 +522,7 @@ def get_sample_data(
     tc_id: int,
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
 ):
     row = db.query(TableConfig).filter(
         TableConfig.id == tc_id, TableConfig.is_deleted == 0

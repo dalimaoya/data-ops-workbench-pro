@@ -11,6 +11,7 @@ from app.database import engine, Base, SessionLocal
 from app.routers import datasource, table_config, field_config, data_maintenance, backup_version, logs
 from app.routers import auth as auth_router
 from app.routers import dashboard as dashboard_router
+from app.routers import users as users_router
 from app.utils.auth import init_default_admin
 
 
@@ -52,6 +53,7 @@ app.include_router(field_config.router)
 app.include_router(data_maintenance.router)
 app.include_router(backup_version.router)
 app.include_router(logs.router)
+app.include_router(users_router.router)
 
 
 @app.get("/api/health")

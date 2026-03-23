@@ -63,6 +63,7 @@ def list_backup_versions(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
 ):
     """备份版本列表（支持按数据源/表名/时间范围/操作人筛选）。"""
     q = db.query(TableBackupVersion)
@@ -115,7 +116,7 @@ def list_backup_versions(
 
 
 @router.get("/{version_id}")
-def get_backup_version_detail(version_id: int, db: Session = Depends(get_db)):
+def get_backup_version_detail(version_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(require_role("admin"))):
     """备份版本详情。"""
     r = db.query(TableBackupVersion).filter(TableBackupVersion.id == version_id).first()
     if not r:
