@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Dropdown, Button, Space, Tag, Modal, Form, Input, message } from 'antd';
+import { Dropdown, Button, Space, Tag, Modal, Form, Input, message } from 'antd';
 import {
   DatabaseOutlined,
   TableOutlined,
@@ -21,15 +21,14 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { changeMyPassword, updateMyProfile } from '../api/users';
 
-const { Sider, Content, Header } = Layout;
-
-// 侧边栏使用渐变背景，Menu 透明叠加
+const EXPANDED_WIDTH = 240;
+const COLLAPSED_WIDTH = 72;
 
 interface MenuItem {
   key: string;
   icon: React.ReactNode;
   label: string;
-  roles?: string[]; // undefined = all roles
+  roles?: string[];
 }
 
 const allMenuItems: MenuItem[] = [
@@ -52,23 +51,24 @@ const roleLabels: Record<string, string> = {
 
 export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  const [collapseHover, setCollapseHover] = useState(false);
+  const [collapseActive, setCollapseActive] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, login, token } = useAuth();
 
-  // Password modal
   const [pwdOpen, setPwdOpen] = useState(false);
   const [pwdForm] = Form.useForm();
   const [pwdLoading, setPwdLoading] = useState(false);
 
-  // Profile modal
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileForm] = Form.useForm();
   const [profileLoading, setProfileLoading] = useState(false);
 
   const userRole = user?.role || '';
+  const siderWidth = collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
-  // Filter menu items by role
   const menuItems = allMenuItems
     .filter(item => !item.roles || item.roles.includes(userRole))
     .map(({ key, icon, label }) => ({ key, icon, label }));
@@ -91,7 +91,6 @@ export default function MainLayout() {
       message.success('密码修改成功，请重新登录');
       setPwdOpen(false);
       pwdForm.resetFields();
-      // Force re-login
       setTimeout(() => {
         logout();
         navigate('/login', { replace: true });
@@ -113,7 +112,6 @@ export default function MainLayout() {
       message.success('显示名修改成功');
       setProfileOpen(false);
       profileForm.resetFields();
-      // Update local user info
       if (user && token) {
         login(token, { ...user, display_name: values.display_name });
       }
@@ -176,135 +174,214 @@ export default function MainLayout() {
   ];
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-        <Sider
-          collapsible
-          collapsed={collapsed}
-          onCollapse={setCollapsed}
-          trigger={null}
-          theme="dark"
-          style={{
-            background: 'linear-gradient(180deg, #0B1530 0%, #0E1B3D 55%, #0A234A 100%)',
-            borderRight: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          {/* Logo area */}
-          <div style={{
-            padding: collapsed ? '16px 8px 12px' : '16px 8px 12px',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-            background: 'rgba(255,255,255,0.03)',
-            borderBottom: '1px solid rgba(126,167,255,0.15)',
-          }}>
-            <img src="/logo.png" alt="logo" style={{ width: collapsed ? 48 : '85%', objectFit: 'contain' }} />
-            {!collapsed && (
-              <span style={{ color: '#F3F7FF', fontWeight: 'bold', fontSize: 22, textAlign: 'center', letterSpacing: 4, whiteSpace: 'nowrap' }}>
-                数据运维工作台
-              </span>
-            )}
-          </div>
-
-          {/* Custom menu */}
-          <div style={{ padding: '8px 0', flex: 1 }}>
-            {menuItems.map(item => {
-              const isSelected = item.key === selectedKey;
-              return (
-                <div
-                  key={item.key}
-                  onClick={() => navigate(item.key)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    height: 48,
-                    padding: collapsed ? '0 16px' : '0 20px',
-                    margin: '2px 8px',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    color: isSelected ? '#F3F7FF' : '#B8C4DA',
-                    background: isSelected
-                      ? 'linear-gradient(90deg, rgba(88,141,255,0.22) 0%, rgba(48,212,191,0.14) 100%)'
-                      : 'transparent',
-                    borderLeft: isSelected ? '3px solid #35D6C1' : '3px solid transparent',
-                    transition: 'all 0.2s',
-                    justifyContent: collapsed ? 'center' : 'flex-start',
-                    fontSize: 15,
-                  }}
-                  onMouseEnter={e => {
-                    if (!isSelected) {
-                      (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)';
-                    }
-                    const iconEl = e.currentTarget.querySelector('.sidebar-icon') as HTMLElement;
-                    if (iconEl && !isSelected) iconEl.style.color = '#DDE8FF';
-                  }}
-                  onMouseLeave={e => {
-                    if (!isSelected) {
-                      (e.currentTarget as HTMLElement).style.background = 'transparent';
-                    }
-                    const iconEl = e.currentTarget.querySelector('.sidebar-icon') as HTMLElement;
-                    if (iconEl && !isSelected) iconEl.style.color = '#AAB6CC';
-                  }}
-                >
-                  <span
-                    className="sidebar-icon"
-                    style={{
-                      fontSize: 18,
-                      color: isSelected ? '#FFFFFF' : '#AAB6CC',
-                      display: 'flex', alignItems: 'center',
-                      transition: 'color 0.2s',
-                    }}
-                  >
-                    {item.icon}
-                  </span>
-                  {!collapsed && <span>{item.label}</span>}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Collapse toggle button */}
+    <div style={{ minHeight: '100vh' }}>
+      {/* Fixed Sidebar */}
+      <div
+        style={{
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: siderWidth,
+          zIndex: 100,
+          background: 'linear-gradient(180deg, #0B1530 0%, #0E1B3D 55%, #0A234A 100%)',
+          borderRight: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          transition: 'width 0.25s cubic-bezier(0.2, 0, 0, 1)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Brand Area */}
+        <div style={{ padding: '20px 16px 0 16px', flexShrink: 0 }}>
           <div
-            onClick={() => setCollapsed(!collapsed)}
             style={{
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(126,167,255,0.15)',
+              borderRadius: 12,
+              height: 80,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              height: 48,
-              cursor: 'pointer',
-              color: '#7F8CA8',
-              borderTop: '1px solid rgba(255,255,255,0.08)',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)';
-              (e.currentTarget as HTMLElement).style.color = '#DDE8FF';
-            }}
-            onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.background = 'transparent';
-              (e.currentTarget as HTMLElement).style.color = '#7F8CA8';
+              padding: collapsed ? '0 8px' : '0 12px',
+              overflow: 'hidden',
+              transition: 'padding 0.25s',
             }}
           >
-            {collapsed ? <MenuUnfoldOutlined style={{ fontSize: 16 }} /> : <MenuFoldOutlined style={{ fontSize: 16 }} />}
+            <img
+              src="/logo.png"
+              alt="DataOps Workbench"
+              style={{
+                width: collapsed ? 40 : '100%',
+                height: collapsed ? 40 : 'auto',
+                maxHeight: 60,
+                objectFit: collapsed ? 'cover' : 'contain',
+                objectPosition: 'left',
+                transition: 'all 0.25s',
+              }}
+            />
           </div>
-        </Sider>
-      <Layout>
-        <Header style={{
-          background: '#fff', padding: '0 24px',
-          display: 'flex', alignItems: 'center',
-          justifyContent: 'flex-end',
-          borderBottom: '1px solid #f0f0f0',
-        }}>
+        </div>
+
+        {/* Menu Items */}
+        <div style={{ padding: '16px 12px 8px 12px', flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+          {menuItems.map(item => {
+            const isSelected = item.key === selectedKey;
+            const isHovered = hoveredKey === item.key;
+
+            let bg = 'transparent';
+            let border = '1px solid transparent';
+            let borderLeft = '3px solid transparent';
+            let textColor = '#B8C4DA';
+            let iconColor = '#AAB6CC';
+
+            if (isSelected) {
+              bg = 'linear-gradient(90deg, rgba(88,141,255,0.22) 0%, rgba(48,212,191,0.14) 100%)';
+              border = '1px solid rgba(122,180,255,0.18)';
+              borderLeft = '3px solid #35D6C1';
+              textColor = '#FFFFFF';
+              iconColor = '#FFFFFF';
+            } else if (isHovered) {
+              bg = 'rgba(255,255,255,0.05)';
+              iconColor = '#DDE8FF';
+            }
+
+            return (
+              <div
+                key={item.key}
+                onClick={() => navigate(item.key)}
+                onMouseEnter={() => setHoveredKey(item.key)}
+                onMouseLeave={() => setHoveredKey(null)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  height: 48,
+                  padding: collapsed ? '0' : '0 16px',
+                  marginBottom: 8,
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  color: textColor,
+                  background: bg,
+                  border: border,
+                  borderLeft: borderLeft,
+                  transition: 'all 0.2s ease',
+                  justifyContent: collapsed ? 'center' : 'flex-start',
+                  fontSize: 16,
+                  fontWeight: 500,
+                  lineHeight: '24px',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 20,
+                    color: iconColor,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    width: 20,
+                    height: 20,
+                    transition: 'color 0.2s',
+                  }}
+                >
+                  {item.icon}
+                </span>
+                {!collapsed && (
+                  <span style={{ transition: 'opacity 0.2s', opacity: 1 }}>
+                    {item.label}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Bottom Collapse Button */}
+        <div
+          style={{
+            flexShrink: 0,
+            borderTop: '1px solid rgba(255,255,255,0.08)',
+            paddingTop: 12,
+            paddingBottom: 16,
+            paddingLeft: 12,
+            paddingRight: 12,
+          }}
+        >
+          <div
+            onClick={() => setCollapsed(!collapsed)}
+            onMouseEnter={() => setCollapseHover(true)}
+            onMouseLeave={() => { setCollapseHover(false); setCollapseActive(false); }}
+            onMouseDown={() => setCollapseActive(true)}
+            onMouseUp={() => setCollapseActive(false)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              gap: 10,
+              height: 42,
+              padding: collapsed ? '0' : '0 16px',
+              borderRadius: 10,
+              cursor: 'pointer',
+              color: '#7F8CA8',
+              background: collapseActive
+                ? 'rgba(88,141,255,0.16)'
+                : collapseHover
+                  ? 'rgba(255,255,255,0.06)'
+                  : 'transparent',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {collapsed
+              ? <MenuUnfoldOutlined style={{ fontSize: 19 }} />
+              : <MenuFoldOutlined style={{ fontSize: 19 }} />
+            }
+            {!collapsed && (
+              <span style={{ fontSize: 14, fontWeight: 400 }}>收起菜单</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div
+        style={{
+          marginLeft: siderWidth,
+          transition: 'margin-left 0.25s cubic-bezier(0.2, 0, 0, 1)',
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            height: 56,
+            background: '#fff',
+            padding: '0 24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            borderBottom: '1px solid #f0f0f0',
+            flexShrink: 0,
+          }}
+        >
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
             <Button type="text" icon={<UserOutlined />}>
               {user?.display_name || user?.username}
             </Button>
           </Dropdown>
-        </Header>
-        <Content style={{ margin: 16 }}>
-          <Outlet />
-        </Content>
-      </Layout>
+        </div>
 
-      {/* 修改密码弹窗 */}
+        {/* Content */}
+        <div style={{ margin: 16, flex: 1 }}>
+          <Outlet />
+        </div>
+      </div>
+
+      {/* Password Modal */}
       <Modal
         title="修改密码"
         open={pwdOpen}
@@ -341,7 +418,7 @@ export default function MainLayout() {
         </Form>
       </Modal>
 
-      {/* 修改显示名弹窗 */}
+      {/* Profile Modal */}
       <Modal
         title="修改显示名"
         open={profileOpen}
@@ -356,6 +433,6 @@ export default function MainLayout() {
           </Form.Item>
         </Form>
       </Modal>
-    </Layout>
+    </div>
   );
 }
