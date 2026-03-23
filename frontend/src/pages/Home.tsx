@@ -10,7 +10,7 @@ import { getDashboardStats, getRecentOperations, getAlerts } from '../api/dashbo
 import type { DashboardStats, RecentOperation, Alert } from '../api/dashboard';
 import { useAuth } from '../context/AuthContext';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export default function Home() {
   const navigate = useNavigate();
@@ -61,19 +61,14 @@ export default function Home() {
   };
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <Title level={4} style={{ margin: 0 }}>
-          工作台总览
-        </Title>
-        <Text type="secondary" style={{ fontSize: 13 }}>
-          欢迎回来，{user?.display_name || user?.username || '用户'}
-          {user?.role && <Tag style={{ marginLeft: 8 }}>{
-            user.role === 'admin' ? '管理员' : user.role === 'operator' ? '操作员' : '只读用户'
-          }</Tag>}
-        </Text>
-      </div>
-
+    <Card title="工作台总览" extra={
+      <Text type="secondary" style={{ fontSize: 13 }}>
+        欢迎回来，{user?.display_name || user?.username || '用户'}
+        {user?.role && <Tag style={{ marginLeft: 8 }}>{
+          user.role === 'admin' ? '管理员' : user.role === 'operator' ? '操作员' : '只读用户'
+        }</Tag>}
+      </Text>
+    }>
       {/* 第一行：基础统计 */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={5}>
@@ -230,6 +225,6 @@ export default function Home() {
           <Empty description="暂无操作记录" />
         )}
       </Card>
-    </div>
+    </Card>
   );
 }

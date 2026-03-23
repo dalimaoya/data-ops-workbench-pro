@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Button, Space, Tag, Input, Select, message, Popconfirm, Card, Typography } from 'antd';
+import { Table, Button, Space, Tag, Input, Select, message, Popconfirm, Card } from 'antd';
 import { PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import {
   listTableConfigs, countTableConfigs, deleteTableConfig, checkStructure,
@@ -97,31 +97,29 @@ export default function TableConfigList() {
   ];
 
   return (
-    <div>
-      <Typography.Title level={4} style={{ marginBottom: 16 }}>表配置管理</Typography.Title>
-      <Card style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <Select
-            allowClear placeholder="数据源" style={{ width: 200 }}
-            options={datasources.map(d => ({ label: d.datasource_name, value: d.id }))}
-            onChange={v => setFilters(f => ({ ...f, datasource_id: v }))}
-          />
-          <Select
-            allowClear placeholder="状态" style={{ width: 120 }}
-            options={[{ label: '启用', value: 'enabled' }, { label: '禁用', value: 'disabled' }]}
-            onChange={v => setFilters(f => ({ ...f, status: v }))}
-          />
-          <Input
-            placeholder="搜索表名" prefix={<SearchOutlined />} style={{ width: 200 }}
-            onPressEnter={e => setFilters(f => ({ ...f, keyword: (e.target as HTMLInputElement).value }))}
-            allowClear onChange={e => { if (!e.target.value) setFilters(f => ({ ...f, keyword: undefined })); }}
-          />
-          <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/table-config/create')}>
-            新增纳管表
-          </Button>
-        </Space>
-      </Card>
+    <Card title="表配置管理" extra={
+      <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/table-config/create')}>
+        新增纳管表
+      </Button>
+    }>
+      <Space wrap style={{ marginBottom: 16 }}>
+        <Select
+          allowClear placeholder="数据源" style={{ width: 200 }}
+          options={datasources.map(d => ({ label: d.datasource_name, value: d.id }))}
+          onChange={v => setFilters(f => ({ ...f, datasource_id: v }))}
+        />
+        <Select
+          allowClear placeholder="状态" style={{ width: 120 }}
+          options={[{ label: '启用', value: 'enabled' }, { label: '禁用', value: 'disabled' }]}
+          onChange={v => setFilters(f => ({ ...f, status: v }))}
+        />
+        <Input
+          placeholder="搜索表名" prefix={<SearchOutlined />} style={{ width: 200 }}
+          onPressEnter={e => setFilters(f => ({ ...f, keyword: (e.target as HTMLInputElement).value }))}
+          allowClear onChange={e => { if (!e.target.value) setFilters(f => ({ ...f, keyword: undefined })); }}
+        />
+        <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新</Button>
+      </Space>
 
       <Table
         rowKey="id"
@@ -135,6 +133,6 @@ export default function TableConfigList() {
           onChange: (p, ps) => { setPage(p); setPageSize(ps); },
         }}
       />
-    </div>
+    </Card>
   );
 }

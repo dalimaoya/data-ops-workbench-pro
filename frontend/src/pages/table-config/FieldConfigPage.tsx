@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Card, Table, Switch, Input, InputNumber, Button, Space, message, Tag, Spin, Typography,
+  Card, Table, Switch, Input, InputNumber, Button, Space, message, Tag, Spin,
 } from 'antd';
 import {
   getTableConfig, listFields, updateField, batchUpdateFields, syncFields,
@@ -150,9 +150,7 @@ export default function FieldConfigPage() {
   if (loading) return <Spin style={{ display: 'block', margin: '40px auto' }} />;
 
   return (
-    <div>
-      <Typography.Title level={4} style={{ marginBottom: 16 }}>表配置管理</Typography.Title>
-      <Card
+    <Card
         title={`字段配置 — ${tc?.table_alias || tc?.table_name || ''}`}
         extra={
           <Space>
@@ -188,7 +186,6 @@ export default function FieldConfigPage() {
             onChange: keys => setSelectedRowKeys(keys as number[]),
           }}
         />
-      </Card>
-    </div>
+    </Card>
   );
 }

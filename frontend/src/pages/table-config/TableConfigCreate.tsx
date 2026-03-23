@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Form, Select, Button, Input, Space, Table, message, Spin, Typography } from 'antd';
+import { Card, Form, Select, Button, Input, Space, Table, message, Spin } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import { listDatasources, type Datasource } from '../../api/datasource';
 import { getRemoteTables, createTableConfig, type RemoteTableInfo } from '../../api/tableConfig';
@@ -85,7 +85,6 @@ export default function TableConfigCreate() {
 
   return (
     <div>
-      <Typography.Title level={4} style={{ marginBottom: 16 }}>表配置管理</Typography.Title>
       <Card title="新增纳管表 - 第一步：选择数据源和表" style={{ marginBottom: 16 }}>
         <Space direction="vertical" style={{ width: '100%' }}>
           <Select
