@@ -178,12 +178,12 @@ export default function MainLayout() {
         theme="dark"
       >
         <div style={{
-          height: 56, margin: '12px 12px 8px', display: 'flex', alignItems: 'center',
-          justifyContent: 'center', gap: 8, overflow: 'hidden',
+          padding: collapsed ? '16px 0 8px' : '16px 12px 8px',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
         }}>
-          <img src="/logo.png" alt="logo" style={{ height: 36, flexShrink: 0 }} />
+          <img src="/logo.png" alt="logo" style={{ height: collapsed ? 32 : 40 }} />
           {!collapsed && (
-            <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 14, whiteSpace: 'nowrap' }}>
+            <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 13, textAlign: 'center', lineHeight: 1.3 }}>
               数据运维工作台
             </span>
           )}
