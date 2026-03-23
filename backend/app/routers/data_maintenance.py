@@ -1889,3 +1889,200 @@ def delete_rows(
         raise HTTPException(500, f"删除失败: {str(e)}")
     finally:
         conn.close()
+
+
+# ─────────────────────────────────────────────
+# v2.1.2: 批量新增行（弹窗批量粘贴）
+# ─────────────────────────────────────────────
+
+class BatchInsertRequest(BaseModel):
+    rows: List[Dict[str, Optional[str]]]
+
+
+@router.post("/{table_config_id}/batch-insert")
+def batch_insert(
+    table_config_id: int,
+    body: BatchInsertRequest,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin", "operator")),
+):
+    """批量新增行：写前备份 → 逐行 INSERT → 记录日志。"""
+    tc = _get_tc(db, table_config_id)
+    if not tc.allow_insert_rows:
+        raise HTTPException(403, "该纳管表未启用新增行功能")
+
+    ds = _get_ds(db, tc.datasource_id)
+    pwd = decrypt_password(ds.password_encrypted)
+    fields = _get_fields(db, tc.id)
+    pk_fields_list = [p.strip() for p in tc.primary_key_fields.split(",")]
+
+    if not body.rows:
+        raise HTTPException(400, "没有数据")
+
+    # Filter out completely empty rows
+    valid_rows = []
+    for row_data in body.rows:
+        if any(v is not None and str(v).strip() != "" for v in row_data.values()):
+            valid_rows.append(row_data)
+
+    if not valid_rows:
+        raise HTTPException(400, "所有行都是空的")
+
+    # Validate PK fields for each row
+    for idx, row_data in enumerate(valid_rows):
+        for pkf in pk_fields_list:
+            pv = row_data.get(pkf)
+            if not pv or str(pv).strip() == "":
+                fc = next((f for f in fields if f.field_name == pkf), None)
+                pk_alias = fc.field_alias if fc and fc.field_alias else pkf
+                raise HTTPException(400, "第%d行主键字段「%s」不能为空" % (idx + 1, pk_alias))
+
+    wb_batch = _gen_batch("BINS")
+    bk_batch = _gen_batch("BK")
+    started_at = _now_bjt()
+
+    conn = _connect(
+        ds.db_type, ds.host, ds.port, ds.username, pwd,
+        tc.db_name, tc.schema_name, ds.charset, ds.connect_timeout_seconds or 10,
+    )
+    try:
+        cur = conn.cursor()
+        qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
+
+        # ── Step 1: Backup ──
+        ts = _now_bjt().strftime("%Y%m%d%H%M%S")
+        backup_table_name = "%s_bak_%s" % (tc.table_name, ts)
+        _create_backup_table(cur, ds.db_type, qt, backup_table_name, tc.schema_name)
+
+        bk_qt = _qualified_table(ds.db_type, backup_table_name, tc.schema_name)
+        cur.execute("SELECT COUNT(*) FROM %s" % bk_qt)
+        backup_count = cur.fetchone()[0]
+        conn.commit()
+
+        backup_rec = TableBackupVersion(
+            backup_version_no=bk_batch,
+            table_config_id=tc.id,
+            datasource_id=tc.datasource_id,
+            backup_table_name=backup_table_name,
+            source_table_name=tc.table_name,
+            source_db_name=tc.db_name,
+            source_schema_name=tc.schema_name,
+            trigger_type="triggered_by_batch_insert",
+            related_writeback_batch_no=wb_batch,
+            record_count=backup_count,
+            storage_status="valid",
+            can_rollback=1,
+            backup_started_at=started_at,
+            backup_finished_at=_now_bjt(),
+            operator_user=_get_username(user),
+        )
+        db.add(backup_rec)
+        db.flush()
+
+        # ── Step 2: Execute INSERTs ──
+        export_fields = [f for f in fields if f.include_in_export]
+        insert_col_names = [f.field_name for f in export_fields]
+        insert_cols_sql = ", ".join(_quote_col(ds.db_type, c) for c in insert_col_names)
+        placeholders = ", ".join(["%s"] * len(insert_col_names))
+        insert_sql = "INSERT INTO %s (%s) VALUES (%s)" % (qt, insert_cols_sql, placeholders)
+
+        success_count = 0
+        fail_count = 0
+        failed_details = []  # type: List[dict]
+        change_logs = []  # type: List[dict]
+
+        for row_idx, row_data in enumerate(valid_rows):
+            vals = []  # type: list
+            for fn in insert_col_names:
+                v = row_data.get(fn)
+                if v is not None and str(v).strip() != "":
+                    vals.append(str(v).strip())
+                else:
+                    vals.append(None)
+
+            pk_key = "|".join(str(row_data.get(pkf, "") or "") for pkf in pk_fields_list)
+
+            try:
+                _exec(cur, ds.db_type, insert_sql, vals)
+                success_count += 1
+
+                for fn, val in zip(insert_col_names, vals):
+                    if val is not None:
+                        change_logs.append({
+                            "row_pk_value": pk_key,
+                            "field_name": fn,
+                            "old_value": None,
+                            "new_value": str(val),
+                            "change_type": "insert",
+                        })
+            except Exception as e:
+                fail_count += 1
+                failed_details.append({
+                    "row_num": row_idx + 1,
+                    "pk_key": pk_key,
+                    "error": str(e),
+                })
+
+        conn.commit()
+        finished_at = _now_bjt()
+        wb_status = "success" if fail_count == 0 else ("failed" if success_count == 0 else "partial")
+
+        # Record writeback log
+        wb_log = WritebackLog(
+            writeback_batch_no=wb_batch,
+            import_task_id=0,
+            table_config_id=tc.id,
+            datasource_id=tc.datasource_id,
+            backup_version_no=bk_batch,
+            total_row_count=len(valid_rows),
+            success_row_count=success_count,
+            failed_row_count=fail_count,
+            skipped_row_count=0,
+            inserted_row_count=success_count,
+            updated_row_count=0,
+            deleted_row_count=0,
+            writeback_status=wb_status,
+            writeback_message="批量新增 %d 行，失败 %d 行" % (success_count, fail_count),
+            failed_detail_json=json.dumps(failed_details, ensure_ascii=False) if failed_details else None,
+            operator_user=_get_username(user),
+            started_at=started_at,
+            finished_at=finished_at,
+        )
+        db.add(wb_log)
+        db.flush()
+
+        for cl in change_logs:
+            db.add(FieldChangeLog(
+                writeback_log_id=wb_log.id,
+                row_pk_value=cl["row_pk_value"],
+                field_name=cl["field_name"],
+                old_value=cl["old_value"],
+                new_value=cl["new_value"],
+                change_type=cl["change_type"],
+            ))
+
+        log_operation(db, "数据维护", "批量新增行", wb_status,
+                      target_id=tc.id, target_name=tc.table_name,
+                      message="批量新增 %s，成功 %d，失败 %d，备份 %s" % (wb_batch, success_count, fail_count, bk_batch),
+                      operator=_get_username(user))
+        db.commit()
+
+        return {
+            "writeback_batch_no": wb_batch,
+            "backup_version_no": bk_batch,
+            "status": wb_status,
+            "total": len(valid_rows),
+            "success": success_count,
+            "failed": fail_count,
+            "backup_table": backup_table_name,
+            "backup_record_count": backup_count,
+            "failed_details": failed_details[:50],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, "批量新增失败: %s" % str(e))
+    finally:
+        conn.close()

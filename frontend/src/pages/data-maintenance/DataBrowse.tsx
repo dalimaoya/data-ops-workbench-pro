@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Table, Card, Input, Button, Space, message, Select, Row, Col, Descriptions, Tag, Modal, Radio,
+  Table, Card, Input, Button, Space, message, Select, Row, Col, Descriptions, Tag, Modal, Radio, Typography,
 } from 'antd';
+const { Text } = Typography;
 import {
   SearchOutlined, DownloadOutlined, UploadOutlined, ReloadOutlined, ArrowLeftOutlined,
   DeleteOutlined, ExclamationCircleOutlined, EditOutlined, PlusOutlined, SaveOutlined, CloseOutlined,
 } from '@ant-design/icons';
-import { browseTableData, getExportInfo, exportTemplate, deleteRows, inlineUpdate, inlineInsert } from '../../api/dataMaintenance';
+import { browseTableData, getExportInfo, exportTemplate, deleteRows, inlineUpdate, batchInsert } from '../../api/dataMaintenance';
 import type { ColumnMeta, InlineChange } from '../../api/dataMaintenance';
 import { getTableConfig } from '../../api/tableConfig';
 import { useAuth } from '../../context/AuthContext';
@@ -51,9 +52,9 @@ export default function DataBrowse() {
   // editedCells: { pkKey: { fieldName: newValue, ... }, ... }
   const [saving, setSaving] = useState(false);
 
-  // v2.1: Inline insert (new row)
-  const [addingRow, setAddingRow] = useState(false);
-  const [newRowData, setNewRowData] = useState<Record<string, string | null>>({});
+  // v2.1.2: Batch insert modal
+  const [batchInsertOpen, setBatchInsertOpen] = useState(false);
+  const [batchRows, setBatchRows] = useState<Record<string, string | null>[]>([]);
   const [insertSaving, setInsertSaving] = useState(false);
 
   // Diff preview modal
@@ -261,42 +262,103 @@ export default function DataBrowse() {
     }
   };
 
-  // v2.1: Add new row
+  // v2.1.2: Batch insert modal
+  const createEmptyRows = (count: number): Record<string, string | null>[] => {
+    return Array.from({ length: count }, () => {
+      const row: Record<string, string | null> = {};
+      for (const col of columns) {
+        row[col.field_name] = null;
+      }
+      return row;
+    });
+  };
+
   const handleAddRow = () => {
-    setAddingRow(true);
-    const initial: Record<string, string | null> = {};
-    for (const col of columns) {
-      initial[col.field_name] = null;
+    setBatchRows(createEmptyRows(5));
+    setBatchInsertOpen(true);
+  };
+
+  const handleAddMoreRows = () => {
+    setBatchRows(prev => [...prev, ...createEmptyRows(5)]);
+  };
+
+  const handleBatchCellChange = (rowIndex: number, fieldName: string, value: string | null) => {
+    setBatchRows(prev => {
+      const next = [...prev];
+      next[rowIndex] = { ...next[rowIndex], [fieldName]: value };
+      return next;
+    });
+  };
+
+  const handleBatchPaste = (e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text/plain');
+    if (!text || !text.includes('\t')) return; // Not tab-separated data
+
+    e.preventDefault();
+    const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+    if (lines.length === 0) return;
+
+    // Get editable column field names in order (matching table header order)
+    const editableFields = columns
+      .filter(c => !c.is_system_field)
+      .map(c => c.field_name);
+
+    setBatchRows(prev => {
+      const newRows = [...prev];
+      // Ensure enough rows
+      while (newRows.length < lines.length) {
+        const row: Record<string, string | null> = {};
+        for (const col of columns) {
+          row[col.field_name] = null;
+        }
+        newRows.push(row);
+      }
+      // Fill data
+      for (let i = 0; i < lines.length; i++) {
+        const cells = lines[i].split('\t');
+        for (let j = 0; j < cells.length && j < editableFields.length; j++) {
+          const val = cells[j].trim();
+          newRows[i] = { ...newRows[i], [editableFields[j]]: val || null };
+        }
+      }
+      return newRows;
+    });
+    message.success(`已粘贴 ${lines.length} 行数据`);
+  };
+
+  const handleConfirmBatchInsert = async () => {
+    // Filter out empty rows
+    const validRows = batchRows.filter(row =>
+      Object.values(row).some(v => v !== null && String(v).trim() !== '')
+    );
+    if (validRows.length === 0) {
+      message.warning('没有填写任何数据');
+      return;
     }
-    setNewRowData(initial);
-  };
-
-  const handleCancelAddRow = () => {
-    setAddingRow(false);
-    setNewRowData({});
-  };
-
-  const handleInsertRow = async () => {
     // Validate PK fields
-    for (const pk of pkFieldNames) {
-      if (!newRowData[pk] || String(newRowData[pk]).trim() === '') {
-        const col = columns.find(c => c.field_name === pk);
-        message.warning(`主键字段「${col?.field_alias || pk}」不能为空`);
-        return;
+    for (let i = 0; i < validRows.length; i++) {
+      for (const pk of pkFieldNames) {
+        if (!validRows[i][pk] || String(validRows[i][pk]).trim() === '') {
+          const col = columns.find(c => c.field_name === pk);
+          message.warning(`第 ${i + 1} 行主键字段「${col?.field_alias || pk}」不能为空`);
+          return;
+        }
       }
     }
     setInsertSaving(true);
     try {
-      const res = await inlineInsert(tableConfigId, newRowData);
+      const res = await batchInsert(tableConfigId, validRows);
       if (res.data.status === 'success') {
-        message.success('新增行成功');
-        setAddingRow(false);
-        setNewRowData({});
-        fetchData();
+        message.success(`成功新增 ${res.data.success} 行`);
+      } else {
+        message.warning(`新增 ${res.data.success} 行，失败 ${res.data.failed} 行`);
       }
+      setBatchInsertOpen(false);
+      setBatchRows([]);
+      fetchData();
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
-      message.error(err?.response?.data?.detail || '新增行失败');
+      message.error(err?.response?.data?.detail || '批量新增失败');
     } finally {
       setInsertSaving(false);
     }
@@ -428,9 +490,7 @@ export default function DataBrowse() {
     onChange: (keys: React.Key[]) => setSelectedRowKeys(keys as string[]),
   } : undefined;
 
-  // Build new row table data for the insert row
-  const _newRowTableData = addingRow ? [{ __isNewRow: true, ...newRowData }] : [];
-  void _newRowTableData;
+  // (batch insert modal replaces inline new-row)
 
   return (
     <div>
@@ -526,11 +586,11 @@ export default function DataBrowse() {
                 </>
               ) : (
                 <>
-                  {canOperate && !addingRow && (
+                  {canOperate && (
                     <Button icon={<EditOutlined />} onClick={handleEnterEditMode}>编辑模式</Button>
                   )}
                   {canOperate && allowInsert && !editMode && (
-                    <Button icon={<PlusOutlined />} onClick={handleAddRow} disabled={addingRow}>新增行</Button>
+                    <Button icon={<PlusOutlined />} onClick={handleAddRow}>新增行</Button>
                   )}
                   {canOperate && allowDelete && selectedRowKeys.length > 0 && (
                     <Button
@@ -550,37 +610,7 @@ export default function DataBrowse() {
           </Col>
         </Row>
 
-        {/* New row input area */}
-        {addingRow && (
-          <Card size="small" style={{ marginBottom: 16, background: '#f6ffed', border: '1px solid #b7eb8f' }}>
-            <div style={{ marginBottom: 8, fontWeight: 'bold' }}>
-              <PlusOutlined /> 新增行 — 填写数据后点击保存
-            </div>
-            <Row gutter={[8, 8]}>
-              {columns.map(col => (
-                <Col key={col.field_name} span={6}>
-                  <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>
-                    {col.field_alias}
-                    {col.is_primary_key ? <Tag color="blue" style={{ fontSize: 10, marginLeft: 4 }}>PK</Tag> : null}
-                  </div>
-                  <Input
-                    size="small"
-                    placeholder={col.is_primary_key ? '必填' : '可选'}
-                    value={newRowData[col.field_name] ?? ''}
-                    onChange={e => setNewRowData(prev => ({ ...prev, [col.field_name]: e.target.value || null }))}
-                    disabled={col.is_system_field ? true : false}
-                  />
-                </Col>
-              ))}
-            </Row>
-            <Space style={{ marginTop: 12 }}>
-              <Button type="primary" size="small" loading={insertSaving} onClick={handleInsertRow}>
-                保存新增行
-              </Button>
-              <Button size="small" onClick={handleCancelAddRow}>取消</Button>
-            </Space>
-          </Card>
-        )}
+        {/* Batch insert area intentionally left empty — now uses Modal below */}
 
         <Table
           rowKey={(r) => r.__isNewRow ? '__new__' : buildPkKey(r)}
@@ -626,6 +656,76 @@ export default function DataBrowse() {
         <p style={{ marginTop: 12, color: '#999', fontSize: 12 }}>
           说明：仅支持使用平台导出的模板回传，请勿修改模板中字段顺序与隐藏信息。
         </p>
+      </Modal>
+
+      {/* Batch Insert Modal (v2.1.2) */}
+      <Modal
+        title={
+          <Space>
+            <PlusOutlined />
+            <span>批量新增行</span>
+            <Tag color="green">{batchRows.filter(r => Object.values(r).some(v => v !== null && String(v).trim() !== '')).length} 行有数据</Tag>
+          </Space>
+        }
+        open={batchInsertOpen}
+        onCancel={() => { setBatchInsertOpen(false); setBatchRows([]); }}
+        onOk={handleConfirmBatchInsert}
+        confirmLoading={insertSaving}
+        okText="确认新增"
+        cancelText="取消"
+        width={Math.min(columns.filter(c => !c.is_system_field).length * 160 + 100, 1200)}
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 12, color: '#666', fontSize: 13 }}>
+          💡 提示：可以从 Excel 复制多行数据，直接 <Text strong>Ctrl+V 粘贴</Text> 到下方表格区域，系统会自动填充。
+        </div>
+        <div
+          onPaste={handleBatchPaste}
+          style={{ maxHeight: 480, overflow: 'auto', border: '1px solid #f0f0f0', borderRadius: 4 }}
+          tabIndex={0}
+        >
+          <Table
+            size="small"
+            pagination={false}
+            dataSource={batchRows.map((r, i) => ({ ...r, __idx: i }))}
+            rowKey="__idx"
+            scroll={{ x: Math.max(columns.filter(c => !c.is_system_field).length * 150, 600) }}
+            columns={[
+              {
+                title: '#',
+                width: 50,
+                fixed: 'left',
+                render: (_: unknown, __: unknown, idx: number) => idx + 1,
+              },
+              ...columns
+                .filter(c => !c.is_system_field)
+                .map(col => ({
+                  title: col.is_primary_key
+                    ? <span>{col.field_alias} <Tag color="blue" style={{ fontSize: 10 }}>PK</Tag></span>
+                    : col.field_alias,
+                  dataIndex: col.field_name,
+                  key: col.field_name,
+                  width: 150,
+                  render: (_v: string | null, record: Record<string, unknown>) => {
+                    const rowIdx = record.__idx as number;
+                    return (
+                      <Input
+                        size="small"
+                        placeholder={col.is_primary_key ? '必填' : ''}
+                        value={batchRows[rowIdx]?.[col.field_name] ?? ''}
+                        onChange={e => handleBatchCellChange(rowIdx, col.field_name, e.target.value || null)}
+                      />
+                    );
+                  },
+                })),
+            ]}
+          />
+        </div>
+        <div style={{ marginTop: 12, textAlign: 'center' }}>
+          <Button type="dashed" onClick={handleAddMoreRows} icon={<PlusOutlined />}>
+            添加更多行（+5）
+          </Button>
+        </div>
       </Modal>
 
       {/* Diff Preview Modal (v2.1) */}

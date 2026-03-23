@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Dropdown, Button, Space, Tag, Modal, Form, Input, message, ConfigProvider, theme } from 'antd';
+import { Layout, Menu, Dropdown, Button, Space, Tag, Modal, Form, Input, message, ConfigProvider } from 'antd';
 import {
   DatabaseOutlined,
   TableOutlined,
