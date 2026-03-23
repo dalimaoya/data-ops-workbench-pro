@@ -178,11 +178,15 @@ export default function MainLayout() {
         theme="dark"
       >
         <div style={{
-          height: 48, margin: 16, display: 'flex', alignItems: 'center',
-          justifyContent: 'center', color: '#fff', fontWeight: 'bold',
-          fontSize: collapsed ? 14 : 16, whiteSpace: 'nowrap', overflow: 'hidden',
+          height: 56, margin: '12px 12px 8px', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', gap: 8, overflow: 'hidden',
         }}>
-          {collapsed ? 'DOW' : '数据运维工作台'}
+          <img src="/logo.png" alt="logo" style={{ height: 36, flexShrink: 0 }} />
+          {!collapsed && (
+            <span style={{ color: '#fff', fontWeight: 'bold', fontSize: 14, whiteSpace: 'nowrap' }}>
+              数据运维工作台
+            </span>
+          )}
         </div>
         <Menu
           theme="dark"
