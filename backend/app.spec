@@ -97,6 +97,13 @@ if os.path.isdir(web_dir):
 else:
     print("[WARN] web/ directory not found - frontend will not be bundled")
 
+# Include i18n locale JSON files
+i18n_dir = os.path.join(SPECPATH, 'app', 'i18n', 'locales')
+if os.path.isdir(i18n_dir):
+    datas.append((i18n_dir, os.path.join('app', 'i18n', 'locales')))
+else:
+    print("[WARN] app/i18n/locales/ not found - translations will not be bundled")
+
 a = Analysis(
     ['app_entry.py'],
     pathex=[SPECPATH],
