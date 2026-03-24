@@ -76,7 +76,7 @@ export default function Login() {
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <img src="/logo.png" alt="DataOps Workbench" style={{ height: 104, marginBottom: 12 }} />
+          <img src="/logo.png" alt="DataOps Workbench" style={{ height: 94, marginBottom: 12 }} />
         </div>
         <Form
           name="login"
