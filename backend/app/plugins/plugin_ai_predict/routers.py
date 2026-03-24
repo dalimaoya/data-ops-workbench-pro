@@ -41,7 +41,7 @@ async def generate_prediction(
 
     fields = db.query(FieldConfig).filter(
         FieldConfig.table_config_id == body.table_id, FieldConfig.is_deleted == 0, FieldConfig.is_displayed == 1
-    ).order_by(FieldConfig.display_order).all()
+    ).order_by(FieldConfig.field_order_no).all()
     if not fields:
         raise HTTPException(400, "无可用字段")
 
