@@ -61,7 +61,9 @@
     "platformBackup": "Backup & Migration",
     "healthCheck": "Health Check",
     "smartImport": "Smart Import",
-    "scheduler": "Scheduled Tasks"
+    "scheduler": "Scheduled Tasks",
+    "dbManager": "DB Manager",
+    "upgradeLock": "Upgrade"
   },
   "aiConfig": {
     "title": "AI Smart Assistant",
@@ -1012,5 +1014,34 @@
     "statusSuccess": "Success",
     "statusFailed": "Failed",
     "statusRunning": "Running"
+  },
+  "dbManager": {
+    "title": "DB Table Manager",
+    "tables": "Tables",
+    "tableStructure": "Table Structure",
+    "createTable": "Create Table",
+    "addColumn": "Add Column",
+    "dropColumn": "Drop Column",
+    "modifyColumn": "Modify Column",
+    "dropTable": "Drop Table",
+    "sqlPreview": "SQL Preview",
+    "execute": "Execute",
+    "previewOnly": "Preview Only",
+    "columnName": "Column Name",
+    "columnType": "Column Type",
+    "primaryKey": "Primary Key",
+    "nullable": "Nullable",
+    "defaultValue": "Default",
+    "comment": "Comment",
+    "confirmDrop": "Confirm drop table {name}? This is irreversible!",
+    "backupBeforeDrop": "Backup before drop",
+    "selectDatasource": "Select Datasource",
+    "selectTable": "Select Table",
+    "noTables": "No tables in this datasource",
+    "indexes": "Indexes",
+    "tableComment": "Table Comment",
+    "afterColumn": "After Column",
+    "newColumnName": "New Column Name",
+    "newColumnType": "New Column Type"
   }
 }

@@ -26,6 +26,8 @@ import {
   MedicineBoxOutlined,
   ImportOutlined,
   ScheduleOutlined,
+  LockOutlined,
+  ConsoleSqlOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
 import { changeMyPassword, updateMyProfile } from '../api/users';
@@ -42,9 +44,12 @@ interface MenuItem {
   labelKey: string;
   roles?: string[];
   children?: MenuItem[];
+  disabled?: boolean;
+  upgradeTag?: boolean;
 }
 
-const allMenuItems: MenuItem[] = [
+// Core menu items (always present)
+const coreMenuItems: MenuItem[] = [
   { key: '/', icon: <HomeOutlined />, labelKey: 'menu.dashboard' },
   { key: '/datasource', icon: <DatabaseOutlined />, labelKey: 'menu.datasource', roles: ['admin'] },
   { key: '/table-config', icon: <TableOutlined />, labelKey: 'menu.tableConfig' },
@@ -54,20 +59,94 @@ const allMenuItems: MenuItem[] = [
     labelKey: 'menu.dataMaintenance',
     children: [
       { key: '/data-maintenance', icon: <TableOutlined />, labelKey: 'menu.tableMaintenance' },
-      { key: '/db-maintenance', icon: <DatabaseOutlined />, labelKey: 'menu.dbMaintenance' },
-      { key: '/smart-import', icon: <ImportOutlined />, labelKey: 'menu.smartImport' },
     ],
   },
   { key: '/log-center', icon: <FileTextOutlined />, labelKey: 'menu.logCenter' },
-  { key: '/approval-center', icon: <AuditOutlined />, labelKey: 'menu.approvalCenter', roles: ['admin'] },
   { key: '/version-rollback', icon: <HistoryOutlined />, labelKey: 'menu.versionRollback', roles: ['admin'] },
   { key: '/user-management', icon: <TeamOutlined />, labelKey: 'menu.userManagement', roles: ['admin'] },
-  { key: '/health-check', icon: <MedicineBoxOutlined />, labelKey: 'menu.healthCheck', roles: ['admin'] },
-  { key: '/ai-config', icon: <RobotOutlined />, labelKey: 'menu.aiConfig', roles: ['admin'] },
-  { key: '/scheduler', icon: <ScheduleOutlined />, labelKey: 'menu.scheduler', roles: ['admin'] },
-  { key: '/platform-backup', icon: <CloudServerOutlined />, labelKey: 'menu.platformBackup', roles: ['admin'] },
   { key: '/about', icon: <InfoCircleOutlined />, labelKey: 'menu.about' },
 ];
+
+// Plugin-provided menu items (will be shown as disabled/grey if plugin not loaded)
+interface PluginMenuDef {
+  pluginName: string;
+  menuItem: MenuItem;
+  insertAfter?: string; // Insert after this key at top level
+  parentGroup?: string; // Add as child of this group
+}
+
+const pluginMenuDefs: PluginMenuDef[] = [
+  { pluginName: 'plugin-batch-ops', menuItem: { key: '/db-maintenance', icon: <DatabaseOutlined />, labelKey: 'menu.dbMaintenance' }, parentGroup: '/data-maintenance-group' },
+  { pluginName: 'plugin-smart-import', menuItem: { key: '/smart-import', icon: <ImportOutlined />, labelKey: 'menu.smartImport' }, parentGroup: '/data-maintenance-group' },
+  { pluginName: 'plugin-db-manager', menuItem: { key: '/db-manager', icon: <ConsoleSqlOutlined />, labelKey: 'menu.dbManager', roles: ['admin'] }, parentGroup: '/data-maintenance-group' },
+  { pluginName: 'plugin-approval', menuItem: { key: '/approval-center', icon: <AuditOutlined />, labelKey: 'menu.approvalCenter', roles: ['admin'] }, insertAfter: '/log-center' },
+  { pluginName: 'plugin-health-check', menuItem: { key: '/health-check', icon: <MedicineBoxOutlined />, labelKey: 'menu.healthCheck', roles: ['admin'] }, insertAfter: '/user-management' },
+  { pluginName: 'plugin-ai-assistant', menuItem: { key: '/ai-config', icon: <RobotOutlined />, labelKey: 'menu.aiConfig', roles: ['admin'] }, insertAfter: '/health-check' },
+  { pluginName: 'plugin-scheduler', menuItem: { key: '/scheduler', icon: <ScheduleOutlined />, labelKey: 'menu.scheduler', roles: ['admin'] }, insertAfter: '/ai-config' },
+  { pluginName: 'plugin-backup', menuItem: { key: '/platform-backup', icon: <CloudServerOutlined />, labelKey: 'menu.platformBackup', roles: ['admin'] }, insertAfter: '/scheduler' },
+];
+
+interface PluginStatus {
+  name: string;
+  loaded: boolean;
+}
+
+function buildMenuItems(loadedPlugins: PluginStatus[]): MenuItem[] {
+  const loadedSet = new Set(loadedPlugins.filter(p => p.loaded).map(p => p.name));
+  const items: MenuItem[] = JSON.parse(JSON.stringify(coreMenuItems.map(item => ({
+    ...item,
+    icon: undefined,
+    children: item.children?.map(c => ({ ...c, icon: undefined })),
+  }))));
+
+  // Restore icons (can't be serialized)
+  const restoreIcons = (list: MenuItem[]) => {
+    for (const item of list) {
+      const coreDef = coreMenuItems.find(c => c.key === item.key);
+      if (coreDef) {
+        item.icon = coreDef.icon;
+        if (item.children && coreDef.children) {
+          item.children.forEach((ch, i) => {
+            if (coreDef.children?.[i]) ch.icon = coreDef.children[i].icon;
+          });
+        }
+      }
+    }
+  };
+  restoreIcons(items);
+
+  // Add plugin menu items
+  for (const def of pluginMenuDefs) {
+    const isLoaded = loadedSet.has(def.pluginName);
+    const menuItem: MenuItem = {
+      ...def.menuItem,
+      disabled: !isLoaded,
+      upgradeTag: !isLoaded,
+    };
+
+    if (def.parentGroup) {
+      const group = items.find(i => i.key === def.parentGroup);
+      if (group) {
+        if (!group.children) group.children = [];
+        group.children.push(menuItem);
+      }
+    } else if (def.insertAfter) {
+      const idx = items.findIndex(i => i.key === def.insertAfter);
+      if (idx >= 0) {
+        items.splice(idx + 1, 0, menuItem);
+      } else {
+        // Insert before /about
+        const aboutIdx = items.findIndex(i => i.key === '/about');
+        items.splice(aboutIdx >= 0 ? aboutIdx : items.length, 0, menuItem);
+      }
+    } else {
+      const aboutIdx = items.findIndex(i => i.key === '/about');
+      items.splice(aboutIdx >= 0 ? aboutIdx : items.length, 0, menuItem);
+    }
+  }
+
+  return items;
+}
 
 export default function MainLayout() {
   const { t, i18n } = useTranslation();
@@ -86,6 +165,19 @@ export default function MainLayout() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileForm] = Form.useForm();
   const [profileLoading, setProfileLoading] = useState(false);
+
+  // Plugin status
+  const [pluginStatuses, setPluginStatuses] = useState<PluginStatus[]>([]);
+  const allMenuItems = buildMenuItems(pluginStatuses);
+
+  useEffect(() => {
+    fetch('/api/plugins/loaded')
+      .then(r => r.json())
+      .then(data => {
+        if (data.plugins) setPluginStatuses(data.plugins);
+      })
+      .catch(() => {});
+  }, []);
 
   // v2.3: Notifications
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -141,7 +233,7 @@ export default function MainLayout() {
   };
 
   // Flatten menu items, filtering by role
-  const flatMenuItems: Array<{ key: string; icon: React.ReactNode; label: string; isChild?: boolean; parentKey?: string }> = [];
+  const flatMenuItems: Array<{ key: string; icon: React.ReactNode; label: string; isChild?: boolean; parentKey?: string; disabled?: boolean; upgradeTag?: boolean }> = [];
   const allFlatKeys: string[] = [];
 
   allMenuItems.forEach(item => {
@@ -151,12 +243,12 @@ export default function MainLayout() {
       flatMenuItems.push({ key: item.key, icon: item.icon, label: t(item.labelKey) });
       item.children.forEach(child => {
         if (child.roles && !child.roles.includes(userRole)) return;
-        flatMenuItems.push({ key: child.key, icon: child.icon, label: t(child.labelKey), isChild: true, parentKey: item.key });
-        allFlatKeys.push(child.key);
+        flatMenuItems.push({ key: child.key, icon: child.icon, label: t(child.labelKey), isChild: true, parentKey: item.key, disabled: child.disabled, upgradeTag: child.upgradeTag });
+        if (!child.disabled) allFlatKeys.push(child.key);
       });
     } else {
-      flatMenuItems.push({ key: item.key, icon: item.icon, label: t(item.labelKey) });
-      allFlatKeys.push(item.key);
+      flatMenuItems.push({ key: item.key, icon: item.icon, label: t(item.labelKey), disabled: item.disabled, upgradeTag: item.upgradeTag });
+      if (!item.disabled) allFlatKeys.push(item.key);
     }
   });
 
@@ -347,6 +439,8 @@ export default function MainLayout() {
             const isGroup = item.key.endsWith('-group');
             const isChild = !!(item as any).isChild;
             const parentKey = (item as any).parentKey;
+            const isDisabled = !!(item as any).disabled;
+            const showUpgradeTag = !!(item as any).upgradeTag;
 
             // Hide children of collapsed groups
             if (isChild && parentKey && !expandedGroups[parentKey] && !collapsed) {
@@ -367,7 +461,10 @@ export default function MainLayout() {
             let textColor = '#B8C4DA';
             let iconColor = '#AAB6CC';
 
-            if (isSelected) {
+            if (isDisabled) {
+              textColor = '#5A6478';
+              iconColor = '#4A5568';
+            } else if (isSelected) {
               bg = 'linear-gradient(90deg, rgba(88,141,255,0.22) 0%, rgba(48,212,191,0.14) 100%)';
               border = '1px solid rgba(122,180,255,0.18)';
               borderLeft = '3px solid #35D6C1';
@@ -376,7 +473,7 @@ export default function MainLayout() {
             } else if (isGroupActive) {
               textColor = '#E0EAFF';
               iconColor = '#8CB4FF';
-            } else if (isHovered) {
+            } else if (isHovered && !isDisabled) {
               bg = 'rgba(255,255,255,0.05)';
               iconColor = '#DDE8FF';
             }
@@ -385,6 +482,7 @@ export default function MainLayout() {
               <div
                 key={item.key}
                 onClick={() => {
+                  if (isDisabled) return;
                   if (isGroup) {
                     toggleGroup(item.key);
                   } else {
@@ -401,7 +499,7 @@ export default function MainLayout() {
                   padding: collapsed ? '0' : isChild ? '0 12px 0 32px' : '0 12px',
                   marginBottom: isChild ? 1 : 3,
                   borderRadius: 10,
-                  cursor: 'pointer',
+                  cursor: isDisabled ? 'not-allowed' : 'pointer',
                   color: textColor,
                   background: bg,
                   border: border,
@@ -434,6 +532,24 @@ export default function MainLayout() {
                   <span style={{ transition: 'opacity 0.2s', opacity: 1, flex: 1 }}>
                     {item.label}
                   </span>
+                )}
+                {!collapsed && showUpgradeTag && (
+                  <Tag
+                    style={{
+                      fontSize: 10,
+                      lineHeight: '16px',
+                      padding: '0 4px',
+                      borderRadius: 4,
+                      background: 'rgba(255,255,255,0.08)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      color: '#7F8CA8',
+                      marginRight: 0,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <LockOutlined style={{ fontSize: 9, marginRight: 2 }} />
+                    {t('menu.upgradeLock')}
+                  </Tag>
                 )}
                 {!collapsed && isGroup && (
                   <span style={{ fontSize: 10, color: '#7F8CA8', transition: 'transform 0.2s', transform: expandedGroups[item.key] ? 'rotate(90deg)' : 'rotate(0deg)' }}>

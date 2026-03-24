@@ -61,7 +61,9 @@
     "platformBackup": "备份迁移",
     "healthCheck": "健康巡检",
     "smartImport": "智能导入",
-    "scheduler": "定时任务"
+    "scheduler": "定时任务",
+    "dbManager": "库表管理",
+    "upgradeLock": "升级解锁"
   },
   "aiConfig": {
     "title": "AI智能助手",
@@ -1012,5 +1014,34 @@
     "statusSuccess": "成功",
     "statusFailed": "失败",
     "statusRunning": "执行中"
+  },
+  "dbManager": {
+    "title": "库表管理",
+    "tables": "数据表",
+    "tableStructure": "表结构",
+    "createTable": "新建表",
+    "addColumn": "添加字段",
+    "dropColumn": "删除字段",
+    "modifyColumn": "修改字段",
+    "dropTable": "删除表",
+    "sqlPreview": "SQL 预览",
+    "execute": "执行",
+    "previewOnly": "仅预览",
+    "columnName": "字段名",
+    "columnType": "字段类型",
+    "primaryKey": "主键",
+    "nullable": "可为空",
+    "defaultValue": "默认值",
+    "comment": "注释",
+    "confirmDrop": "确认删除表 {name}？此操作不可逆！",
+    "backupBeforeDrop": "删除前备份",
+    "selectDatasource": "请选择数据源",
+    "selectTable": "请选择表",
+    "noTables": "该数据源下没有表",
+    "indexes": "索引",
+    "tableComment": "表注释",
+    "afterColumn": "添加到字段之后",
+    "newColumnName": "新字段名",
+    "newColumnType": "新字段类型"
   }
 }

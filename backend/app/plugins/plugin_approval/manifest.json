@@ -1,0 +1,21 @@
+{
+  "name": "plugin-approval",
+  "version": "3.2.0",
+  "display_name": "审批流",
+  "display_name_en": "Approval Workflow",
+  "description": "审批中心、审批开关、审批执行",
+  "author": "dalimaoya",
+  "license": "proprietary",
+  "requires_core": ">=3.0.0",
+  "dependencies": [],
+  "frontend": {
+    "menu_items": [
+      {
+        "key": "/approval-center",
+        "icon": "AuditOutlined",
+        "label_key": "menu.approvalCenter",
+        "roles": ["admin"]
+      }
+    ]
+  }
+}

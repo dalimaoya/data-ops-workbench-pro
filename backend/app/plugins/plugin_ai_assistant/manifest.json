@@ -1,0 +1,21 @@
+{
+  "name": "plugin-ai-assistant",
+  "version": "3.2.0",
+  "display_name": "AI 智能助手",
+  "display_name_en": "AI Smart Assistant",
+  "description": "大模型接入、AI字段推荐、自然语言查询、AI批量修改、智能校验、日志分析、影响评估",
+  "author": "dalimaoya",
+  "license": "proprietary",
+  "requires_core": ">=3.0.0",
+  "dependencies": ["httpx", "openai"],
+  "frontend": {
+    "menu_items": [
+      {
+        "key": "/ai-config",
+        "icon": "RobotOutlined",
+        "label_key": "menu.aiConfig",
+        "roles": ["admin"]
+      }
+    ]
+  }
+}

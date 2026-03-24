@@ -10,28 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base, SessionLocal
 from app.routers import datasource, table_config, field_config, data_maintenance, backup_version, logs
-from app.routers import platform_backup as platform_backup_router
 from app.routers import auth as auth_router
 from app.routers import dashboard as dashboard_router
 from app.routers import users as users_router
-from app.routers import approvals as approvals_router
-from app.routers import notifications as notifications_router
-from app.routers import ai_config as ai_config_router
-from app.routers import ai_suggest as ai_suggest_router
-from app.routers import ai_validate as ai_validate_router
-from app.routers import ai_nl_query as ai_nl_query_router
-from app.routers import ai_batch_fill as ai_batch_fill_router
-from app.routers import ai_batch_fill_multi as ai_batch_fill_multi_router
-from app.routers import writeback_multi as writeback_multi_router
-from app.routers import batch_manage as batch_manage_router
-from app.routers import ai_log_analyze as ai_log_analyze_router
-from app.routers import health_check as health_check_router
-from app.routers import ai_impact_assess as ai_impact_assess_router
-from app.routers import smart_import as smart_import_router
-from app.routers import scheduler as scheduler_router
 from app.utils.auth import init_default_admin
 from app.utils.security_middleware import SecurityHeadersMiddleware, check_rate_limit
 from app.i18n import parse_accept_language, set_lang
+from app.plugin_loader import load_plugins, get_loaded_plugins, get_all_plugin_status
 
 
 @asynccontextmanager
@@ -44,12 +29,15 @@ async def lifespan(app: FastAPI):
         init_default_admin(db)
     finally:
         db.close()
-    # Initialize scheduler
+    # Load plugins
+    _loaded = load_plugins(app)
+    import logging
+    logging.getLogger("startup").info("Loaded plugins: %s", _loaded)
+    # Initialize scheduler (if scheduler plugin is loaded or built-in)
     try:
         from app.scheduler.engine import init_scheduler
         init_scheduler()
     except Exception as e:
-        import logging
         logging.getLogger("scheduler").error("Failed to start scheduler: %s", e)
     yield
     # Shutdown scheduler
@@ -135,7 +123,7 @@ async def rate_limit_middleware(request: Request, call_next):
     return response
 
 
-# Register API routers
+# Register CORE API routers (always available)
 app.include_router(auth_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(datasource.router)
@@ -145,27 +133,19 @@ app.include_router(data_maintenance.router)
 app.include_router(backup_version.router)
 app.include_router(logs.router)
 app.include_router(users_router.router)
-app.include_router(approvals_router.router)
-app.include_router(notifications_router.router)
-app.include_router(ai_config_router.router)
-app.include_router(ai_suggest_router.router)
-app.include_router(ai_validate_router.router)
-app.include_router(ai_nl_query_router.router)
-app.include_router(ai_batch_fill_router.router)
-app.include_router(ai_batch_fill_multi_router.router)
-app.include_router(writeback_multi_router.router)
-app.include_router(platform_backup_router.router)
-app.include_router(batch_manage_router.router)
-app.include_router(ai_log_analyze_router.router)
-app.include_router(health_check_router.router)
-app.include_router(ai_impact_assess_router.router)
-app.include_router(smart_import_router.router)
-app.include_router(scheduler_router.router)
+
+# Plugin routers are registered via plugin_loader during lifespan startup
 
 
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/plugins/loaded")
+def list_loaded_plugins():
+    """Return all known plugins with loaded/unloaded status for frontend menu rendering."""
+    return {"plugins": get_all_plugin_status()}
 
 
 # Mount frontend static files (production)

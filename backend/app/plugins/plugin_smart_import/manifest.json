@@ -1,0 +1,20 @@
+{
+  "name": "plugin-smart-import",
+  "version": "3.2.0",
+  "display_name": "智能数据导入中心",
+  "display_name_en": "Smart Import Center",
+  "description": "Word/PDF/Excel解析、指标匹配、字段映射、映射模板",
+  "author": "dalimaoya",
+  "license": "proprietary",
+  "requires_core": ">=3.0.0",
+  "dependencies": [],
+  "frontend": {
+    "menu_items": [
+      {
+        "key": "/smart-import",
+        "icon": "ImportOutlined",
+        "label_key": "menu.smartImport"
+      }
+    ]
+  }
+}
