@@ -217,6 +217,8 @@ def rollback_version(version_id: int, db: Session = Depends(get_db), user: UserA
             cur.execute(f"SELECT * INTO [{sch}].[{pre_rollback_backup_name}] FROM {qt_source}")
         elif ds.db_type in ("oracle", "dm"):
             cur.execute(f'CREATE TABLE "{pre_rollback_backup_name.upper()}" AS SELECT * FROM {qt_source}')
+        elif ds.db_type == "sqlite":
+            cur.execute(f"CREATE TABLE `{pre_rollback_backup_name}` AS SELECT * FROM {qt_source}")
 
         pre_rb_qt = _qualified_table(ds.db_type, pre_rollback_backup_name, tc.schema_name)
         cur.execute(f"SELECT COUNT(*) FROM {pre_rb_qt}")
