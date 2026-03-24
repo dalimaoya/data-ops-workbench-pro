@@ -66,6 +66,11 @@ extra_hiddenimports = [
     'annotated_types',
     # Email validator (pydantic optional)
     'email_validator',
+    # Captcha (Pillow)
+    'PIL',
+    'PIL.Image',
+    'PIL.ImageDraw',
+    'PIL.ImageFont',
     # Other
     'anyio',
     'anyio._backends',
@@ -115,7 +120,7 @@ a = Analysis(
     runtime_hooks=[],
     excludes=[
         'tkinter', '_tkinter', 'matplotlib', 'scipy', 'numpy',
-        'PIL', 'IPython', 'notebook', 'pytest', 'setuptools',
+        'IPython', 'notebook', 'pytest', 'setuptools',
         'pyodbc',
     ],
     win_no_prefer_redirects=False,
