@@ -1,6 +1,7 @@
 """User management endpoints (admin only) + personal settings (/api/me)."""
 
 from __future__ import annotations
+import re
 from datetime import datetime
 from typing import List, Optional
 
@@ -19,6 +20,18 @@ from app.utils.audit import log_operation
 from app.i18n import t
 
 router = APIRouter(tags=["用户管理"])
+
+
+def validate_password_strength(password: str) -> None:
+    """Validate password strength: ≥8 chars, uppercase, lowercase, digit."""
+    if len(password) < 8:
+        raise HTTPException(400, t("user.password_too_short"))
+    if not re.search(r'[A-Z]', password):
+        raise HTTPException(400, "密码必须包含至少一个大写字母")
+    if not re.search(r'[a-z]', password):
+        raise HTTPException(400, "密码必须包含至少一个小写字母")
+    if not re.search(r'[0-9]', password):
+        raise HTTPException(400, "密码必须包含至少一个数字")
 
 
 # ── Schemas ──
@@ -98,6 +111,7 @@ def create_user(
 ):
     if body.role not in ("admin", "operator", "readonly"):
         raise HTTPException(400, t("user.role_invalid"))
+    validate_password_strength(body.password)
     existing = db.query(UserAccount).filter(UserAccount.username == body.username).first()
     if existing:
         raise HTTPException(409, t("user.username_exists", username=body.username))
@@ -227,16 +241,7 @@ def change_my_password(
 ):
     if not verify_password(body.old_password, user.password_hash):
         raise HTTPException(400, t("user.old_password_wrong"))
-    if len(body.new_password) < 8:
-        raise HTTPException(400, t("user.password_too_short"))
-    # Validate password strength: at least one uppercase, one lowercase, one digit
-    import re
-    if not re.search(r'[A-Z]', body.new_password):
-        raise HTTPException(400, "密码必须包含至少一个大写字母")
-    if not re.search(r'[a-z]', body.new_password):
-        raise HTTPException(400, "密码必须包含至少一个小写字母")
-    if not re.search(r'[0-9]', body.new_password):
-        raise HTTPException(400, "密码必须包含至少一个数字")
+    validate_password_strength(body.new_password)
     user.password_hash = hash_password(body.new_password)
     user.updated_at = _now_bjt()
     log_operation(
