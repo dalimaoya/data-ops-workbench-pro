@@ -84,11 +84,16 @@ def _execute_task(task_id: int):
         log_entry.finished_at = _now_bjt()
 
         task.last_run = _now_bjt()
-        # Update next_run from scheduler job
-        scheduler = get_scheduler()
-        job = scheduler.get_job(f"task_{task_id}")
-        if job and job.next_run_time:
-            task.next_run = job.next_run_time
+        # Update next_run from scheduler job (independent try-except to avoid
+        # marking the task as failed when next_run_time is unavailable, e.g.
+        # manual trigger scenario)
+        try:
+            scheduler = get_scheduler()
+            job = scheduler.get_job(f"task_{task_id}")
+            if job and job.next_run_time:
+                task.next_run = job.next_run_time
+        except Exception:
+            logger.debug("Could not update next_run for task %d", task_id)
 
         db.commit()
     except Exception as e:

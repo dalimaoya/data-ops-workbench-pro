@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db, DATA_DIR
+from app.database import get_db, DATA_DIR, SessionLocal
 from app.models import (
     TableConfig, DatasourceConfig, FieldConfig,
     TemplateExportLog, ImportTaskLog, WritebackLog, TableBackupVersion,

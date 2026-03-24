@@ -124,15 +124,25 @@ def create_task(
                   operator=user.username)
     db.commit()
 
-    # Add to scheduler
+    # Add to scheduler and retrieve next_run_time
     if task.enabled:
         try:
-            from app.scheduler.engine import add_task_to_scheduler
+            from app.scheduler.engine import add_task_to_scheduler, get_scheduler
             add_task_to_scheduler(task)
+            # Fetch next_run_time from APScheduler and persist
+            job = get_scheduler().get_job(f"task_{task.id}")
+            if job and job.next_run_time:
+                task.next_run = job.next_run_time
+                db.commit()
+                db.refresh(task)
         except Exception:
             pass
 
-    return {"id": task.id, "message": t("scheduler.created")}
+    return {
+        "id": task.id,
+        "message": t("scheduler.created"),
+        "next_run": task.next_run.isoformat() if task.next_run else None,
+    }
 
 
 @router.put("/tasks/{task_id}")
