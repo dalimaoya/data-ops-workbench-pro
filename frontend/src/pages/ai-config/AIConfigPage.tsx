@@ -262,6 +262,42 @@ export default function AIConfigPage() {
               )}
             </Card>
 
+            {/* ── Local Model Config ── */}
+            {engineMode === 'local' && (
+              <Card title={t('aiConfig.localConfig')} style={{ marginBottom: 16 }}>
+                {/* Local API URL */}
+                <Form.Item name="api_url" label={t('aiConfig.localApiUrl')}>
+                  <Input placeholder={t('aiConfig.localApiUrlPlaceholder')} />
+                </Form.Item>
+
+                {/* Model Name (manual input) */}
+                <Form.Item name="model_name" label={t('aiConfig.localModelName')}>
+                  <Input placeholder={t('aiConfig.localModelNamePlaceholder')} />
+                </Form.Item>
+
+                {/* Test Connection */}
+                <Form.Item>
+                  <Space>
+                    <Button
+                      icon={testing ? <LoadingOutlined /> : <ApiOutlined />}
+                      onClick={handleTest}
+                      loading={testing}
+                    >
+                      {t('aiConfig.localTestConnection')}
+                    </Button>
+                    {testResult && (
+                      <Tag
+                        icon={testResult.ok ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+                        color={testResult.ok ? 'success' : 'error'}
+                      >
+                        {testResult.message}
+                      </Tag>
+                    )}
+                  </Space>
+                </Form.Item>
+              </Card>
+            )}
+
             {/* ── Cloud LLM Config ── */}
             {engineMode === 'cloud' && (
               <Card title={t('aiConfig.cloudConfig')} style={{ marginBottom: 16 }}>
