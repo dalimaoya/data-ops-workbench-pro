@@ -131,5 +131,11 @@
   "impact.field_not_found": "字段不存在",
   "impact.sensitivity_updated": "字段敏感等级已更新",
   "log_analyze.invalid_action": "无效的分析操作",
-  "log_analyze.table_required": "问题溯源需要指定表"
+  "log_analyze.table_required": "问题溯源需要指定表",
+  "scheduler.invalid_type": "无效的任务类型",
+  "scheduler.not_found": "定时任务不存在",
+  "scheduler.created": "定时任务创建成功",
+  "scheduler.updated": "定时任务更新成功",
+  "scheduler.deleted": "定时任务已删除",
+  "scheduler.run_started": "任务已开始执行"
 }

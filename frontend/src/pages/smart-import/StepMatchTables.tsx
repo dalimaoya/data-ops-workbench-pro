@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Card, Radio, Tag, Space, Typography, Button, Spin, Empty, Select, message, Alert } from 'antd';
+import { Card, Radio, Tag, Space, Typography, Button, Spin, message, Alert } from 'antd';
 import { RobotOutlined, CheckCircleOutlined, QuestionCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { matchTables } from '../../api/smartImport';
 import type { ParsedTable } from './SmartImportPage';
 
-const { Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 interface Props {
   selectedTables: ParsedTable[];
@@ -120,7 +120,7 @@ export default function StepMatchTables({ selectedTables, setSelectedTables }: P
       {selectedTables.map(st => {
         const mr = matchResults.find(r => r.table_index === st.table_index);
         const candidates = mr?.candidates || [];
-        const topConf = candidates.length > 0 ? candidates[0].confidence : 0;
+        // topConf removed
 
         let statusIcon = <CloseCircleOutlined style={{ color: '#ff4d4f' }} />;
         let statusTag = <Tag color="error">{t('smartImport.unmatched')}</Tag>;

@@ -60,7 +60,8 @@
     "collapse": "Collapse",
     "platformBackup": "Backup & Migration",
     "healthCheck": "Health Check",
-    "smartImport": "Smart Import"
+    "smartImport": "Smart Import",
+    "scheduler": "Scheduled Tasks"
   },
   "aiConfig": {
     "title": "AI Smart Assistant",
@@ -496,7 +497,13 @@
     "insertedRows": "Inserted Rows",
     "operatorUser": "Operator",
     "finishedTime": "Finished At",
-    "failedDetails": "Failed Details"
+    "failedDetails": "Failed Details",
+    "exportCompareReport": "📊 Export Report",
+    "selectFormat": "Select Format",
+    "formatExcel": "Excel Format",
+    "formatPdf": "PDF Format",
+    "reportDownloaded": "Report downloaded",
+    "reportFailed": "Failed to download report"
   },
   "logCenter": {
     "title": "Log Center",
@@ -966,5 +973,44 @@
     "newImport": "New Import",
     "noReadyTables": "No tables ready for preview",
     "goBackToMap": "Go back to complete field mapping"
+  },
+  "scheduler": {
+    "title": "Scheduled Tasks",
+    "createTask": "New Task",
+    "editTask": "Edit Task",
+    "taskName": "Task Name",
+    "nameRequired": "Please enter task name",
+    "namePlaceholder": "e.g. Daily Health Check",
+    "frequency": "Frequency",
+    "lastRun": "Last Run",
+    "nextRun": "Next Run",
+    "runNow": "Run Now",
+    "runStarted": "Task execution started",
+    "executionHistory": "Execution History",
+    "scheduleType": "Schedule Type",
+    "cron": "Cron",
+    "interval": "Interval",
+    "hour": "Hour",
+    "minute": "Minute",
+    "dayOfWeek": "Day of Week",
+    "days": "days",
+    "hours": "hours",
+    "minutes": "minutes",
+    "every": "Every",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "typeHealthCheck": "Health Check",
+    "typePlatformBackup": "Platform Backup",
+    "typeDataExport": "Data Export",
+    "tableConfigId": "Table Config ID",
+    "tableConfigIdPlaceholder": "Enter table config ID to export",
+    "createSuccess": "Scheduled task created",
+    "updateSuccess": "Scheduled task updated",
+    "deleteSuccess": "Scheduled task deleted",
+    "loadFailed": "Failed to load tasks",
+    "historyLoadFailed": "Failed to load execution history",
+    "statusSuccess": "Success",
+    "statusFailed": "Failed",
+    "statusRunning": "Running"
   }
 }

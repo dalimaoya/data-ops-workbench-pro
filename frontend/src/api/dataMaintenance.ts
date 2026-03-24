@@ -310,3 +310,10 @@ export const downloadDiffReport = (taskId: number) =>
 // v2.4: Retry import validation
 export const retryImportValidation = (taskId: number) =>
   api.post<ImportResult>(`/data-maintenance/import-tasks/${taskId}/retry`);
+
+// v3.1: Compare report (Excel / PDF)
+export const downloadCompareReport = (tableConfigId: number, importTaskId: number, format: 'excel' | 'pdf') =>
+  api.post(`/data-maintenance/${tableConfigId}/compare-report`, {
+    format,
+    import_task_id: importTaskId,
+  }, { responseType: 'blob' });

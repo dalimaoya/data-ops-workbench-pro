@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Table, Tag, Space, Button, Descriptions, message, Modal, Result } from 'antd';
-import { ArrowLeftOutlined, CheckCircleOutlined, DownloadOutlined } from '@ant-design/icons';
-import { getImportDiff, executeWriteback, downloadDiffReport } from '../../api/dataMaintenance';
+import { Card, Table, Tag, Space, Button, Descriptions, message, Modal, Result, Dropdown } from 'antd';
+import { ArrowLeftOutlined, CheckCircleOutlined, DownloadOutlined, FileExcelOutlined, FilePdfOutlined } from '@ant-design/icons';
+import { getImportDiff, executeWriteback, downloadCompareReport } from '../../api/dataMaintenance';
 import type { DiffResponse, WritebackResult } from '../../api/dataMaintenance';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -202,25 +202,54 @@ export default function DiffPreview() {
         <div style={{ marginTop: 16, textAlign: 'right' }}>
           <Space>
             {diffData && diffData.diff_rows && diffData.diff_rows.length > 0 && (
-              <Button
-                icon={<DownloadOutlined />}
-                onClick={async () => {
-                  try {
-                    const res = await downloadDiffReport(tid);
-                    const url = window.URL.createObjectURL(new Blob([res.data]));
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `diff_report_${tid}.xlsx`;
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    message.success(t('diffPreview.diffReportDownloaded'));
-                  } catch {
-                    message.error(t('diffPreview.diffReportFailed'));
-                  }
+              <Dropdown
+                menu={{
+                  items: [
+                    {
+                      key: 'excel',
+                      icon: <FileExcelOutlined />,
+                      label: t('diffPreview.formatExcel'),
+                      onClick: async () => {
+                        try {
+                          const res = await downloadCompareReport(diffData.table_config_id, tid, 'excel');
+                          const url = window.URL.createObjectURL(new Blob([res.data]));
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `compare_report_${tid}.xlsx`;
+                          a.click();
+                          window.URL.revokeObjectURL(url);
+                          message.success(t('diffPreview.reportDownloaded'));
+                        } catch {
+                          message.error(t('diffPreview.reportFailed'));
+                        }
+                      },
+                    },
+                    {
+                      key: 'pdf',
+                      icon: <FilePdfOutlined />,
+                      label: t('diffPreview.formatPdf'),
+                      onClick: async () => {
+                        try {
+                          const res = await downloadCompareReport(diffData.table_config_id, tid, 'pdf');
+                          const url = window.URL.createObjectURL(new Blob([res.data]));
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `compare_report_${tid}.pdf`;
+                          a.click();
+                          window.URL.revokeObjectURL(url);
+                          message.success(t('diffPreview.reportDownloaded'));
+                        } catch {
+                          message.error(t('diffPreview.reportFailed'));
+                        }
+                      },
+                    },
+                  ],
                 }}
               >
-                {t('diffPreview.exportDiffReport')}
-              </Button>
+                <Button icon={<DownloadOutlined />}>
+                  {t('diffPreview.exportCompareReport')}
+                </Button>
+              </Dropdown>
             )}
             <Button onClick={() => navigate(-1)}>{t('diffPreview.backToValidation')}</Button>
             <Button onClick={() => navigate(`/data-maintenance/browse/${diffData?.table_config_id}`)}>{t('diffPreview.cancelOperation')}</Button>

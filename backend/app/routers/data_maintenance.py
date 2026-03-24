@@ -3181,3 +3181,268 @@ def batch_export(
         media_type="application/zip",
         filename=zip_name,
     )
+
+
+# ─────────────────────────────────────────────
+# v3.1: 数据对比报告（Excel + PDF）
+# ─────────────────────────────────────────────
+
+class CompareReportRequest(BaseModel):
+    format: str = "excel"  # excel / pdf
+    import_task_id: int
+
+
+@router.post("/{table_config_id}/compare-report")
+def generate_compare_report(
+    table_config_id: int,
+    body: CompareReportRequest,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
+):
+    """Generate a standalone comparison report file (Excel or PDF)."""
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    task = db.query(ImportTaskLog).filter(ImportTaskLog.id == body.import_task_id).first()
+    if not task:
+        raise HTTPException(404, t("data_maintenance.import_task_not_found"))
+
+    tc = db.query(TableConfig).filter(TableConfig.id == table_config_id).first()
+    if not tc:
+        raise HTTPException(404, t("data_maintenance.table_not_found"))
+
+    diff_file = os.path.join(UPLOAD_DIR, "diff_%d.json" % body.import_task_id)
+    if not os.path.isfile(diff_file):
+        raise HTTPException(404, t("data_maintenance.diff_not_found"))
+
+    with open(diff_file, "r", encoding="utf-8") as f:
+        diff_data = json.load(f)
+
+    diff_rows = diff_data.get("diff_rows", [])
+    if not diff_rows:
+        raise HTTPException(400, t("data_maintenance.no_diff_data"))
+
+    # Count stats
+    update_count = sum(1 for d in diff_rows if d.get("change_type") == "update")
+    insert_count = sum(1 for d in diff_rows if d.get("change_type") == "insert")
+    delete_count = sum(1 for d in diff_rows if d.get("change_type") == "delete")
+
+    if body.format == "pdf":
+        return _generate_pdf_report(
+            tc, task, diff_rows, update_count, insert_count, delete_count, user
+        )
+
+    # ── Excel Report ──
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "数据对比报告"
+
+    # Styles
+    title_font = Font(bold=True, size=14, color="1F4E79")
+    subtitle_font = Font(bold=True, size=11, color="333333")
+    header_fill = PatternFill(start_color="2F5496", end_color="2F5496", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    update_fill = PatternFill(start_color="D6E4F0", end_color="D6E4F0", fill_type="solid")  # blue
+    insert_fill = PatternFill(start_color="D5F5E3", end_color="D5F5E3", fill_type="solid")  # green
+    delete_fill = PatternFill(start_color="FADBD8", end_color="FADBD8", fill_type="solid")  # red
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin"),
+    )
+    center_align = Alignment(horizontal="center", vertical="center")
+
+    change_type_map = {
+        "update": ("更新", update_fill),
+        "insert": ("新增", insert_fill),
+        "delete": ("删除", delete_fill),
+    }
+
+    # ── Report Header (rows 1-5) ──
+    ws.merge_cells("A1:F1")
+    title_cell = ws.cell(row=1, column=1, value="📊 数据对比报告")
+    title_cell.font = title_font
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    info_rows = [
+        ("表名", tc.table_alias or tc.table_name),
+        ("操作人", task.operator_user or _get_username(user)),
+        ("生成时间", _now_bjt().strftime("%Y-%m-%d %H:%M:%S")),
+        ("变更统计", f"更新 {update_count} 处 | 新增 {insert_count} 处 | 删除 {delete_count} 处 | 合计 {len(diff_rows)} 处"),
+    ]
+    for i, (label, value) in enumerate(info_rows, 2):
+        ws.cell(row=i, column=1, value=label).font = subtitle_font
+        ws.merge_cells(start_row=i, start_column=2, end_row=i, end_column=6)
+        ws.cell(row=i, column=2, value=value)
+
+    # ── Data Headers (row 7) ──
+    data_start = 7
+    headers = ["行号", "主键值", "字段名", "原值", "新值", "变更类型"]
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=data_start, column=col_idx, value=h)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center_align
+        cell.border = thin_border
+
+    # ── Data Rows ──
+    for row_idx, dr in enumerate(diff_rows, data_start + 1):
+        change_type = dr.get("change_type", "update")
+        type_text, row_fill = change_type_map.get(change_type, ("更新", update_fill))
+
+        values = [
+            dr.get("row_num", ""),
+            dr.get("pk_key", ""),
+            dr.get("field_alias", dr.get("field_name", "")),
+            dr.get("old_value") if dr.get("old_value") is not None else "",
+            dr.get("new_value") if dr.get("new_value") is not None else "",
+            type_text,
+        ]
+        for col_idx, val in enumerate(values, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.fill = row_fill
+            cell.border = thin_border
+            if col_idx == 6:
+                cell.alignment = center_align
+
+    # Column widths
+    col_widths = [8, 22, 22, 28, 28, 12]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    # Save
+    report_name = "compare_report_%s_%d.xlsx" % (
+        _now_bjt().strftime("%Y%m%d%H%M%S"), body.import_task_id
+    )
+    report_path = os.path.join(EXPORT_DIR, report_name)
+    wb.save(report_path)
+
+    log_operation(db, "数据维护", "导出对比报告", "success",
+                  target_id=tc.id, target_name=tc.table_name,
+                  message=f"导出对比报告 (Excel) {report_name}，{len(diff_rows)} 处变更",
+                  operator=_get_username(user))
+    db.commit()
+
+    return FileResponse(
+        report_path,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=report_name,
+    )
+
+
+def _generate_pdf_report(tc, task, diff_rows, update_count, insert_count, delete_count, user):
+    """Generate PDF comparison report using reportlab."""
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+    except ImportError:
+        raise HTTPException(400, "PDF generation requires reportlab. Install it with: pip install reportlab")
+
+    # Try to register a CJK font for Chinese support
+    try:
+        pdfmetrics.registerFont(TTFont('SimHei', '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc'))
+        cjk_font = 'SimHei'
+    except Exception:
+        try:
+            pdfmetrics.registerFont(TTFont('SimHei', '/usr/share/fonts/wqy-zenhei/wqy-zenhei.ttc'))
+            cjk_font = 'SimHei'
+        except Exception:
+            cjk_font = 'Helvetica'  # fallback, won't render Chinese well
+
+    report_name = "compare_report_%s_%d.pdf" % (
+        _now_bjt().strftime("%Y%m%d%H%M%S"), task.id
+    )
+    report_path = os.path.join(EXPORT_DIR, report_name)
+
+    doc = SimpleDocTemplate(report_path, pagesize=landscape(A4), topMargin=15*mm, bottomMargin=15*mm)
+    elements = []
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontName=cjk_font, fontSize=16, alignment=1)
+    info_style = ParagraphStyle('Info', parent=styles['Normal'], fontName=cjk_font, fontSize=10)
+
+    # Title
+    elements.append(Paragraph("数据对比报告", title_style))
+    elements.append(Spacer(1, 6*mm))
+
+    # Info
+    table_name = tc.table_alias or tc.table_name
+    operator = task.operator_user or _get_username(user)
+    gen_time = _now_bjt().strftime("%Y-%m-%d %H:%M:%S")
+    info_text = (
+        f"表名: {table_name}　　操作人: {operator}　　生成时间: {gen_time}<br/>"
+        f"变更统计: 更新 {update_count} 处 | 新增 {insert_count} 处 | 删除 {delete_count} 处 | 合计 {len(diff_rows)} 处"
+    )
+    elements.append(Paragraph(info_text, info_style))
+    elements.append(Spacer(1, 4*mm))
+
+    # Table data
+    headers = ["行号", "主键值", "字段名", "原值", "新值", "变更类型"]
+    table_data = [headers]
+
+    change_type_labels = {"update": "更新", "insert": "新增", "delete": "删除"}
+
+    for dr in diff_rows[:500]:  # Limit to 500 rows for PDF
+        change_type = dr.get("change_type", "update")
+        table_data.append([
+            str(dr.get("row_num", "")),
+            str(dr.get("pk_key", ""))[:30],
+            str(dr.get("field_alias", dr.get("field_name", "")))[:20],
+            str(dr.get("old_value", ""))[:40] if dr.get("old_value") is not None else "",
+            str(dr.get("new_value", ""))[:40] if dr.get("new_value") is not None else "",
+            change_type_labels.get(change_type, change_type),
+        ])
+
+    col_widths = [35, 90, 80, 120, 120, 50]
+    t = Table(table_data, colWidths=col_widths, repeatRows=1)
+
+    # Style the table
+    style_cmds = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#2F5496")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, -1), cjk_font),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+        ('ALIGN', (5, 1), (5, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F7FA")]),
+    ]
+
+    # Color code rows by change type
+    color_map = {
+        "update": colors.HexColor("#D6E4F0"),
+        "insert": colors.HexColor("#D5F5E3"),
+        "delete": colors.HexColor("#FADBD8"),
+    }
+    for i, dr in enumerate(diff_rows[:500], 1):
+        ct = dr.get("change_type", "update")
+        if ct in color_map:
+            style_cmds.append(('BACKGROUND', (0, i), (-1, i), color_map[ct]))
+
+    t.setStyle(TableStyle(style_cmds))
+    elements.append(t)
+
+    if len(diff_rows) > 500:
+        elements.append(Spacer(1, 4*mm))
+        elements.append(Paragraph(f"（仅显示前 500 条，共 {len(diff_rows)} 条变更）", info_style))
+
+    doc.build(elements)
+
+    log_operation(SessionLocal(), "数据维护", "导出对比报告", "success",
+                  target_id=tc.id, target_name=tc.table_name,
+                  message=f"导出对比报告 (PDF) {report_name}，{len(diff_rows)} 处变更",
+                  operator=_get_username(user))
+
+    return FileResponse(
+        report_path,
+        media_type="application/pdf",
+        filename=report_name,
+    )

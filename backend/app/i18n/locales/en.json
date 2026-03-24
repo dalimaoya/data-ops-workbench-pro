@@ -131,5 +131,11 @@
   "impact.field_not_found": "Field not found",
   "impact.sensitivity_updated": "Field sensitivity level updated",
   "log_analyze.invalid_action": "Invalid analysis action",
-  "log_analyze.table_required": "Table ID required for trace"
+  "log_analyze.table_required": "Table ID required for trace",
+  "scheduler.invalid_type": "Invalid task type",
+  "scheduler.not_found": "Scheduled task not found",
+  "scheduler.created": "Scheduled task created",
+  "scheduler.updated": "Scheduled task updated",
+  "scheduler.deleted": "Scheduled task deleted",
+  "scheduler.run_started": "Task execution started"
 }

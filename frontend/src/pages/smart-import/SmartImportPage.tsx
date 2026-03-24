@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Steps, Card, Button, Space, Typography, message, Result } from 'antd';
+import { Steps, Card, Button, Space, Typography, message } from 'antd';
 import { useTranslation } from 'react-i18next';
 import StepUpload from './StepUpload';
 import StepMatchTables from './StepMatchTables';
@@ -23,7 +23,7 @@ export default function SmartImportPage() {
 
   // Shared state across steps
   const [fileName, setFileName] = useState('');
-  const [fileType, setFileType] = useState('');
+  const [, setFileType] = useState('');
   const [parsedTables, setParsedTables] = useState<ParsedTable[]>([]);
   const [selectedTables, setSelectedTables] = useState<ParsedTable[]>([]);
 

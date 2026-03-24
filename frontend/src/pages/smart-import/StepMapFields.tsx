@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Table, Tag, Select, Button, Space, Typography, Collapse, Spin, message, Modal, Input, Alert } from 'antd';
-import { RobotOutlined, SaveOutlined, CheckCircleOutlined, SwapOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { RobotOutlined, SaveOutlined, SwapOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { mapFields, createMappingTemplate } from '../../api/smartImport';
 import type { ParsedTable } from './SmartImportPage';

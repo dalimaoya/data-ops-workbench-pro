@@ -25,6 +25,7 @@ import {
   CloudServerOutlined,
   MedicineBoxOutlined,
   ImportOutlined,
+  ScheduleOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
 import { changeMyPassword, updateMyProfile } from '../api/users';
@@ -63,6 +64,7 @@ const allMenuItems: MenuItem[] = [
   { key: '/user-management', icon: <TeamOutlined />, labelKey: 'menu.userManagement', roles: ['admin'] },
   { key: '/health-check', icon: <MedicineBoxOutlined />, labelKey: 'menu.healthCheck', roles: ['admin'] },
   { key: '/ai-config', icon: <RobotOutlined />, labelKey: 'menu.aiConfig', roles: ['admin'] },
+  { key: '/scheduler', icon: <ScheduleOutlined />, labelKey: 'menu.scheduler', roles: ['admin'] },
   { key: '/platform-backup', icon: <CloudServerOutlined />, labelKey: 'menu.platformBackup', roles: ['admin'] },
   { key: '/about', icon: <InfoCircleOutlined />, labelKey: 'menu.about' },
 ];

@@ -1,4 +1,4 @@
-"""Platform database models - 11 core tables (incl. field_change_log for v2.0) + ai_config for v3.0 + health_check + field_sensitivity for v3.0-P2."""
+"""Platform database models - 11 core tables (incl. field_change_log for v2.0) + ai_config for v3.0 + health_check + field_sensitivity for v3.0-P2 + scheduler for v3.1."""
 
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import (
@@ -366,7 +366,7 @@ class AIConfig(Base):
     updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)
 
 
-# ── 16b. smart_import_mapping_template (v3.1) ──
+# ── 16b. smart_import_mapping_template (v3.0-P2) ──
 class MappingTemplate(AuditMixin, Base):
     __tablename__ = "smart_import_mapping_template"
 
@@ -407,3 +407,31 @@ class HealthCheckConfig(Base):
     slow_threshold_ms = Column(Integer, nullable=False, default=5000)
     updated_by = Column(String(64), nullable=False, default="system")
     updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)
+
+
+# ── 19. scheduled_task (v3.1) ──
+class ScheduledTask(Base):
+    __tablename__ = "scheduled_task"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(128), nullable=False)
+    type = Column(String(32), nullable=False)  # health_check / platform_backup / data_export
+    schedule_json = Column(Text, nullable=False)  # JSON: {type: "cron"/"interval", ...}
+    enabled = Column(SmallInteger, nullable=False, default=1)
+    config_json = Column(Text, nullable=True)  # JSON: task-specific config
+    last_run = Column(DateTime, nullable=True)
+    next_run = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)
+
+
+# ── 20. task_execution_log (v3.1) ──
+class TaskExecutionLog(Base):
+    __tablename__ = "task_execution_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(Integer, nullable=False, index=True)
+    started_at = Column(DateTime, nullable=False, default=_now_bjt)
+    finished_at = Column(DateTime, nullable=True)
+    status = Column(String(32), nullable=False, default="running")  # running/success/failed
+    result_summary = Column(String(1000), nullable=True)
+    error_message = Column(String(1000), nullable=True)

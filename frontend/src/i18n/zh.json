@@ -60,7 +60,8 @@
     "collapse": "收起菜单",
     "platformBackup": "备份迁移",
     "healthCheck": "健康巡检",
-    "smartImport": "智能导入"
+    "smartImport": "智能导入",
+    "scheduler": "定时任务"
   },
   "aiConfig": {
     "title": "AI智能助手",
@@ -496,7 +497,13 @@
     "insertedRows": "新增行数",
     "operatorUser": "操作人",
     "finishedTime": "完成时间",
-    "failedDetails": "失败明细"
+    "failedDetails": "失败明细",
+    "exportCompareReport": "📊 导出对比报告",
+    "selectFormat": "选择格式",
+    "formatExcel": "Excel 格式",
+    "formatPdf": "PDF 格式",
+    "reportDownloaded": "对比报告已下载",
+    "reportFailed": "下载对比报告失败"
   },
   "logCenter": {
     "title": "日志中心",
@@ -966,5 +973,44 @@
     "newImport": "新建导入",
     "noReadyTables": "没有可预览的表格",
     "goBackToMap": "请返回上一步完成字段映射"
+  },
+  "scheduler": {
+    "title": "定时任务管理",
+    "createTask": "新建任务",
+    "editTask": "编辑任务",
+    "taskName": "任务名称",
+    "nameRequired": "请输入任务名称",
+    "namePlaceholder": "如：每日健康巡检",
+    "frequency": "执行频率",
+    "lastRun": "上次执行",
+    "nextRun": "下次执行",
+    "runNow": "立即执行",
+    "runStarted": "任务已开始执行",
+    "executionHistory": "执行历史",
+    "scheduleType": "调度类型",
+    "cron": "定时（Cron）",
+    "interval": "间隔（Interval）",
+    "hour": "时",
+    "minute": "分",
+    "dayOfWeek": "星期",
+    "days": "天",
+    "hours": "小时",
+    "minutes": "分钟",
+    "every": "每",
+    "daily": "每天",
+    "weekly": "每周",
+    "typeHealthCheck": "健康巡检",
+    "typePlatformBackup": "平台备份",
+    "typeDataExport": "数据导出",
+    "tableConfigId": "纳管表 ID",
+    "tableConfigIdPlaceholder": "请输入要导出的纳管表 ID",
+    "createSuccess": "定时任务创建成功",
+    "updateSuccess": "定时任务更新成功",
+    "deleteSuccess": "定时任务已删除",
+    "loadFailed": "获取任务列表失败",
+    "historyLoadFailed": "获取执行历史失败",
+    "statusSuccess": "成功",
+    "statusFailed": "失败",
+    "statusRunning": "执行中"
   }
 }

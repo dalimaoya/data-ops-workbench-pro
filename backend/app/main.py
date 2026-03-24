@@ -28,6 +28,7 @@ from app.routers import ai_log_analyze as ai_log_analyze_router
 from app.routers import health_check as health_check_router
 from app.routers import ai_impact_assess as ai_impact_assess_router
 from app.routers import smart_import as smart_import_router
+from app.routers import scheduler as scheduler_router
 from app.utils.auth import init_default_admin
 from app.utils.security_middleware import SecurityHeadersMiddleware, check_rate_limit
 from app.i18n import parse_accept_language, set_lang
@@ -43,7 +44,20 @@ async def lifespan(app: FastAPI):
         init_default_admin(db)
     finally:
         db.close()
+    # Initialize scheduler
+    try:
+        from app.scheduler.engine import init_scheduler
+        init_scheduler()
+    except Exception as e:
+        import logging
+        logging.getLogger("scheduler").error("Failed to start scheduler: %s", e)
     yield
+    # Shutdown scheduler
+    try:
+        from app.scheduler.engine import shutdown_scheduler
+        shutdown_scheduler()
+    except Exception:
+        pass
 
 
 app = FastAPI(
@@ -146,6 +160,7 @@ app.include_router(ai_log_analyze_router.router)
 app.include_router(health_check_router.router)
 app.include_router(ai_impact_assess_router.router)
 app.include_router(smart_import_router.router)
+app.include_router(scheduler_router.router)
 
 
 @app.get("/api/health")

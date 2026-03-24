@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Table, Card, Tag, Space, Typography, Button, Collapse, Result, Alert, message } from 'antd';
+import { Table, Tag, Space, Typography, Button, Collapse, Result, Alert, message } from 'antd';
 import { CheckCircleOutlined, ReloadOutlined, ExportOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import type { ParsedTable } from './SmartImportPage';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 interface Props {
   selectedTables: ParsedTable[];
