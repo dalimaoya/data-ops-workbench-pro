@@ -1,4 +1,4 @@
-"""AI configuration read/write — stored in platform.db ai_config table (singleton row)."""
+"""AI configuration read/write — dual independent storage for local + cloud configs."""
 
 import json
 from typing import Optional
@@ -20,8 +20,21 @@ DEFAULT_FEATURE_FLAGS = {
 }
 
 
+def _mask_key(encrypted: Optional[str]) -> tuple[bool, str]:
+    """Return (is_set, masked_display) for an encrypted API key."""
+    if not encrypted:
+        return False, ""
+    try:
+        plain = decrypt_password(encrypted)
+        if len(plain) > 8:
+            return True, plain[:3] + "●" * (len(plain) - 6) + plain[-3:]
+        return True, "●" * len(plain)
+    except Exception:
+        return True, "●●●●●●"
+
+
 def get_ai_config(db: Session) -> dict:
-    """Return the singleton AI config as a dict. Creates default row if missing."""
+    """Return the AI config with both local and cloud configs included."""
     row = db.query(AIConfig).first()
     if row is None:
         row = AIConfig(
@@ -37,21 +50,34 @@ def get_ai_config(db: Session) -> dict:
 
 
 def update_ai_config(db: Session, data: dict, operator: str = "system") -> dict:
-    """Upsert the AI config. Returns the updated dict."""
+    """Upsert the AI config. Saves local_* and cloud_* fields independently."""
     row = db.query(AIConfig).first()
     if row is None:
         row = AIConfig()
         db.add(row)
 
-    # Simple scalar fields
-    for field in ("ai_enabled", "engine_mode", "platform_name", "api_protocol",
-                  "api_url", "model_name", "max_tokens", "temperature"):
+    # Global fields
+    for field in ("ai_enabled", "engine_mode"):
         if field in data:
             setattr(row, field, data[field])
 
-    # Encrypt API key if provided (non-empty)
-    if "api_key" in data and data["api_key"]:
-        row.api_key_encrypted = encrypt_password(data["api_key"])
+    # Local model fields
+    for field in ("local_api_protocol", "local_api_url", "local_model_name",
+                  "local_max_tokens", "local_temperature"):
+        if field in data:
+            setattr(row, field, data[field])
+
+    if "local_api_key" in data and data["local_api_key"]:
+        row.local_api_key_encrypted = encrypt_password(data["local_api_key"])
+
+    # Cloud LLM fields
+    for field in ("cloud_platform_name", "cloud_api_protocol", "cloud_api_url",
+                  "cloud_model_name", "cloud_max_tokens", "cloud_temperature"):
+        if field in data:
+            setattr(row, field, data[field])
+
+    if "cloud_api_key" in data and data["cloud_api_key"]:
+        row.cloud_api_key_encrypted = encrypt_password(data["cloud_api_key"])
 
     # Feature flags
     if "feature_flags" in data:
@@ -66,17 +92,9 @@ def update_ai_config(db: Session, data: dict, operator: str = "system") -> dict:
 
 
 def _row_to_dict(row: AIConfig) -> dict:
-    """Convert AIConfig ORM row to API-safe dict (mask API key)."""
-    api_key_masked = ""
-    if row.api_key_encrypted:
-        try:
-            plain = decrypt_password(row.api_key_encrypted)
-            if len(plain) > 8:
-                api_key_masked = plain[:3] + "●" * (len(plain) - 6) + plain[-3:]
-            else:
-                api_key_masked = "●" * len(plain)
-        except Exception:
-            api_key_masked = "●●●●●●"
+    """Convert AIConfig ORM row to API-safe dict with dual config."""
+    local_key_set, local_key_masked = _mask_key(row.local_api_key_encrypted)
+    cloud_key_set, cloud_key_masked = _mask_key(row.cloud_api_key_encrypted)
 
     feature_flags = DEFAULT_FEATURE_FLAGS.copy()
     if row.feature_flags:
@@ -88,13 +106,25 @@ def _row_to_dict(row: AIConfig) -> dict:
     return {
         "ai_enabled": bool(row.ai_enabled),
         "engine_mode": row.engine_mode or "builtin",
-        "platform_name": row.platform_name or "",
-        "api_protocol": row.api_protocol or "openai",
-        "api_url": row.api_url or "",
-        "api_key_set": bool(row.api_key_encrypted),
-        "api_key_masked": api_key_masked,
-        "model_name": row.model_name or "",
-        "max_tokens": row.max_tokens or 4096,
-        "temperature": row.temperature if row.temperature is not None else 0.3,
+
+        # Local model config
+        "local_api_protocol": row.local_api_protocol or "openai",
+        "local_api_url": row.local_api_url or "",
+        "local_api_key_set": local_key_set,
+        "local_api_key_masked": local_key_masked,
+        "local_model_name": row.local_model_name or "",
+        "local_max_tokens": row.local_max_tokens or 4096,
+        "local_temperature": row.local_temperature if row.local_temperature is not None else 0.3,
+
+        # Cloud LLM config
+        "cloud_platform_name": row.cloud_platform_name or "",
+        "cloud_api_protocol": row.cloud_api_protocol or "openai",
+        "cloud_api_url": row.cloud_api_url or "",
+        "cloud_api_key_set": cloud_key_set,
+        "cloud_api_key_masked": cloud_key_masked,
+        "cloud_model_name": row.cloud_model_name or "",
+        "cloud_max_tokens": row.cloud_max_tokens or 4096,
+        "cloud_temperature": row.cloud_temperature if row.cloud_temperature is not None else 0.3,
+
         "feature_flags": feature_flags,
     }

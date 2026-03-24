@@ -39,23 +39,53 @@ class AIEngine:
         return flags.get(feature_key, False)
 
     def get_llm_client(self) -> Optional[AIClient]:
-        """Build an AIClient from current config. Returns None if cloud mode not configured."""
-        if self.engine_mode != "cloud":
+        """Build an AIClient from current config. Returns None if builtin mode."""
+        mode = self.engine_mode
+        if mode == "builtin":
             return None
+
         row = self.db.query(AIConfig).first()
-        if not row or not row.api_key_encrypted or not row.api_url:
+        if not row:
             return None
-        try:
-            api_key = decrypt_password(row.api_key_encrypted)
-        except Exception:
+
+        if mode == "cloud":
+            encrypted_key = row.cloud_api_key_encrypted
+            api_url = row.cloud_api_url
+            model_name = row.cloud_model_name or ""
+            api_protocol = row.cloud_api_protocol or "openai"
+            max_tokens = row.cloud_max_tokens or 4096
+            temperature = row.cloud_temperature if row.cloud_temperature is not None else 0.3
+        elif mode == "local":
+            encrypted_key = row.local_api_key_encrypted
+            api_url = row.local_api_url
+            model_name = row.local_model_name or ""
+            api_protocol = row.local_api_protocol or "openai"
+            max_tokens = row.local_max_tokens or 4096
+            temperature = row.local_temperature if row.local_temperature is not None else 0.3
+        else:
             return None
+
+        if not api_url:
+            return None
+
+        api_key = ""
+        if encrypted_key:
+            try:
+                api_key = decrypt_password(encrypted_key)
+            except Exception:
+                return None
+
+        # For local models, key may be optional
+        if mode == "cloud" and not api_key:
+            return None
+
         return AIClient(
-            api_url=row.api_url,
+            api_url=api_url,
             api_key=api_key,
-            model_name=row.model_name or "",
-            api_protocol=row.api_protocol or "openai",
-            max_tokens=row.max_tokens or 4096,
-            temperature=row.temperature if row.temperature is not None else 0.3,
+            model_name=model_name,
+            api_protocol=api_protocol,
+            max_tokens=max_tokens,
+            temperature=temperature,
         )
 
     # ── High-level helpers (to be extended per feature) ──

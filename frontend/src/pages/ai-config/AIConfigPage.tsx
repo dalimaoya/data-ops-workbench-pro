@@ -102,8 +102,10 @@ export default function AIConfigPage() {
   const [config, setConfig] = useState<AIConfigData | null>(null);
   const [validateConfig, setValidateConfig] = useState<AIValidateConfig | null>(null);
   const [form] = Form.useForm();
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [showLocalApiKey, setShowLocalApiKey] = useState(false);
+  const [showCloudApiKey, setShowCloudApiKey] = useState(false);
+  const [localApiKeyInput, setLocalApiKeyInput] = useState('');
+  const [cloudApiKeyInput, setCloudApiKeyInput] = useState('');
 
   // Track selected platform for model dropdown
   const [selectedPlatform, setSelectedPlatform] = useState<PlatformPreset | null>(null);
@@ -116,14 +118,21 @@ export default function AIConfigPage() {
       form.setFieldsValue({
         ai_enabled: res.data.ai_enabled,
         engine_mode: res.data.engine_mode,
-        platform_name: res.data.platform_name || undefined,
-        api_protocol: res.data.api_protocol,
-        api_url: res.data.api_url,
-        model_name: res.data.model_name || undefined,
-        max_tokens: res.data.max_tokens,
-        temperature: res.data.temperature,
+        // Local fields
+        local_api_protocol: res.data.local_api_protocol,
+        local_api_url: res.data.local_api_url,
+        local_model_name: res.data.local_model_name || undefined,
+        local_max_tokens: res.data.local_max_tokens,
+        local_temperature: res.data.local_temperature,
+        // Cloud fields
+        cloud_platform_name: res.data.cloud_platform_name || undefined,
+        cloud_api_protocol: res.data.cloud_api_protocol,
+        cloud_api_url: res.data.cloud_api_url,
+        cloud_model_name: res.data.cloud_model_name || undefined,
+        cloud_max_tokens: res.data.cloud_max_tokens,
+        cloud_temperature: res.data.cloud_temperature,
       });
-      const preset = PLATFORM_PRESETS.find(p => p.name === res.data.platform_name);
+      const preset = PLATFORM_PRESETS.find(p => p.name === res.data.cloud_platform_name);
       setSelectedPlatform(preset || null);
       try {
         const vcRes = await getAIValidateConfig();
@@ -145,10 +154,10 @@ export default function AIConfigPage() {
     setSelectedPlatform(preset || null);
     if (preset) {
       form.setFieldsValue({
-        platform_name: platformName,
-        api_url: preset.apiUrl,
-        api_protocol: preset.protocol,
-        model_name: preset.models[0] || undefined,
+        cloud_platform_name: platformName,
+        cloud_api_url: preset.apiUrl,
+        cloud_api_protocol: preset.protocol,
+        cloud_model_name: preset.models[0] || undefined,
       });
     }
   };
@@ -157,23 +166,41 @@ export default function AIConfigPage() {
     try {
       setSaving(true);
       const values = form.getFieldsValue(true);
+      const engineMode = values.engine_mode;
+
+      // Always send engine_mode + ai_enabled + feature_flags
       const data: AIConfigUpdateData = {
         ai_enabled: values.ai_enabled,
-        engine_mode: values.engine_mode,
-        platform_name: values.platform_name,
-        api_protocol: values.api_protocol,
-        api_url: values.api_url,
-        model_name: values.model_name,
-        max_tokens: values.max_tokens,
-        temperature: values.temperature,
+        engine_mode: engineMode,
         feature_flags: config?.feature_flags,
       };
-      if (apiKeyInput) {
-        data.api_key = apiKeyInput;
+
+      // Only send the current mode's config (avoid overwriting the other)
+      if (engineMode === 'local') {
+        data.local_api_protocol = values.local_api_protocol;
+        data.local_api_url = values.local_api_url;
+        data.local_model_name = values.local_model_name;
+        data.local_max_tokens = values.local_max_tokens;
+        data.local_temperature = values.local_temperature;
+        if (localApiKeyInput) {
+          data.local_api_key = localApiKeyInput;
+        }
+      } else if (engineMode === 'cloud') {
+        data.cloud_platform_name = values.cloud_platform_name;
+        data.cloud_api_protocol = values.cloud_api_protocol;
+        data.cloud_api_url = values.cloud_api_url;
+        data.cloud_model_name = values.cloud_model_name;
+        data.cloud_max_tokens = values.cloud_max_tokens;
+        data.cloud_temperature = values.cloud_temperature;
+        if (cloudApiKeyInput) {
+          data.cloud_api_key = cloudApiKeyInput;
+        }
       }
+
       const res = await updateAIConfig(data);
       setConfig(res.data);
-      setApiKeyInput('');
+      setLocalApiKeyInput('');
+      setCloudApiKeyInput('');
       message.success(t('common.success'));
     } catch (err: any) {
       message.error(err?.response?.data?.detail || t('common.failed'));
@@ -187,14 +214,32 @@ export default function AIConfigPage() {
       setTesting(true);
       setTestResult(null);
       const values = form.getFieldsValue(true);
-      const res = await testAIConnection({
-        api_protocol: values.api_protocol,
-        api_url: values.api_url,
-        api_key: apiKeyInput || undefined,
-        model_name: values.model_name,
-        max_tokens: values.max_tokens,
-        temperature: values.temperature,
-      });
+      const engineMode = values.engine_mode;
+
+      let testData: any;
+      if (engineMode === 'local') {
+        testData = {
+          api_protocol: values.local_api_protocol,
+          api_url: values.local_api_url,
+          api_key: localApiKeyInput || undefined,
+          model_name: values.local_model_name,
+          max_tokens: values.local_max_tokens,
+          temperature: values.local_temperature,
+          test_mode: 'local',
+        };
+      } else {
+        testData = {
+          api_protocol: values.cloud_api_protocol,
+          api_url: values.cloud_api_url,
+          api_key: cloudApiKeyInput || undefined,
+          model_name: values.cloud_model_name,
+          max_tokens: values.cloud_max_tokens,
+          temperature: values.cloud_temperature,
+          test_mode: 'cloud',
+        };
+      }
+
+      const res = await testAIConnection(testData);
       setTestResult(res.data);
     } catch (err: any) {
       setTestResult({
@@ -208,7 +253,8 @@ export default function AIConfigPage() {
 
   const handleReset = () => {
     fetchConfig();
-    setApiKeyInput('');
+    setLocalApiKeyInput('');
+    setCloudApiKeyInput('');
     setTestResult(null);
   };
 
@@ -279,7 +325,7 @@ export default function AIConfigPage() {
                 <Title level={5} style={{ marginTop: 0 }}>{t('aiConfig.localConfig')}</Title>
 
                 {/* API Protocol */}
-                <Form.Item name="api_protocol" label={t('aiConfig.apiProtocol')}>
+                <Form.Item name="local_api_protocol" label={t('aiConfig.apiProtocol')}>
                   <Radio.Group>
                     <Radio value="openai">OpenAI {t('aiConfig.compatible')}</Radio>
                     <Radio value="claude">Claude {t('aiConfig.compatible')}</Radio>
@@ -287,7 +333,7 @@ export default function AIConfigPage() {
                 </Form.Item>
 
                 {/* Local API URL */}
-                <Form.Item name="api_url" label={t('aiConfig.localApiUrl')}>
+                <Form.Item name="local_api_url" label={t('aiConfig.localApiUrl')}>
                   <Input placeholder="http://localhost:11434/v1" />
                 </Form.Item>
 
@@ -303,33 +349,33 @@ export default function AIConfigPage() {
                   <Space.Compact style={{ width: '100%' }}>
                     <Input
                       style={{ flex: 1 }}
-                      type={showApiKey ? 'text' : 'password'}
-                      placeholder={config?.api_key_set
-                        ? (config.api_key_masked || t('aiConfig.apiKeySet'))
+                      type={showLocalApiKey ? 'text' : 'password'}
+                      placeholder={config?.local_api_key_set
+                        ? (config.local_api_key_masked || t('aiConfig.apiKeySet'))
                         : t('aiConfig.apiKeyPlaceholder')
                       }
-                      value={apiKeyInput}
-                      onChange={e => setApiKeyInput(e.target.value)}
+                      value={localApiKeyInput}
+                      onChange={e => setLocalApiKeyInput(e.target.value)}
                     />
                     <Button
-                      icon={showApiKey ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-                      onClick={() => setShowApiKey(!showApiKey)}
+                      icon={showLocalApiKey ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                      onClick={() => setShowLocalApiKey(!showLocalApiKey)}
                     />
                   </Space.Compact>
                 </Form.Item>
 
                 {/* Model Name (manual input) */}
-                <Form.Item name="model_name" label={t('aiConfig.localModelName')}>
+                <Form.Item name="local_model_name" label={t('aiConfig.localModelName')}>
                   <Input placeholder={t('aiConfig.localModelNamePlaceholder')} />
                 </Form.Item>
 
                 {/* Max Tokens */}
-                <Form.Item name="max_tokens" label={t('aiConfig.maxTokens')}>
+                <Form.Item name="local_max_tokens" label={t('aiConfig.maxTokens')}>
                   <InputNumber min={256} max={128000} step={256} style={{ width: 200 }} />
                 </Form.Item>
 
                 {/* Temperature */}
-                <Form.Item name="temperature" label={t('aiConfig.temperature')}>
+                <Form.Item name="local_temperature" label={t('aiConfig.temperature')}>
                   <Slider min={0} max={1} step={0.05} marks={{ 0: '0', 0.3: '0.3', 0.7: '0.7', 1: '1' }} />
                 </Form.Item>
 
@@ -363,7 +409,7 @@ export default function AIConfigPage() {
                 <Title level={5} style={{ marginTop: 0 }}>{t('aiConfig.cloudConfig')}</Title>
 
                 {/* Platform */}
-                <Form.Item name="platform_name" label={t('aiConfig.platform')}>
+                <Form.Item name="cloud_platform_name" label={t('aiConfig.platform')}>
                   <Select
                     placeholder={t('aiConfig.platformPlaceholder')}
                     onChange={handlePlatformChange}
@@ -375,7 +421,7 @@ export default function AIConfigPage() {
                 </Form.Item>
 
                 {/* API Protocol */}
-                <Form.Item name="api_protocol" label={t('aiConfig.apiProtocol')}>
+                <Form.Item name="cloud_api_protocol" label={t('aiConfig.apiProtocol')}>
                   <Radio.Group>
                     <Radio value="openai">OpenAI {t('aiConfig.compatible')}</Radio>
                     <Radio value="claude">Claude {t('aiConfig.compatible')}</Radio>
@@ -383,7 +429,7 @@ export default function AIConfigPage() {
                 </Form.Item>
 
                 {/* API URL */}
-                <Form.Item name="api_url" label={t('aiConfig.apiUrl')}>
+                <Form.Item name="cloud_api_url" label={t('aiConfig.apiUrl')}>
                   <Input placeholder="https://api.example.com/v1" />
                 </Form.Item>
 
@@ -392,20 +438,20 @@ export default function AIConfigPage() {
                   <Space.Compact style={{ width: '100%' }}>
                     <Input
                       style={{ flex: 1 }}
-                      type={showApiKey ? 'text' : 'password'}
-                      placeholder={config?.api_key_set
-                        ? (config.api_key_masked || t('aiConfig.apiKeySet'))
+                      type={showCloudApiKey ? 'text' : 'password'}
+                      placeholder={config?.cloud_api_key_set
+                        ? (config.cloud_api_key_masked || t('aiConfig.apiKeySet'))
                         : t('aiConfig.apiKeyPlaceholder')
                       }
-                      value={apiKeyInput}
-                      onChange={e => setApiKeyInput(e.target.value)}
+                      value={cloudApiKeyInput}
+                      onChange={e => setCloudApiKeyInput(e.target.value)}
                     />
                     <Button
-                      icon={showApiKey ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-                      onClick={() => setShowApiKey(!showApiKey)}
+                      icon={showCloudApiKey ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                      onClick={() => setShowCloudApiKey(!showCloudApiKey)}
                     />
                   </Space.Compact>
-                  {config?.api_key_set && !apiKeyInput && (
+                  {config?.cloud_api_key_set && !cloudApiKeyInput && (
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       {t('aiConfig.apiKeyHint')}
                     </Text>
@@ -413,7 +459,7 @@ export default function AIConfigPage() {
                 </Form.Item>
 
                 {/* Model Name */}
-                <Form.Item name="model_name" label={t('aiConfig.modelName')}>
+                <Form.Item name="cloud_model_name" label={t('aiConfig.modelName')}>
                   <Select
                     showSearch
                     allowClear
@@ -437,12 +483,12 @@ export default function AIConfigPage() {
                 </Form.Item>
 
                 {/* Max Tokens */}
-                <Form.Item name="max_tokens" label={t('aiConfig.maxTokens')}>
+                <Form.Item name="cloud_max_tokens" label={t('aiConfig.maxTokens')}>
                   <InputNumber min={256} max={128000} step={256} style={{ width: 200 }} />
                 </Form.Item>
 
                 {/* Temperature */}
-                <Form.Item name="temperature" label={t('aiConfig.temperature')}>
+                <Form.Item name="cloud_temperature" label={t('aiConfig.temperature')}>
                   <Slider min={0} max={1} step={0.05} marks={{ 0: '0', 0.3: '0.3', 0.7: '0.7', 1: '1' }} />
                 </Form.Item>
 

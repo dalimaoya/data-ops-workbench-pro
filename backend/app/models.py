@@ -332,13 +332,33 @@ class AIConfig(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     ai_enabled = Column(SmallInteger, nullable=False, default=1)  # 1=on, 0=off
     engine_mode = Column(String(32), nullable=False, default="builtin")  # builtin / local / cloud
+
+    # ── Legacy columns (kept for backward compat, unused after migration) ──
     platform_name = Column(String(64), nullable=True)
-    api_protocol = Column(String(32), nullable=True, default="openai")  # openai / claude
+    api_protocol = Column(String(32), nullable=True, default="openai")
     api_url = Column(String(500), nullable=True)
     api_key_encrypted = Column(Text, nullable=True)
     model_name = Column(String(128), nullable=True)
     max_tokens = Column(Integer, nullable=False, default=4096)
     temperature = Column(Float, nullable=False, default=0.3)
+
+    # ── Local model config (independent) ──
+    local_api_protocol = Column(String(32), nullable=True, default="openai")
+    local_api_url = Column(String(500), nullable=True)
+    local_api_key_encrypted = Column(Text, nullable=True)
+    local_model_name = Column(String(128), nullable=True)
+    local_max_tokens = Column(Integer, nullable=True, default=4096)
+    local_temperature = Column(Float, nullable=True, default=0.3)
+
+    # ── Cloud LLM config (independent) ──
+    cloud_platform_name = Column(String(64), nullable=True)
+    cloud_api_protocol = Column(String(32), nullable=True, default="openai")
+    cloud_api_url = Column(String(500), nullable=True)
+    cloud_api_key_encrypted = Column(Text, nullable=True)
+    cloud_model_name = Column(String(128), nullable=True)
+    cloud_max_tokens = Column(Integer, nullable=True, default=4096)
+    cloud_temperature = Column(Float, nullable=True, default=0.3)
+
     feature_flags = Column(Text, nullable=True)  # JSON: 7 feature toggles
     updated_by = Column(String(64), nullable=False, default="system")
     updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)

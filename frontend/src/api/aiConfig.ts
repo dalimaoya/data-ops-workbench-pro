@@ -3,27 +3,50 @@ import { api } from './request';
 export interface AIConfigData {
   ai_enabled: boolean;
   engine_mode: string;
-  platform_name: string;
-  api_protocol: string;
-  api_url: string;
-  api_key_set: boolean;
-  api_key_masked: string;
-  model_name: string;
-  max_tokens: number;
-  temperature: number;
+
+  // Local model config
+  local_api_protocol: string;
+  local_api_url: string;
+  local_api_key_set: boolean;
+  local_api_key_masked: string;
+  local_model_name: string;
+  local_max_tokens: number;
+  local_temperature: number;
+
+  // Cloud LLM config
+  cloud_platform_name: string;
+  cloud_api_protocol: string;
+  cloud_api_url: string;
+  cloud_api_key_set: boolean;
+  cloud_api_key_masked: string;
+  cloud_model_name: string;
+  cloud_max_tokens: number;
+  cloud_temperature: number;
+
   feature_flags: Record<string, boolean>;
 }
 
 export interface AIConfigUpdateData {
   ai_enabled?: boolean;
   engine_mode?: string;
-  platform_name?: string;
-  api_protocol?: string;
-  api_url?: string;
-  api_key?: string;
-  model_name?: string;
-  max_tokens?: number;
-  temperature?: number;
+
+  // Local model config
+  local_api_protocol?: string;
+  local_api_url?: string;
+  local_api_key?: string;
+  local_model_name?: string;
+  local_max_tokens?: number;
+  local_temperature?: number;
+
+  // Cloud LLM config
+  cloud_platform_name?: string;
+  cloud_api_protocol?: string;
+  cloud_api_url?: string;
+  cloud_api_key?: string;
+  cloud_model_name?: string;
+  cloud_max_tokens?: number;
+  cloud_temperature?: number;
+
   feature_flags?: Record<string, boolean>;
 }
 
@@ -34,6 +57,7 @@ export interface AITestRequest {
   model_name?: string;
   max_tokens?: number;
   temperature?: number;
+  test_mode?: string;
 }
 
 export interface AITestResult {

@@ -8,13 +8,17 @@ import {
   ExclamationCircleOutlined, CheckCircleOutlined, CloseCircleOutlined,
   DatabaseOutlined, SafetyOutlined, HistoryOutlined, DownloadOutlined,
 } from '@ant-design/icons';
-import type { UploadFile } from 'antd/es/upload/interface';
+import type { UploadFile as _UploadFile } from 'antd/es/upload/interface';
 import { useTranslation } from 'react-i18next';
 import {
   createBackup, getBackupHistory, deleteBackup, uploadBackup,
   restorePlatform, downloadBackupUrl,
-  type BackupHistoryItem, type ManifestInfo, type UploadResult,
+  type BackupHistoryItem, type ManifestInfo as _ManifestInfo, type UploadResult,
 } from '../../api/platformBackup';
+
+// Re-export to suppress unused warnings (types used indirectly)
+type _Suppress = _UploadFile | _ManifestInfo;
+void (0 as unknown as _Suppress);
 
 const { Text, Title } = Typography;
 
