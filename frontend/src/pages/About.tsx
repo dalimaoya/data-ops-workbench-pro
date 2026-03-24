@@ -178,6 +178,7 @@ function OverviewTab({ isZh }: { isZh: boolean }) {
         <Descriptions.Item label={t('about.backend')}>Python FastAPI + SQLAlchemy 2.0 + Pydantic 2</Descriptions.Item>
         <Descriptions.Item label={t('about.database')}>SQLite (platform) + 7 datasource types (MySQL / PG / SS / Oracle / DM / KingbaseES / SQLite)</Descriptions.Item>
         <Descriptions.Item label={t('about.templateEngine')}>openpyxl (Excel Import/Export)</Descriptions.Item>
+        <Descriptions.Item label={isZh ? 'AI 引擎' : 'AI Engine'}>{isZh ? '内置规则 / 本地模型 / 云端大模型（9 平台预设）' : 'Built-in rules / Local model / Cloud LLM (9 presets)'}</Descriptions.Item>
       </Descriptions>
 
       <Divider />
