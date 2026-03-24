@@ -1,6 +1,11 @@
-import { Card, Descriptions, Typography, Space, Tag, Divider, Collapse } from 'antd';
-import { GithubOutlined, LinkOutlined, BookOutlined, InfoCircleOutlined, DatabaseOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { Card, Descriptions, Typography, Space, Tag, Divider, Tabs, Alert } from 'antd';
+import { GithubOutlined, LinkOutlined, BookOutlined, InfoCircleOutlined, DatabaseOutlined, SafetyCertificateOutlined, HomeOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import userManualContent from '../content/userManualContent';
+import systemInfoContent from '../content/systemInfoContent';
+import type { Components } from 'react-markdown';
 
 const { Title, Paragraph, Link, Text } = Typography;
 
@@ -14,19 +19,110 @@ const databases = [
   { name: 'SQLite', versions: '3.x', port: '—' },
 ];
 
-export default function About() {
-  const { t, i18n } = useTranslation();
-  const isZh = i18n.language === 'zh';
+// Markdown renderer style overrides for antd compatibility
+const markdownStyles: React.CSSProperties = {
+  lineHeight: 1.8,
+  fontSize: 14,
+};
 
+const mdTableStyle: React.CSSProperties = {
+  width: '100%',
+  borderCollapse: 'collapse',
+  marginBottom: 16,
+  fontSize: 13,
+};
+
+const mdThStyle: React.CSSProperties = {
+  border: '1px solid #f0f0f0',
+  padding: '8px 12px',
+  textAlign: 'left',
+  background: '#fafafa',
+  fontWeight: 600,
+};
+
+const mdTdStyle: React.CSSProperties = {
+  border: '1px solid #f0f0f0',
+  padding: '8px 12px',
+};
+
+const mdComponents: Partial<Components> = {
+  table: ({ children, ...props }) => (
+    <div style={{ overflowX: 'auto', marginBottom: 16 }}>
+      <table style={mdTableStyle} {...props}>{children}</table>
+    </div>
+  ),
+  th: ({ children, ...props }) => <th style={mdThStyle} {...props}>{children}</th>,
+  td: ({ children, ...props }) => <td style={mdTdStyle} {...props}>{children}</td>,
+  h1: ({ children }) => <Title level={2} style={{ marginTop: 32 }}>{children}</Title>,
+  h2: ({ children }) => <Title level={3} style={{ marginTop: 28 }}>{children}</Title>,
+  h3: ({ children }) => <Title level={4} style={{ marginTop: 20 }}>{children}</Title>,
+  h4: ({ children }) => <Title level={5} style={{ marginTop: 16 }}>{children}</Title>,
+  h5: ({ children }) => <Title level={5} style={{ marginTop: 12, fontSize: 14 }}>{children}</Title>,
+  p: ({ children }) => <Paragraph style={{ marginBottom: 12 }}>{children}</Paragraph>,
+  blockquote: ({ children }) => (
+    <div style={{
+      borderLeft: '4px solid #1677ff',
+      paddingLeft: 16,
+      margin: '12px 0',
+      color: '#666',
+      background: '#f6f8fa',
+      padding: '12px 16px',
+      borderRadius: '0 6px 6px 0',
+    }}>
+      {children}
+    </div>
+  ),
+  code: ({ children, className }) => {
+    const isBlock = className?.includes('language-');
+    if (isBlock) {
+      return (
+        <pre style={{
+          background: '#f6f8fa',
+          padding: '12px 16px',
+          borderRadius: 6,
+          overflow: 'auto',
+          fontSize: 13,
+          lineHeight: 1.6,
+          border: '1px solid #e8e8e8',
+        }}>
+          <code>{children}</code>
+        </pre>
+      );
+    }
+    return (
+      <code style={{
+        background: '#f0f0f0',
+        padding: '2px 6px',
+        borderRadius: 4,
+        fontSize: 13,
+      }}>
+        {children}
+      </code>
+    );
+  },
+  pre: ({ children }) => <>{children}</>,
+  hr: () => <Divider />,
+  a: ({ href, children }) => <Link href={href} target="_blank">{children}</Link>,
+  strong: ({ children }) => <Text strong>{children}</Text>,
+  ul: ({ children }) => <ul style={{ paddingLeft: 24, marginBottom: 12 }}>{children}</ul>,
+  ol: ({ children }) => <ol style={{ paddingLeft: 24, marginBottom: 12 }}>{children}</ol>,
+  li: ({ children }) => <li style={{ marginBottom: 4 }}>{children}</li>,
+};
+
+function MarkdownViewer({ content }: { content: string }) {
   return (
-    <Card style={{ maxWidth: 900, margin: '0 auto' }}>
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <Title level={3} style={{ marginBottom: 4 }}>{t('about.title')}</Title>
-        <Tag color="blue" style={{ fontSize: 14, padding: '2px 12px' }}>{t('about.version')}</Tag>
-      </div>
+    <div style={markdownStyles}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}
 
-      <Divider />
-
+function OverviewTab({ isZh }: { isZh: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <>
       {/* Feature Description */}
       <Title level={5}>{t('about.featureTitle')}</Title>
       <Paragraph>{t('about.featureDesc')}</Paragraph>
@@ -53,87 +149,6 @@ export default function About() {
           ))}
         </tbody>
       </table>
-
-      <Divider />
-
-      {/* User Manual */}
-      <Collapse
-        items={[
-          {
-            key: 'user-manual',
-            label: (
-              <Space>
-                <BookOutlined />
-                <Text strong>{t('about.userManual')}</Text>
-              </Space>
-            ),
-            children: (
-              <Typography>
-                <Title level={4}>{t('about.manualOverviewTitle')}</Title>
-                <Paragraph>{t('about.manualOverviewDesc')}</Paragraph>
-                <Title level={5}>{t('about.roleDescription')}</Title>
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16 }}>
-                  <thead>
-                    <tr style={{ background: '#fafafa' }}>
-                      <th style={{ border: '1px solid #f0f0f0', padding: '8px 12px', textAlign: 'left' }}>{t('about.roleColumn')}</th>
-                      <th style={{ border: '1px solid #f0f0f0', padding: '8px 12px', textAlign: 'left' }}>{t('about.permissionColumn')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>{t('role.admin')}</Text></td>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>{t('about.adminPerm')}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>{t('role.operator')}</Text></td>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>{t('about.operatorPerm')}</td>
-                    </tr>
-                    <tr>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}><Text strong>{t('role.readonly')}</Text></td>
-                      <td style={{ border: '1px solid #f0f0f0', padding: '8px 12px' }}>{t('about.readonlyPerm')}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </Typography>
-            ),
-          },
-        ]}
-        style={{ marginBottom: 16 }}
-      />
-
-      {/* System Info */}
-      <Collapse
-        items={[
-          {
-            key: 'system-info',
-            label: (
-              <Space>
-                <InfoCircleOutlined />
-                <Text strong>{t('about.systemInfo')}</Text>
-              </Space>
-            ),
-            children: (
-              <Typography>
-                <Title level={5}>{t('about.productPositioning')}</Title>
-                <Paragraph>
-                  {t('about.productPositioningDesc')}
-                  <Text strong>{t('about.productPositioningHighlight')}</Text>
-                </Paragraph>
-              </Typography>
-            ),
-          },
-        ]}
-        style={{ marginBottom: 16 }}
-      />
-
-      <Divider />
-
-      {/* Documentation Links */}
-      <Title level={5}><BookOutlined style={{ marginRight: 8 }} />{t('about.docsTitle')}</Title>
-      <Space direction="vertical" size={4} style={{ marginBottom: 16 }}>
-        <Paragraph style={{ margin: 0 }}>📖 {t('about.docUserManual')}</Paragraph>
-        <Paragraph style={{ margin: 0 }}>📋 {t('about.docSystemInfo')}</Paragraph>
-      </Space>
 
       <Divider />
 
@@ -172,6 +187,86 @@ export default function About() {
         <SafetyCertificateOutlined style={{ marginRight: 4 }} />
         {t('about.license')}: {t('about.licenseText')}
       </Paragraph>
+    </>
+  );
+}
+
+export default function About() {
+  const { t, i18n } = useTranslation();
+  const isZh = i18n.language === 'zh';
+
+  const tabItems = [
+    {
+      key: 'overview',
+      label: (
+        <Space>
+          <HomeOutlined />
+          {isZh ? '概览' : 'Overview'}
+        </Space>
+      ),
+      children: <OverviewTab isZh={isZh} />,
+    },
+    {
+      key: 'user-manual',
+      label: (
+        <Space>
+          <BookOutlined />
+          {t('about.userManual')}
+        </Space>
+      ),
+      children: (
+        <>
+          {!isZh && (
+            <Alert
+              message="Documentation available in Chinese"
+              description="The user manual is currently available in Chinese. English translation is planned for a future release."
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+          )}
+          <MarkdownViewer content={userManualContent} />
+        </>
+      ),
+    },
+    {
+      key: 'system-info',
+      label: (
+        <Space>
+          <InfoCircleOutlined />
+          {t('about.systemInfo')}
+        </Space>
+      ),
+      children: (
+        <>
+          {!isZh && (
+            <Alert
+              message="Documentation available in Chinese"
+              description="The system documentation is currently available in Chinese. English translation is planned for a future release."
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+          )}
+          <MarkdownViewer content={systemInfoContent} />
+        </>
+      ),
+    },
+  ];
+
+  return (
+    <Card style={{ maxWidth: 960, margin: '0 auto' }}>
+      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        <Title level={3} style={{ marginBottom: 4 }}>{t('about.title')}</Title>
+        <Tag color="blue" style={{ fontSize: 14, padding: '2px 12px' }}>{t('about.version')}</Tag>
+      </div>
+
+      <Tabs
+        defaultActiveKey="overview"
+        items={tabItems}
+        size="large"
+        style={{ marginTop: 8 }}
+      />
     </Card>
   );
 }
