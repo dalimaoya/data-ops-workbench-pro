@@ -234,251 +234,243 @@ export default function PlatformBackup() {
   // ── Render ──
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto' }}>
-      <Title level={4} style={{ marginBottom: 24 }}>
-        <SafetyOutlined style={{ marginRight: 8 }} />
-        {t('platformBackup.title')}
+    <Card
+      title={
+        <Space>
+          <SafetyOutlined />
+          <span>{t('platformBackup.title')}</span>
+        </Space>
+      }
+      style={{ margin: 0 }}
+      styles={{ body: { padding: '16px 24px' } }}
+    >
+      {/* ── Backup Section ── */}
+      <Title level={5}>
+        <DatabaseOutlined style={{ marginRight: 8 }} />
+        {t('platformBackup.createBackup')}
       </Title>
 
-      {/* ── Backup Section ── */}
-      <Card
-        title={
-          <Space>
-            <DatabaseOutlined />
-            {t('platformBackup.createBackup')}
-          </Space>
-        }
-        style={{ marginBottom: 24 }}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('platformBackup.backupContents')}:</div>
+        <Space direction="vertical">
+          <Checkbox checked disabled>
+            {t('platformBackup.platformConfig')} <Tag color="red">{t('platformBackup.required')}</Tag>
+          </Checkbox>
+          <Checkbox checked disabled>
+            {t('platformBackup.usersAndPermissions')}
+          </Checkbox>
+          <Checkbox checked disabled>
+            {t('platformBackup.systemSettings')}
+          </Checkbox>
+          <Checkbox checked={includeLogs} onChange={(e) => setIncludeLogs(e.target.checked)}>
+            {t('platformBackup.operationLogs')}
+          </Checkbox>
+          <Checkbox checked={includeBackups} onChange={(e) => setIncludeBackups(e.target.checked)}>
+            {t('platformBackup.historyBackups')}
+          </Checkbox>
+        </Space>
+      </div>
+
+      <Button
+        type="primary"
+        icon={<CloudDownloadOutlined />}
+        loading={backupLoading}
+        onClick={handleBackup}
+        size="large"
       >
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('platformBackup.backupContents')}:</div>
-          <Space direction="vertical">
-            <Checkbox checked disabled>
-              {t('platformBackup.platformConfig')} <Tag color="red">{t('platformBackup.required')}</Tag>
-            </Checkbox>
-            <Checkbox checked disabled>
-              {t('platformBackup.usersAndPermissions')}
-            </Checkbox>
-            <Checkbox checked disabled>
-              {t('platformBackup.systemSettings')}
-            </Checkbox>
-            <Checkbox checked={includeLogs} onChange={(e) => setIncludeLogs(e.target.checked)}>
-              {t('platformBackup.operationLogs')}
-            </Checkbox>
-            <Checkbox checked={includeBackups} onChange={(e) => setIncludeBackups(e.target.checked)}>
-              {t('platformBackup.historyBackups')}
-            </Checkbox>
-          </Space>
-        </div>
+        {t('platformBackup.startBackup')}
+      </Button>
 
-        <Button
-          type="primary"
-          icon={<CloudDownloadOutlined />}
-          loading={backupLoading}
-          onClick={handleBackup}
-          size="large"
-        >
-          {t('platformBackup.startBackup')}
-        </Button>
-
-        {backupLoading && (
-          <Progress
-            percent={backupProgress}
-            status="active"
-            style={{ marginTop: 16, maxWidth: 400 }}
-          />
-        )}
-
-        {backupResult && (
-          <Alert
-            type="success"
-            showIcon
-            icon={<CheckCircleOutlined />}
-            style={{ marginTop: 16 }}
-            message={
-              <Space>
-                <span>
-                  {t('platformBackup.backupComplete')} {t('platformBackup.fileSize')}: {backupResult.file_size_human}
-                </span>
-                <Button
-                  type="primary"
-                  size="small"
-                  icon={<DownloadOutlined />}
-                  onClick={() => handleDownload(backupResult.filename)}
-                >
-                  {t('platformBackup.downloadBackup')}
-                </Button>
-              </Space>
-            }
-          />
-        )}
-      </Card>
-
-      {/* ── History Section ── */}
-      <Card
-        title={
-          <Space>
-            <HistoryOutlined />
-            {t('platformBackup.historyTitle')}
-          </Space>
-        }
-        style={{ marginBottom: 24 }}
-      >
-        <Table
-          dataSource={history}
-          columns={historyColumns}
-          rowKey="filename"
-          loading={historyLoading}
-          pagination={false}
-          size="middle"
-          locale={{ emptyText: t('common.noData') }}
+      {backupLoading && (
+        <Progress
+          percent={backupProgress}
+          status="active"
+          style={{ marginTop: 16, maxWidth: 400 }}
         />
-      </Card>
+      )}
 
-      {/* ── Restore Section ── */}
-      <Card
-        title={
-          <Space>
-            <CloudUploadOutlined />
-            {t('platformBackup.importRestore')}
-          </Space>
-        }
-      >
+      {backupResult && (
         <Alert
-          type="warning"
+          type="success"
           showIcon
-          message={t('platformBackup.importWarning')}
-          style={{ marginBottom: 16 }}
-        />
-
-        <Upload.Dragger
-          accept=".zip"
-          maxCount={1}
-          showUploadList={false}
-          customRequest={({ file }) => handleUpload(file as File)}
-          disabled={uploading}
-        >
-          <p className="ant-upload-drag-icon">
-            <CloudUploadOutlined style={{ fontSize: 48, color: '#1890ff' }} />
-          </p>
-          <p className="ant-upload-text">{t('platformBackup.uploadHint')}</p>
-          <p className="ant-upload-hint">{t('platformBackup.uploadDesc')}</p>
-        </Upload.Dragger>
-
-        {uploading && <Progress percent={50} status="active" style={{ marginTop: 16 }} />}
-
-        {uploadedInfo && (
-          <div style={{ marginTop: 24 }}>
-            <Divider />
-            <Title level={5}>{t('platformBackup.backupInfo')}</Title>
-            <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
-              <Descriptions.Item label={t('platformBackup.fileName')}>
-                {uploadedInfo.filename}
-              </Descriptions.Item>
-              <Descriptions.Item label={t('platformBackup.fileSize')}>
-                {uploadedInfo.file_size_human}
-              </Descriptions.Item>
-              <Descriptions.Item label={t('platformBackup.backupTime')}>
-                {uploadedInfo.manifest.created_at}
-              </Descriptions.Item>
-              <Descriptions.Item label={t('platformBackup.sourceVersion')}>
-                v{uploadedInfo.manifest.app_version}
-              </Descriptions.Item>
-              <Descriptions.Item label={t('platformBackup.contents')}>
-                <Space direction="vertical" size={4}>
-                  {uploadedInfo.manifest.contents.platform_config ? (
-                    <Text>
-                      <CheckCircleOutlined style={{ color: '#52c41a', marginRight: 4 }} />
-                      {t('platformBackup.platformConfig')} — {uploadedInfo.manifest.stats.datasources}{' '}
-                      {t('platformBackup.datasources')}, {uploadedInfo.manifest.stats.tables}{' '}
-                      {t('platformBackup.tables')}
-                    </Text>
-                  ) : (
-                    <Text type="secondary">
-                      <CloseCircleOutlined style={{ marginRight: 4 }} />
-                      {t('platformBackup.platformConfig')}
-                    </Text>
-                  )}
-                  {uploadedInfo.manifest.contents.users ? (
-                    <Text>
-                      <CheckCircleOutlined style={{ color: '#52c41a', marginRight: 4 }} />
-                      {t('platformBackup.usersAndPermissions')} — {uploadedInfo.manifest.stats.users}{' '}
-                      {t('platformBackup.userCount')}
-                    </Text>
-                  ) : (
-                    <Text type="secondary">
-                      <CloseCircleOutlined style={{ marginRight: 4 }} />
-                      {t('platformBackup.usersAndPermissions')}
-                    </Text>
-                  )}
-                  {uploadedInfo.manifest.contents.settings ? (
-                    <Text>
-                      <CheckCircleOutlined style={{ color: '#52c41a', marginRight: 4 }} />
-                      {t('platformBackup.systemSettings')}
-                    </Text>
-                  ) : (
-                    <Text type="secondary">
-                      <CloseCircleOutlined style={{ marginRight: 4 }} />
-                      {t('platformBackup.systemSettings')}
-                    </Text>
-                  )}
-                  {uploadedInfo.manifest.contents.logs ? (
-                    <Text>
-                      <CheckCircleOutlined style={{ color: '#52c41a', marginRight: 4 }} />
-                      {t('platformBackup.operationLogs')}
-                    </Text>
-                  ) : (
-                    <Text type="secondary">
-                      <CloseCircleOutlined style={{ marginRight: 4 }} />
-                      {t('platformBackup.operationLogs')}
-                    </Text>
-                  )}
-                </Space>
-              </Descriptions.Item>
-            </Descriptions>
-
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('platformBackup.importMode')}:</div>
-              <Radio.Group value={restoreMode} onChange={(e) => setRestoreMode(e.target.value)}>
-                <Space direction="vertical">
-                  <Radio value="overwrite">{t('platformBackup.modeOverwrite')}</Radio>
-                  <Radio value="merge">{t('platformBackup.modeMerge')}</Radio>
-                </Space>
-              </Radio.Group>
-            </div>
-
+          icon={<CheckCircleOutlined />}
+          style={{ marginTop: 16 }}
+          message={
             <Space>
+              <span>
+                {t('platformBackup.backupComplete')} {t('platformBackup.fileSize')}: {backupResult.file_size_human}
+              </span>
               <Button
                 type="primary"
-                danger
-                icon={<CloudUploadOutlined />}
-                loading={restoreLoading}
-                onClick={handleRestore}
-                size="large"
+                size="small"
+                icon={<DownloadOutlined />}
+                onClick={() => handleDownload(backupResult.filename)}
               >
-                {t('platformBackup.confirmRestore')}
-              </Button>
-              <Button onClick={() => { setUploadedInfo(null); setRestoreSuccess(false); }}>
-                {t('common.cancel')}
+                {t('platformBackup.downloadBackup')}
               </Button>
             </Space>
-          </div>
-        )}
+          }
+        />
+      )}
 
-        {restoreSuccess && (
-          <Result
-            status="success"
-            title={t('platformBackup.restoreSuccess')}
-            subTitle={t('platformBackup.reloginHint')}
-            style={{ marginTop: 24 }}
-            extra={
-              <Button type="primary" onClick={() => { window.location.href = '/login'; }}>
-                {t('platformBackup.goRelogin')}
-              </Button>
-            }
-          />
-        )}
-      </Card>
-    </div>
+      {/* ── History Section ── */}
+      <Divider />
+      <Title level={5}>
+        <HistoryOutlined style={{ marginRight: 8 }} />
+        {t('platformBackup.historyTitle')}
+      </Title>
+
+      <Table
+        dataSource={history}
+        columns={historyColumns}
+        rowKey="filename"
+        loading={historyLoading}
+        pagination={false}
+        size="middle"
+        locale={{ emptyText: t('common.noData') }}
+      />
+
+      {/* ── Restore Section ── */}
+      <Divider />
+      <Title level={5}>
+        <CloudUploadOutlined style={{ marginRight: 8 }} />
+        {t('platformBackup.importRestore')}
+      </Title>
+
+      <Alert
+        type="warning"
+        showIcon
+        message={t('platformBackup.importWarning')}
+        style={{ marginBottom: 16 }}
+      />
+
+      <Upload.Dragger
+        accept=".zip"
+        maxCount={1}
+        showUploadList={false}
+        customRequest={({ file }) => handleUpload(file as File)}
+        disabled={uploading}
+      >
+        <p className="ant-upload-drag-icon">
+          <CloudUploadOutlined style={{ fontSize: 48, color: '#1890ff' }} />
+        </p>
+        <p className="ant-upload-text">{t('platformBackup.uploadHint')}</p>
+        <p className="ant-upload-hint">{t('platformBackup.uploadDesc')}</p>
+      </Upload.Dragger>
+
+      {uploading && <Progress percent={50} status="active" style={{ marginTop: 16 }} />}
+
+      {uploadedInfo && (
+        <div style={{ marginTop: 24 }}>
+          <Divider />
+          <Title level={5}>{t('platformBackup.backupInfo')}</Title>
+          <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
+            <Descriptions.Item label={t('platformBackup.fileName')}>
+              {uploadedInfo.filename}
+            </Descriptions.Item>
+            <Descriptions.Item label={t('platformBackup.fileSize')}>
+              {uploadedInfo.file_size_human}
+            </Descriptions.Item>
+            <Descriptions.Item label={t('platformBackup.backupTime')}>
+              {uploadedInfo.manifest.created_at}
+            </Descriptions.Item>
+            <Descriptions.Item label={t('platformBackup.sourceVersion')}>
+              v{uploadedInfo.manifest.app_version}
+            </Descriptions.Item>
+            <Descriptions.Item label={t('platformBackup.contents')}>
+              <Space direction="vertical" size={4}>
+                {uploadedInfo.manifest.contents.platform_config ? (
+                  <Text>
+                    <CheckCircleOutlined style={{ color: '#52c41a', marginRight: 4 }} />
+                    {t('platformBackup.platformConfig')} — {uploadedInfo.manifest.stats.datasources}{' '}
+                    {t('platformBackup.datasources')}, {uploadedInfo.manifest.stats.tables}{' '}
+                    {t('platformBackup.tables')}
+                  </Text>
+                ) : (
+                  <Text type="secondary">
+                    <CloseCircleOutlined style={{ marginRight: 4 }} />
+                    {t('platformBackup.platformConfig')}
+                  </Text>
+                )}
+                {uploadedInfo.manifest.contents.users ? (
+                  <Text>
+                    <CheckCircleOutlined style={{ color: '#52c41a', marginRight: 4 }} />
+                    {t('platformBackup.usersAndPermissions')} — {uploadedInfo.manifest.stats.users}{' '}
+                    {t('platformBackup.userCount')}
+                  </Text>
+                ) : (
+                  <Text type="secondary">
+                    <CloseCircleOutlined style={{ marginRight: 4 }} />
+                    {t('platformBackup.usersAndPermissions')}
+                  </Text>
+                )}
+                {uploadedInfo.manifest.contents.settings ? (
+                  <Text>
+                    <CheckCircleOutlined style={{ color: '#52c41a', marginRight: 4 }} />
+                    {t('platformBackup.systemSettings')}
+                  </Text>
+                ) : (
+                  <Text type="secondary">
+                    <CloseCircleOutlined style={{ marginRight: 4 }} />
+                    {t('platformBackup.systemSettings')}
+                  </Text>
+                )}
+                {uploadedInfo.manifest.contents.logs ? (
+                  <Text>
+                    <CheckCircleOutlined style={{ color: '#52c41a', marginRight: 4 }} />
+                    {t('platformBackup.operationLogs')}
+                  </Text>
+                ) : (
+                  <Text type="secondary">
+                    <CloseCircleOutlined style={{ marginRight: 4 }} />
+                    {t('platformBackup.operationLogs')}
+                  </Text>
+                )}
+              </Space>
+            </Descriptions.Item>
+          </Descriptions>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('platformBackup.importMode')}:</div>
+            <Radio.Group value={restoreMode} onChange={(e) => setRestoreMode(e.target.value)}>
+              <Space direction="vertical">
+                <Radio value="overwrite">{t('platformBackup.modeOverwrite')}</Radio>
+                <Radio value="merge">{t('platformBackup.modeMerge')}</Radio>
+              </Space>
+            </Radio.Group>
+          </div>
+
+          <Space>
+            <Button
+              type="primary"
+              danger
+              icon={<CloudUploadOutlined />}
+              loading={restoreLoading}
+              onClick={handleRestore}
+              size="large"
+            >
+              {t('platformBackup.confirmRestore')}
+            </Button>
+            <Button onClick={() => { setUploadedInfo(null); setRestoreSuccess(false); }}>
+              {t('common.cancel')}
+            </Button>
+          </Space>
+        </div>
+      )}
+
+      {restoreSuccess && (
+        <Result
+          status="success"
+          title={t('platformBackup.restoreSuccess')}
+          subTitle={t('platformBackup.reloginHint')}
+          style={{ marginTop: 24 }}
+          extra={
+            <Button type="primary" onClick={() => { window.location.href = '/login'; }}>
+              {t('platformBackup.goRelogin')}
+            </Button>
+          }
+        />
+      )}
+    </Card>
   );
 }

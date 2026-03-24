@@ -54,7 +54,7 @@
     "aiConfig": "AI智能助手",
     "about": "关于系统",
     "collapse": "收起菜单",
-    "platformBackup": "数据备份与迁移"
+    "platformBackup": "备份迁移"
   },
   "aiConfig": {
     "title": "AI智能助手",
@@ -720,7 +720,7 @@
     "engineRulesLLM": "规则+AI增强"
   },
   "platformBackup": {
-    "title": "数据备份与迁移",
+    "title": "备份迁移",
     "createBackup": "一键备份",
     "backupContents": "备份内容选择",
     "platformConfig": "平台配置（数据源、纳管表、字段配置）",

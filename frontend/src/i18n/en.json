@@ -720,7 +720,7 @@
     "engineRulesLLM": "Rules + AI"
   },
   "platformBackup": {
-    "title": "Platform Backup & Migration",
+    "title": "Backup & Migration",
     "createBackup": "Create Backup",
     "backupContents": "Backup Contents",
     "platformConfig": "Platform Config (datasources, tables, fields)",
