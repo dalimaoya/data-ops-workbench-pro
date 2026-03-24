@@ -1,22 +1,40 @@
 # Python
 __pycache__/
 *.py[cod]
-backend/.venv/
+*$py.class
+*.so
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
 
-# Node
-frontend/node_modules/
-
-# Runtime data
-data/workbench.db
-data/uploads/
+# Runtime data - 绝对不能提交
+data/
+backups/
 logs/
 temp/
-backups/
 
-# PyInstaller build artifacts
-backend/build/
-backend/dist/
-dist/
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
 
-# Spec warning file
-*.manifest
+# Build artifacts
+backend/web/
+*.spec
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+*.key
+.env
+.env.*
