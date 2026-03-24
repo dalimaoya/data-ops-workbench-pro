@@ -45,6 +45,10 @@ extra_hiddenimports = [
     # 'sqlalchemy.dialects.mssql.pyodbc',
     # Database drivers
     'pymysql',
+    'pymysql.cursors',
+    'pymysql.connections',
+    'pymysql.constants',
+    'pymysql.converters',
     'aiosqlite',
     # NOTE: pyodbc excluded from hidden imports - requires system libodbc
     # Auth & crypto
