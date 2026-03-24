@@ -612,7 +612,7 @@
   },
   "about": {
     "title": "Data Ops Workbench",
-    "version": "v2.6.1",
+    "version": "v2.7.0",
     "featureTitle": "Features",
     "featureDesc": "Data Ops Workbench is a lightweight data revision platform that allows O&M and business staff to maintain result data tables through a standardized workflow of \"platform template + validation preview + safe writeback\" without directly accessing database clients. Supports 7 databases (MySQL / PostgreSQL / SQL Server / Oracle / DM / KingbaseES / SQLite), bilingual (Chinese/English), three-role permission system, datasource-level access control, optional approval workflow, notification center, inline editing, batch export, and full operation traceability.",
     "userManual": "User Manual",
