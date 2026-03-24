@@ -154,6 +154,15 @@ if os.path.isdir(i18n_dir):
 else:
     print("[WARN] app/i18n/locales/ not found - translations will not be bundled")
 
+# Include plugin manifest.json files
+plugins_dir = os.path.join(SPECPATH, 'app', 'plugins')
+if os.path.isdir(plugins_dir):
+    for pname in os.listdir(plugins_dir):
+        pdir = os.path.join(plugins_dir, pname)
+        manifest = os.path.join(pdir, 'manifest.json')
+        if os.path.isfile(manifest):
+            datas.append((manifest, os.path.join('app', 'plugins', pname)))
+
 # Collect data files for reportlab (fonts, etc.)
 datas += collect_data_files('reportlab')
 datas += collect_data_files('pdfminer')
