@@ -84,8 +84,9 @@ const mdComponents: Partial<Components> = {
           fontSize: 13,
           lineHeight: 1.6,
           border: '1px solid #e8e8e8',
+          fontFamily: "'Courier New', Consolas, 'Liberation Mono', monospace",
         }}>
-          <code>{children}</code>
+          <code style={{ fontFamily: 'inherit' }}>{children}</code>
         </pre>
       );
     }
