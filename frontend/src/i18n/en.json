@@ -432,7 +432,10 @@
     "reUpload": "Re-upload",
     "backToBrowse": "Back to Data Browse",
     "validationComplete": "Validation complete",
-    "validationFailedMsg": "Validation failed. See error details"
+    "validationFailedMsg": "Validation failed. See error details",
+    "aiWarnings": "AI Warnings",
+    "aiWarningType": "Type",
+    "aiWarningHint": "AI warnings are advisory only and do not block import"
   },
   "diffPreview": {
     "title": "Diff Preview",

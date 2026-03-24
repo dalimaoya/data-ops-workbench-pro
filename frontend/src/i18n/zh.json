@@ -432,7 +432,10 @@
     "reUpload": "重新上传",
     "backToBrowse": "返回数据浏览",
     "validationComplete": "校验完成",
-    "validationFailedMsg": "校验失败，请查看错误详情"
+    "validationFailedMsg": "校验失败，请查看错误详情",
+    "aiWarnings": "AI 警告",
+    "aiWarningType": "类型",
+    "aiWarningHint": "AI 警告仅为参考提示，不阻断导入"
   },
   "diffPreview": {
     "title": "差异预览",

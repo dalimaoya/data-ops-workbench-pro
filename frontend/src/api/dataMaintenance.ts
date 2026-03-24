@@ -47,6 +47,17 @@ export interface ExportInfo {
   estimated_rows: number;
 }
 
+export interface AIWarningItem {
+  row: number;
+  column: string;
+  value?: string;
+  check_type: string;
+  message: string;
+  detail?: string;
+  severity: string;
+  historical_pattern?: string;
+}
+
 export interface ImportResult {
   task_id: number;
   import_batch_no: string;
@@ -70,6 +81,8 @@ export interface ImportResult {
     type: string;
     message: string;
   }>;
+  ai_warnings?: AIWarningItem[];
+  ai_warnings_count?: number;
 }
 
 export interface DiffRow {

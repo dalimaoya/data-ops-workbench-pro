@@ -1002,6 +1002,39 @@ async def import_template(
                     })
             passed_count += 1
 
+    # ── 7.5 AI Smart Validation (v3.0) ──
+    ai_warnings = []
+    try:
+        from app.ai.ai_engine import AIEngine
+        ai_engine = AIEngine(db)
+        if ai_engine.is_enabled and ai_engine.is_feature_enabled("data_validate"):
+            from app.routers.ai_validate import (
+                _get_validate_config, _sample_historical_data,
+                _run_outlier_checks, _run_format_checks,
+                _run_duplicate_checks, _run_cross_field_checks,
+            )
+            validate_config = _get_validate_config(db)
+            skip_fields_set = set(validate_config.get("skip_fields", []))
+            sample_size = validate_config.get("history_sample_size", 1000)
+            hist_data = _sample_historical_data(ds, tc, fields, sample_size)
+
+            if hist_data:
+                # Prepare import data with row numbers
+                ai_import_data = []
+                for row in data_rows:
+                    if not row["errors"]:
+                        d = dict(row["data"])
+                        d["_row_num"] = row["row_num"]
+                        ai_import_data.append(d)
+
+                if ai_import_data:
+                    ai_warnings.extend(_run_outlier_checks(ai_import_data, hist_data, fields, validate_config, skip_fields_set))
+                    ai_warnings.extend(_run_format_checks(ai_import_data, hist_data, fields, skip_fields_set))
+                    ai_warnings.extend(_run_duplicate_checks(ai_import_data, hist_data, fields, skip_fields_set))
+                    ai_warnings.extend(_run_cross_field_checks(ai_import_data, fields, skip_fields_set))
+    except Exception:
+        pass  # AI validation failure should not block import
+
     # ── 8. Save import task log ──
     batch_no = _gen_batch("IMP")
     total_rows = len(data_rows)
@@ -1062,6 +1095,8 @@ async def import_template(
         "new_count": len(new_rows),
         "errors": errors[:100],
         "warnings_list": warnings[:50],
+        "ai_warnings": ai_warnings[:100],
+        "ai_warnings_count": len(ai_warnings),
     }
 
 

@@ -6,12 +6,13 @@ import {
 import {
   RobotOutlined, ApiOutlined, CheckCircleOutlined, CloseCircleOutlined,
   LoadingOutlined, EyeOutlined, EyeInvisibleOutlined,
-  SaveOutlined, UndoOutlined,
+  SaveOutlined, UndoOutlined, SafetyCertificateOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import {
   getAIConfig, updateAIConfig, testAIConnection,
-  type AIConfigData, type AIConfigUpdateData,
+  getAIValidateConfig, updateAIValidateConfig,
+  type AIConfigData, type AIConfigUpdateData, type AIValidateConfig,
 } from '../../api/aiConfig';
 
 const { Title, Text } = Typography;
@@ -99,6 +100,7 @@ export default function AIConfigPage() {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const [config, setConfig] = useState<AIConfigData | null>(null);
+  const [validateConfig, setValidateConfig] = useState<AIValidateConfig | null>(null);
   const [form] = Form.useForm();
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
@@ -125,6 +127,13 @@ export default function AIConfigPage() {
       // Set platform
       const preset = PLATFORM_PRESETS.find(p => p.name === res.data.platform_name);
       setSelectedPlatform(preset || null);
+      // Load validate config
+      try {
+        const vcRes = await getAIValidateConfig();
+        setValidateConfig(vcRes.data);
+      } catch {
+        // ignore
+      }
     } catch {
       message.error(t('common.failed'));
     } finally {
@@ -421,6 +430,123 @@ export default function AIConfigPage() {
                 </div>
               ))}
             </Card>
+
+            {/* ── AI Validate Config (v3.0) ── */}
+            {config?.feature_flags?.data_validate && validateConfig && (
+              <Card
+                title={
+                  <Space>
+                    <SafetyCertificateOutlined />
+                    {isZh ? '智能校验配置' : 'Smart Validation Config'}
+                  </Space>
+                }
+                style={{ marginBottom: 16 }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Outlier range */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <Text strong>{isZh ? '异常值检测范围' : 'Outlier Detection Range'}</Text>
+                      <br />
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {isZh ? '超出此分位数范围标警告' : 'Values outside this percentile range trigger warnings'}
+                      </Text>
+                    </div>
+                    <Radio.Group
+                      value={validateConfig.outlier_range}
+                      onChange={async (e) => {
+                        try {
+                          const res = await updateAIValidateConfig({ outlier_range: e.target.value });
+                          setValidateConfig(res.data);
+                        } catch { /* ignore */ }
+                      }}
+                    >
+                      <Radio.Button value="p1_p99">P1-P99</Radio.Button>
+                      <Radio.Button value="p5_p95">P5-P95</Radio.Button>
+                      <Radio.Button value="p10_p90">P10-P90</Radio.Button>
+                    </Radio.Group>
+                  </div>
+
+                  <Divider style={{ margin: '4px 0' }} />
+
+                  {/* History sample size */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <Text strong>{isZh ? '历史采样量' : 'History Sample Size'}</Text>
+                      <br />
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {isZh ? '用于统计分析的历史数据采样条数' : 'Number of historical records to sample for analysis'}
+                      </Text>
+                    </div>
+                    <InputNumber
+                      min={100}
+                      max={10000}
+                      step={100}
+                      value={validateConfig.history_sample_size}
+                      onChange={async (val) => {
+                        if (val) {
+                          try {
+                            const res = await updateAIValidateConfig({ history_sample_size: val });
+                            setValidateConfig(res.data);
+                          } catch { /* ignore */ }
+                        }
+                      }}
+                      style={{ width: 140 }}
+                    />
+                  </div>
+
+                  <Divider style={{ margin: '4px 0' }} />
+
+                  {/* Warning behavior */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <Text strong>{isZh ? '警告行为' : 'Warning Behavior'}</Text>
+                      <br />
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {isZh ? 'AI 警告是否阻断导入' : 'Whether AI warnings block import'}
+                      </Text>
+                    </div>
+                    <Radio.Group
+                      value={validateConfig.warning_behavior}
+                      onChange={async (e) => {
+                        try {
+                          const res = await updateAIValidateConfig({ warning_behavior: e.target.value });
+                          setValidateConfig(res.data);
+                        } catch { /* ignore */ }
+                      }}
+                    >
+                      <Radio.Button value="warn">{isZh ? '仅提醒' : 'Warn only'}</Radio.Button>
+                      <Radio.Button value="block">{isZh ? '阻断导入' : 'Block import'}</Radio.Button>
+                    </Radio.Group>
+                  </div>
+
+                  <Divider style={{ margin: '4px 0' }} />
+
+                  {/* Skip fields */}
+                  <div>
+                    <div style={{ marginBottom: 8 }}>
+                      <Text strong>{isZh ? '跳过字段' : 'Skip Fields'}</Text>
+                      <br />
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {isZh ? '指定不参与智能校验的字段名（逗号分隔）' : 'Field names to exclude from smart validation (comma separated)'}
+                      </Text>
+                    </div>
+                    <Select
+                      mode="tags"
+                      style={{ width: '100%' }}
+                      placeholder={isZh ? '输入字段名后回车添加' : 'Type field name and press Enter'}
+                      value={validateConfig.skip_fields}
+                      onChange={async (vals) => {
+                        try {
+                          const res = await updateAIValidateConfig({ skip_fields: vals });
+                          setValidateConfig(res.data);
+                        } catch { /* ignore */ }
+                      }}
+                    />
+                  </div>
+                </div>
+              </Card>
+            )}
           </>
         )}
 
