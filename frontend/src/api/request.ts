@@ -2,12 +2,15 @@ import axios from 'axios';
 
 export const api = axios.create({ baseURL: '/api' });
 
-// Request interceptor: attach JWT token
+// Request interceptor: attach JWT token and Accept-Language header
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // Send current i18n language as Accept-Language for backend i18n
+  const lang = localStorage.getItem('i18n-lang') || 'zh';
+  config.headers['Accept-Language'] = lang === 'en' ? 'en' : 'zh';
   return config;
 });
 

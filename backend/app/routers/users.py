@@ -14,6 +14,7 @@ from app.utils.auth import (
     get_current_user, require_role, hash_password, verify_password,
 )
 from app.utils.audit import log_operation
+from app.i18n import t
 
 router = APIRouter(tags=["用户管理"])
 
@@ -93,10 +94,10 @@ def create_user(
     user: UserAccount = Depends(require_role("admin")),
 ):
     if body.role not in ("admin", "operator", "readonly"):
-        raise HTTPException(400, "角色必须为 admin / operator / readonly")
+        raise HTTPException(400, t("user.role_invalid"))
     existing = db.query(UserAccount).filter(UserAccount.username == body.username).first()
     if existing:
-        raise HTTPException(409, f"用户名 {body.username} 已存在")
+        raise HTTPException(409, t("user.username_exists", username=body.username))
 
     new_user = UserAccount(
         username=body.username,
@@ -135,12 +136,12 @@ def update_user(
 ):
     target = db.query(UserAccount).filter(UserAccount.id == user_id).first()
     if not target:
-        raise HTTPException(404, "用户不存在")
+        raise HTTPException(404, t("user.not_found"))
     if body.display_name is not None:
         target.display_name = body.display_name
     if body.role is not None:
         if body.role not in ("admin", "operator", "readonly"):
-            raise HTTPException(400, "角色必须为 admin / operator / readonly")
+            raise HTTPException(400, t("user.role_invalid"))
         target.role = body.role
     target.updated_at = _now_bjt()
     log_operation(
@@ -171,14 +172,14 @@ def update_user_status(
 ):
     target = db.query(UserAccount).filter(UserAccount.id == user_id).first()
     if not target:
-        raise HTTPException(404, "用户不存在")
+        raise HTTPException(404, t("user.not_found"))
     if target.username == "admin" and body.status == "disabled":
-        raise HTTPException(400, "不能禁用默认管理员账户")
+        raise HTTPException(400, t("user.cannot_disable_admin"))
     if body.status not in ("enabled", "disabled"):
-        raise HTTPException(400, "状态必须为 enabled / disabled")
+        raise HTTPException(400, t("user.status_invalid"))
     target.status = body.status
     target.updated_at = _now_bjt()
-    action = "启用用户" if body.status == "enabled" else "禁用用户"
+    action = t("user.enable") if body.status == "enabled" else t("user.disable")
     log_operation(
         db, "用户管理", action, "success",
         target_id=target.id,
@@ -187,7 +188,7 @@ def update_user_status(
         operator=user.username,
     )
     db.commit()
-    return {"detail": f"已{action}"}
+    return {"detail": t("user.status_updated", action=action)}
 
 
 @router.put("/api/users/{user_id}/reset-password")
@@ -199,7 +200,7 @@ def reset_user_password(
 ):
     target = db.query(UserAccount).filter(UserAccount.id == user_id).first()
     if not target:
-        raise HTTPException(404, "用户不存在")
+        raise HTTPException(404, t("user.not_found"))
     target.password_hash = hash_password(body.new_password)
     target.updated_at = _now_bjt()
     log_operation(
@@ -210,7 +211,7 @@ def reset_user_password(
         operator=user.username,
     )
     db.commit()
-    return {"detail": "密码已重置"}
+    return {"detail": t("user.password_reset")}
 
 
 # ── Personal Settings (/api/me) ──
@@ -222,9 +223,9 @@ def change_my_password(
     user: UserAccount = Depends(get_current_user),
 ):
     if not verify_password(body.old_password, user.password_hash):
-        raise HTTPException(400, "旧密码错误")
+        raise HTTPException(400, t("user.old_password_wrong"))
     if len(body.new_password) < 4:
-        raise HTTPException(400, "新密码长度不能少于4位")
+        raise HTTPException(400, t("user.password_too_short"))
     user.password_hash = hash_password(body.new_password)
     user.updated_at = _now_bjt()
     log_operation(
@@ -235,7 +236,7 @@ def change_my_password(
         operator=user.username,
     )
     db.commit()
-    return {"detail": "密码修改成功"}
+    return {"detail": t("user.password_changed")}
 
 
 @router.put("/api/me/profile")
@@ -254,7 +255,7 @@ def update_my_profile(
         operator=user.username,
     )
     db.commit()
-    return {"detail": "显示名修改成功", "display_name": body.display_name}
+    return {"detail": t("user.profile_updated"), "display_name": body.display_name}
 
 
 # ── Datasource Permission Management (v2.2) ──
@@ -267,7 +268,7 @@ def get_user_datasource_permissions(
 ):
     target = db.query(UserAccount).filter(UserAccount.id == user_id).first()
     if not target:
-        raise HTTPException(404, "用户不存在")
+        raise HTTPException(404, t("user.not_found"))
     perms = db.query(UserDatasourcePermission).filter(
         UserDatasourcePermission.user_id == user_id
     ).all()
@@ -298,7 +299,7 @@ def set_user_datasource_permissions(
 ):
     target = db.query(UserAccount).filter(UserAccount.id == user_id).first()
     if not target:
-        raise HTTPException(404, "用户不存在")
+        raise HTTPException(404, t("user.not_found"))
     # Delete existing permissions
     db.query(UserDatasourcePermission).filter(
         UserDatasourcePermission.user_id == user_id
@@ -314,4 +315,4 @@ def set_user_datasource_permissions(
         operator=user.username,
     )
     db.commit()
-    return {"detail": "数据源权限已更新", "datasource_ids": body.datasource_ids}
+    return {"detail": t("user.datasource_perm_updated"), "datasource_ids": body.datasource_ids}

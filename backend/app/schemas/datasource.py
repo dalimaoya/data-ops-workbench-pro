@@ -8,13 +8,13 @@ from pydantic import BaseModel, Field
 
 class DatasourceCreate(BaseModel):
     datasource_name: str = Field(..., max_length=128)
-    db_type: str = Field(..., pattern=r"^(mysql|postgresql|sqlserver)$")
-    host: str = Field(..., max_length=255)
-    port: int = Field(..., gt=0, le=65535)
+    db_type: str = Field(..., pattern=r"^(mysql|postgresql|sqlserver|oracle|dm|kingbase|sqlite)$")
+    host: str = Field("", max_length=255)
+    port: int = Field(0, ge=0, le=65535)
     database_name: Optional[str] = None
     schema_name: Optional[str] = None
     username: str = Field(..., max_length=128)
-    password: str = Field(..., min_length=1)
+    password: str = Field("", min_length=0)
     charset: Optional[str] = "utf8"
     connect_timeout_seconds: Optional[int] = 10
     status: str = "enabled"

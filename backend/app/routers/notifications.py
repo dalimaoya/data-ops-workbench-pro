@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Notification, UserAccount, _now_bjt
 from app.utils.auth import get_current_user
+from app.i18n import t
 
 router = APIRouter(prefix="/api/notifications", tags=["通知"])
 
@@ -65,7 +66,7 @@ def mark_read(
         Notification.user_id == user.id,
     ).first()
     if not n:
-        raise HTTPException(404, "通知不存在")
+        raise HTTPException(404, t("notification.not_found"))
     n.is_read = 1
     db.commit()
     return {"success": True}

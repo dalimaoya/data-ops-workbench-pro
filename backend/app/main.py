@@ -16,6 +16,7 @@ from app.routers import users as users_router
 from app.routers import approvals as approvals_router
 from app.routers import notifications as notifications_router
 from app.utils.auth import init_default_admin
+from app.i18n import parse_accept_language, set_lang
 
 
 @asynccontextmanager
@@ -46,6 +47,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# i18n middleware: parse Accept-Language header and set current language
+@app.middleware("http")
+async def i18n_middleware(request: Request, call_next):
+    lang = parse_accept_language(request.headers.get("accept-language"))
+    set_lang(lang)
+    response = await call_next(request)
+    return response
+
 
 # Register API routers
 app.include_router(auth_router.router)

@@ -17,6 +17,7 @@ from app.utils.crypto import decrypt_password
 from app.utils.remote_db import _connect
 from app.utils.auth import get_current_user, require_role
 from app.models import UserAccount
+from app.i18n import t
 
 router = APIRouter(prefix="/api/backup-versions", tags=["版本回退"])
 
@@ -122,7 +123,7 @@ def get_backup_version_detail(version_id: int, db: Session = Depends(get_db), us
     """备份版本详情。"""
     r = db.query(TableBackupVersion).filter(TableBackupVersion.id == version_id).first()
     if not r:
-        raise HTTPException(404, "备份版本不存在")
+        raise HTTPException(404, t("backup.not_found"))
 
     ds = db.query(DatasourceConfig).filter(DatasourceConfig.id == r.datasource_id).first()
     tc = db.query(TableConfig).filter(TableConfig.id == r.table_config_id).first()
@@ -173,20 +174,20 @@ def rollback_version(version_id: int, db: Session = Depends(get_db), user: UserA
     """执行回退：先备份当前数据，再从备份表恢复到原表，记录日志。"""
     bv = db.query(TableBackupVersion).filter(TableBackupVersion.id == version_id).first()
     if not bv:
-        raise HTTPException(404, "备份版本不存在")
+        raise HTTPException(404, t("backup.not_found"))
     if not bv.can_rollback:
-        raise HTTPException(400, "该版本不可回退（已过期或已被清理）")
+        raise HTTPException(400, t("backup.not_rollbackable"))
     if bv.storage_status != "valid":
-        raise HTTPException(400, f"备份状态异常: {bv.storage_status}")
+        raise HTTPException(400, t("backup.status_abnormal", status=bv.storage_status))
 
     tc = db.query(TableConfig).filter(TableConfig.id == bv.table_config_id).first()
     if not tc:
-        raise HTTPException(404, "纳管表配置不存在")
+        raise HTTPException(404, t("backup.table_config_not_found"))
     ds = db.query(DatasourceConfig).filter(
         DatasourceConfig.id == bv.datasource_id, DatasourceConfig.is_deleted == 0
     ).first()
     if not ds:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("backup.datasource_not_found"))
 
     pwd = decrypt_password(ds.password_encrypted)
     started_at = _now_bjt()
@@ -275,7 +276,7 @@ def rollback_version(version_id: int, db: Session = Depends(get_db), user: UserA
 
         return {
             "success": True,
-            "message": f"回退成功，恢复 {restored_count} 条记录",
+            "message": t("backup.rollback_success", count=restored_count),
             "backup_version_no": bv.backup_version_no,
             "pre_rollback_backup_no": pre_rb_batch,
             "pre_rollback_backup_table": pre_rollback_backup_name,
@@ -298,6 +299,6 @@ def rollback_version(version_id: int, db: Session = Depends(get_db), user: UserA
             operator=user.username,
         )
         db.commit()
-        raise HTTPException(500, f"回退失败: {str(e)}")
+        raise HTTPException(500, t("backup.rollback_failed", error=str(e)))
     finally:
         conn.close()

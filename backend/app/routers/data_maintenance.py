@@ -27,6 +27,7 @@ from app.utils.audit import log_operation
 from app.utils.auth import get_current_user, require_role
 from app.utils.permissions import get_permitted_datasource_ids
 from app.models import UserAccount, ApprovalRequest, SystemSetting
+from app.i18n import t
 
 router = APIRouter(prefix="/api/data-maintenance", tags=["数据维护"])
 
@@ -72,7 +73,7 @@ def _create_approval_request(
         "approval_required": True,
         "approval_id": approval.id,
         "status": "pending",
-        "message": "已提交审批，等待管理员审核",
+        "message": t("data_maintenance.submitted_for_approval"),
     }
 
 
@@ -100,7 +101,7 @@ def _get_tc(db: Session, tc_id: int) -> TableConfig:
         TableConfig.id == tc_id, TableConfig.is_deleted == 0, TableConfig.status == "enabled"
     ).first()
     if not tc:
-        raise HTTPException(404, "纳管表不存在或未启用")
+        raise HTTPException(404, t("data_maintenance.table_not_found"))
     return tc
 
 
@@ -109,7 +110,7 @@ def _get_ds(db: Session, ds_id: int) -> DatasourceConfig:
         DatasourceConfig.id == ds_id, DatasourceConfig.is_deleted == 0
     ).first()
     if not ds:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("data_maintenance.datasource_not_found"))
     return ds
 
 
@@ -398,7 +399,7 @@ def browse_table_data(
             "allow_delete_rows": tc.allow_delete_rows if user.role in ("admin", "operator") else 0,
         }
     except Exception as e:
-        raise HTTPException(500, f"查询数据失败: {str(e)}")
+        raise HTTPException(500, t("data_maintenance.query_failed", error=str(e)))
     finally:
         conn.close()
 
@@ -426,7 +427,7 @@ def export_template(
     fields = _get_fields(db, table_config_id)
     export_fields = [f for f in fields if f.include_in_export]
     if not export_fields:
-        raise HTTPException(400, "没有可导出的字段")
+        raise HTTPException(400, t("data_maintenance.no_export_fields"))
 
     col_names = [f.field_name for f in export_fields]
     pk_set = set(f.strip() for f in tc.primary_key_fields.split(","))
@@ -469,7 +470,7 @@ def export_template(
         _exec(cur, ds.db_type, data_sql, params)
         raw_rows = cur.fetchall()
     except Exception as e:
-        raise HTTPException(500, f"查询数据失败: {str(e)}")
+        raise HTTPException(500, t("data_maintenance.query_failed", error=str(e)))
     finally:
         conn.close()
 
@@ -665,36 +666,36 @@ async def import_template(
     try:
         wb = openpyxl.load_workbook(save_path, data_only=True)
     except Exception as e:
-        raise HTTPException(400, f"无法解析文件: {str(e)}")
+        raise HTTPException(400, t("data_maintenance.file_parse_failed", error=str(e)))
 
     # ── 1. Validate meta sheet ──
     if "_meta" not in wb.sheetnames:
-        raise HTTPException(400, "非平台导出模板，缺少元信息")
+        raise HTTPException(400, t("data_maintenance.not_platform_template"))
 
     meta_ws = wb["_meta"]
     meta_raw = meta_ws.cell(row=1, column=1).value
     if not meta_raw:
-        raise HTTPException(400, "模板元信息为空")
+        raise HTTPException(400, t("data_maintenance.meta_empty"))
 
     try:
         meta = json.loads(meta_raw)
     except json.JSONDecodeError:
-        raise HTTPException(400, "模板元信息格式错误")
+        raise HTTPException(400, t("data_maintenance.meta_format_error"))
 
     # ── 2. Validate template legitimacy ──
     errors: List[dict] = []
     warnings: List[dict] = []
 
     if meta.get("table_config_id") != table_config_id:
-        raise HTTPException(400, f"模板不属于当前纳管表 (期望 {table_config_id}，实际 {meta.get('table_config_id')})")
+        raise HTTPException(400, t("data_maintenance.table_id_mismatch", expected=table_config_id, actual=meta.get('table_config_id')))
 
     if meta.get("datasource_id") != tc.datasource_id:
-        raise HTTPException(400, "模板的数据源ID不匹配")
+        raise HTTPException(400, t("data_maintenance.datasource_id_mismatch"))
 
     # ── 3. Version match ──
     meta_version = meta.get("config_version", 0)
     if tc.strict_template_version and meta_version != tc.config_version:
-        raise HTTPException(400, f"配置版本不匹配 (模板版本 {meta_version}，当前版本 {tc.config_version})，请重新导出模板")
+        raise HTTPException(400, t("data_maintenance.config_version_mismatch", template_ver=meta_version, current_ver=tc.config_version))
 
     # ── 4. Read data sheet ──
     data_ws = wb["数据"] if "数据" in wb.sheetnames else wb.worksheets[0]
@@ -717,18 +718,18 @@ async def import_template(
     if actual_col_count != expected_col_count:
         raise HTTPException(
             400,
-            f"列数不匹配：模板定义 {expected_col_count} 列，上传文件 {actual_col_count} 列。请使用平台导出的原始模板。",
+            t("data_maintenance.col_count_mismatch", expected=expected_col_count, actual=actual_col_count),
         )
 
     # ── 4.2 列名逐列校验 ──
     mismatched_cols: List[str] = []
     for idx, (expected, actual) in enumerate(zip(expected_aliases, header_row)):
         if expected != actual:
-            mismatched_cols.append(f"第{idx+1}列 期望「{expected}」实际「{actual}」")
+            mismatched_cols.append(t("data_maintenance.col_name_mismatch", col=idx+1, expected=expected, actual=actual))
     if mismatched_cols:
         raise HTTPException(
             400,
-            f"列名不匹配：{'; '.join(mismatched_cols)}。请勿修改表头，使用平台导出的原始模板。",
+            '; '.join(mismatched_cols),
         )
 
     # ── 5. Field completeness check ──
@@ -743,11 +744,11 @@ async def import_template(
     for f in import_fields:
         if f.field_name not in mapped_field_names and f.field_name in set(f2.field_name for f2 in export_fields):
             if f.is_primary_key:
-                errors.append({"row": 0, "field": f.field_name, "type": "field_missing", "message": f"主键字段 {f.field_name} 缺失"})
+                errors.append({"row": 0, "field": f.field_name, "type": "field_missing", "message": t("data_maintenance.pk_field_missing", field=f.field_name)})
             else:
-                warnings.append({"row": 0, "field": f.field_name, "type": "field_missing", "message": f"导入字段 {f.field_name} 缺失"})
+                warnings.append({"row": 0, "field": f.field_name, "type": "field_missing", "message": t("data_maintenance.field_missing", field=f.field_name)})
 
-    if any(e["type"] == "field_missing" and "主键" in e["message"] for e in errors):
+    if any(e["type"] == "field_missing" for e in errors):
         batch_no = _gen_batch("IMP")
         log = ImportTaskLog(
             import_batch_no=batch_no,
@@ -812,7 +813,7 @@ async def import_template(
                 row_errors.append({
                     "row": row_idx, "field": fname,
                     "type": "required", "value": str_val,
-                    "message": f"第{row_idx}行 字段[{fc.field_alias or fname}] 必填",
+                    "message": t("data_maintenance.row_field_required", row=row_idx, field=fc.field_alias or fname),
                 })
 
             # Length check
@@ -820,29 +821,29 @@ async def import_template(
                 row_errors.append({
                     "row": row_idx, "field": fname,
                     "type": "length", "value": str_val,
-                    "message": f"第{row_idx}行 字段[{fc.field_alias or fname}] 超过长度限制 {fc.max_length}",
+                    "message": t("data_maintenance.row_field_too_long", row=row_idx, field=fc.field_alias or fname, max_len=fc.max_length),
                 })
 
             # Data type check
             if str_val and fc.db_data_type:
                 dtype = fc.db_data_type.lower()
-                if any(t in dtype for t in ("int", "bigint", "smallint", "tinyint")):
+                if any(dt in dtype for dt in ("int", "bigint", "smallint", "tinyint")):
                     try:
                         int(str_val)
                     except ValueError:
                         row_errors.append({
                             "row": row_idx, "field": fname,
                             "type": "data_type", "value": str_val,
-                            "message": f"第{row_idx}行 字段[{fc.field_alias or fname}] 期望整数",
+                            "message": t("data_maintenance.row_field_expect_int", row=row_idx, field=fc.field_alias or fname),
                         })
-                elif any(t in dtype for t in ("decimal", "numeric", "float", "double", "real")):
+                elif any(dt in dtype for dt in ("decimal", "numeric", "float", "double", "real")):
                     try:
                         float(str_val)
                     except ValueError:
                         row_errors.append({
                             "row": row_idx, "field": fname,
                             "type": "data_type", "value": str_val,
-                            "message": f"第{row_idx}行 字段[{fc.field_alias or fname}] 期望数值",
+                            "message": t("data_maintenance.row_field_expect_number", row=row_idx, field=fc.field_alias or fname),
                         })
 
             # Enum check
@@ -853,7 +854,7 @@ async def import_template(
                         row_errors.append({
                             "row": row_idx, "field": fname,
                             "type": "enum", "value": str_val,
-                            "message": f"第{row_idx}行 字段[{fc.field_alias or fname}] 值不在枚举范围内",
+                            "message": t("data_maintenance.row_field_not_in_enum", row=row_idx, field=fc.field_alias or fname),
                         })
                 except json.JSONDecodeError:
                     pass
@@ -865,13 +866,13 @@ async def import_template(
             row_errors.append({
                 "row": row_idx, "field": ",".join(pk_fields),
                 "type": "pk_empty", "value": pk_key,
-                "message": f"第{row_idx}行 主键字段为空",
+                "message": t("data_maintenance.row_pk_empty", row=row_idx),
             })
         elif pk_key in seen_pks:
             row_errors.append({
                 "row": row_idx, "field": ",".join(pk_fields),
                 "type": "duplicate", "value": pk_key,
-                "message": f"第{row_idx}行 与第{seen_pks[pk_key]}行主键重复",
+                "message": t("data_maintenance.row_pk_duplicate", row=row_idx, dup_row=seen_pks[pk_key]),
             })
         else:
             seen_pks[pk_key] = row_idx
@@ -916,7 +917,7 @@ async def import_template(
                     row_dict[fn] = str(db_row[j]) if db_row[j] is not None else None
                 db_pk_map[pk_val] = row_dict
         except Exception as e:
-            raise HTTPException(500, f"查询原始数据失败: {str(e)}")
+            raise HTTPException(500, t("data_maintenance.query_original_failed", error=str(e)))
         finally:
             conn.close()
 
@@ -960,7 +961,7 @@ async def import_template(
                     row["errors"].append({
                         "row": row["row_num"], "field": ",".join(pk_fields),
                         "type": "pk_not_found", "value": pk_key,
-                        "message": f"第{row['row_num']}行 主键值「{pk_key}」在数据库中不存在（该表未启用新增行功能）",
+                        "message": t("data_maintenance.row_pk_not_in_db_no_insert", row=row['row_num'], pk=pk_key),
                     })
                     errors.append(row["errors"][-1])
                 continue
@@ -1058,13 +1059,13 @@ def get_import_diff(task_id: int, db: Session = Depends(get_db), user: UserAccou
     """返回原值/新值对比数据。"""
     task = db.query(ImportTaskLog).filter(ImportTaskLog.id == task_id).first()
     if not task:
-        raise HTTPException(404, "导入任务不存在")
+        raise HTTPException(404, t("data_maintenance.import_task_not_found"))
 
     tc = db.query(TableConfig).filter(TableConfig.id == task.table_config_id).first()
 
     diff_file = os.path.join(UPLOAD_DIR, f"diff_{task_id}.json")
     if not os.path.isfile(diff_file):
-        raise HTTPException(404, "差异数据不存在，请重新导入")
+        raise HTTPException(404, t("data_maintenance.diff_not_found"))
 
     with open(diff_file, "r", encoding="utf-8") as f:
         diff_data = json.load(f)
@@ -1097,20 +1098,20 @@ def get_diff_report(task_id: int, db: Session = Depends(get_db), user: UserAccou
 
     task = db.query(ImportTaskLog).filter(ImportTaskLog.id == task_id).first()
     if not task:
-        raise HTTPException(404, "导入任务不存在")
+        raise HTTPException(404, t("data_maintenance.import_task_not_found"))
 
     tc = db.query(TableConfig).filter(TableConfig.id == task.table_config_id).first()
 
     diff_file = os.path.join(UPLOAD_DIR, "diff_%d.json" % task_id)
     if not os.path.isfile(diff_file):
-        raise HTTPException(404, "差异数据不存在，请重新导入")
+        raise HTTPException(404, t("data_maintenance.diff_not_found"))
 
     with open(diff_file, "r", encoding="utf-8") as f:
         diff_data = json.load(f)
 
     diff_rows = diff_data.get("diff_rows", [])
     if not diff_rows:
-        raise HTTPException(400, "没有差异数据")
+        raise HTTPException(400, t("data_maintenance.no_diff_data"))
 
     # Create Excel workbook
     wb = openpyxl.Workbook()
@@ -1178,15 +1179,15 @@ def retry_import_validation(task_id: int, db: Session = Depends(get_db), user: U
     """Retry validation using the original uploaded file."""
     task = db.query(ImportTaskLog).filter(ImportTaskLog.id == task_id).first()
     if not task:
-        raise HTTPException(404, "导入任务不存在")
+        raise HTTPException(404, t("data_maintenance.import_task_not_found"))
 
     # Only allow retry on failed validations
     if task.validation_status not in ("failed", "partial"):
-        raise HTTPException(400, "只能对校验失败或部分失败的导入任务重新校验")
+        raise HTTPException(400, t("data_maintenance.revalidate_status_error"))
 
     # Check original file exists
     if not task.import_file_path or not os.path.isfile(task.import_file_path):
-        raise HTTPException(404, "原始上传文件不存在，无法重新校验")
+        raise HTTPException(404, t("data_maintenance.upload_file_not_found"))
 
     # Re-read the original file and re-run the import validation
     # We'll simulate re-upload by reading the file and calling the import logic
@@ -1198,14 +1199,14 @@ def retry_import_validation(task_id: int, db: Session = Depends(get_db), user: U
         TableConfig.status == "enabled",
     ).first()
     if not tc:
-        raise HTTPException(404, "纳管表不存在或未启用")
+        raise HTTPException(404, t("data_maintenance.table_not_found"))
 
     ds = db.query(DatasourceConfig).filter(
         DatasourceConfig.id == tc.datasource_id,
         DatasourceConfig.is_deleted == 0,
     ).first()
     if not ds:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("data_maintenance.datasource_not_found"))
 
     pwd = decrypt_password(ds.password_encrypted)
     fields = _get_fields(db, tc.id)
@@ -1214,20 +1215,20 @@ def retry_import_validation(task_id: int, db: Session = Depends(get_db), user: U
     try:
         wb = openpyxl.load_workbook(task.import_file_path, data_only=True)
     except Exception as e:
-        raise HTTPException(400, "无法解析文件: %s" % str(e))
+        raise HTTPException(400, t("data_maintenance.file_parse_failed", error=str(e)))
 
     if "_meta" not in wb.sheetnames:
-        raise HTTPException(400, "非平台导出模板，缺少元信息")
+        raise HTTPException(400, t("data_maintenance.not_platform_template"))
 
     meta_ws = wb["_meta"]
     meta_raw = meta_ws.cell(row=1, column=1).value
     if not meta_raw:
-        raise HTTPException(400, "模板元信息为空")
+        raise HTTPException(400, t("data_maintenance.meta_empty"))
 
     try:
         meta = json.loads(meta_raw)
     except json.JSONDecodeError:
-        raise HTTPException(400, "模板元信息格式错误")
+        raise HTTPException(400, t("data_maintenance.meta_format_error"))
 
     # Validate
     errors = []
@@ -1235,7 +1236,7 @@ def retry_import_validation(task_id: int, db: Session = Depends(get_db), user: U
 
     meta_version = meta.get("config_version", 0)
     if tc.strict_template_version and meta_version != tc.config_version:
-        raise HTTPException(400, "配置版本不匹配 (模板版本 %d，当前版本 %d)，请重新导出模板" % (meta_version, tc.config_version))
+        raise HTTPException(400, t("data_maintenance.config_version_mismatch", template_ver=meta_version, current_ver=tc.config_version))
 
     data_ws = wb["数据"] if "数据" in wb.sheetnames else wb.worksheets[0]
     header_row = [cell.value for cell in data_ws[1]]
@@ -1274,19 +1275,19 @@ def retry_import_validation(task_id: int, db: Session = Depends(get_db), user: U
                 continue
             if fc.is_required and (str_val is None or str_val == ""):
                 row_errors.append({"row": row_idx, "field": fname, "type": "required", "value": str_val,
-                                   "message": "第%d行 字段[%s] 必填" % (row_idx, fc.field_alias or fname)})
+                                   "message": t("data_maintenance.row_field_required", row=row_idx, field=fc.field_alias or fname)})
             if fc.max_length and str_val and len(str_val) > fc.max_length:
                 row_errors.append({"row": row_idx, "field": fname, "type": "length", "value": str_val,
-                                   "message": "第%d行 字段[%s] 超过长度限制 %d" % (row_idx, fc.field_alias or fname, fc.max_length)})
+                                   "message": t("data_maintenance.row_field_too_long", row=row_idx, field=fc.field_alias or fname, max_len=fc.max_length)})
 
         pk_vals = tuple(row_data.get(mapped_cols[i], "") for i in pk_col_indices)
         pk_key = "|".join(str(v) for v in pk_vals)
         if any(v is None or v == "" for v in pk_vals):
             row_errors.append({"row": row_idx, "field": ",".join(pk_fields), "type": "pk_empty", "value": pk_key,
-                               "message": "第%d行 主键字段为空" % row_idx})
+                               "message": t("data_maintenance.row_pk_empty", row=row_idx)})
         elif pk_key in seen_pks:
             row_errors.append({"row": row_idx, "field": ",".join(pk_fields), "type": "duplicate", "value": pk_key,
-                               "message": "第%d行 与第%d行主键重复" % (row_idx, seen_pks[pk_key])})
+                               "message": t("data_maintenance.row_pk_duplicate", row=row_idx, dup_row=seen_pks[pk_key])})
         else:
             seen_pks[pk_key] = row_idx
 
@@ -1316,7 +1317,7 @@ def retry_import_validation(task_id: int, db: Session = Depends(get_db), user: U
                     row_dict[fn] = str(db_row[j]) if db_row[j] is not None else None
                 db_pk_map[pk_val] = row_dict
         except Exception as e:
-            raise HTTPException(500, "查询原始数据失败: %s" % str(e))
+            raise HTTPException(500, t("data_maintenance.query_original_failed", error=str(e)))
         finally:
             conn.close()
 
@@ -1340,7 +1341,7 @@ def retry_import_validation(task_id: int, db: Session = Depends(get_db), user: U
                 else:
                     row["errors"].append({"row": row["row_num"], "field": ",".join(pk_fields),
                                           "type": "pk_not_found", "value": pk_key,
-                                          "message": "第%d行 主键值在数据库中不存在" % row["row_num"]})
+                                          "message": t("data_maintenance.row_pk_not_in_db", row=row["row_num"])})
                     errors.append(row["errors"][-1])
                 continue
             original = db_pk_map[pk_key]
@@ -1420,7 +1421,7 @@ def get_import_task(task_id: int, db: Session = Depends(get_db), user: UserAccou
     """获取导入任务详情。"""
     task = db.query(ImportTaskLog).filter(ImportTaskLog.id == task_id).first()
     if not task:
-        raise HTTPException(404, "导入任务不存在")
+        raise HTTPException(404, t("data_maintenance.import_task_not_found"))
 
     errors = []
     if task.error_detail_json:
@@ -1460,11 +1461,11 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
     """执行回写：写前全表备份 → UPDATE/INSERT → 记录逐字段变更日志。"""
     task = db.query(ImportTaskLog).filter(ImportTaskLog.id == task_id).first()
     if not task:
-        raise HTTPException(404, "导入任务不存在")
+        raise HTTPException(404, t("data_maintenance.import_task_not_found"))
     if task.import_status not in ("validated",):
-        raise HTTPException(400, f"导入任务状态不允许回写: {task.import_status}")
+        raise HTTPException(400, t("data_maintenance.import_status_not_allow_writeback", status=task.import_status))
     if task.validation_status == "failed":
-        raise HTTPException(400, "校验全部失败，无法回写")
+        raise HTTPException(400, t("data_maintenance.all_validation_failed"))
 
     # v2.2: approval workflow
     if _needs_approval(db, user):
@@ -1485,7 +1486,7 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
     # Load diff data
     diff_file = os.path.join(UPLOAD_DIR, f"diff_{task_id}.json")
     if not os.path.isfile(diff_file):
-        raise HTTPException(404, "差异数据不存在，请重新导入")
+        raise HTTPException(404, t("data_maintenance.diff_not_found"))
     with open(diff_file, "r", encoding="utf-8") as f:
         diff_data = json.load(f)
 
@@ -1493,7 +1494,7 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
     new_rows_data = diff_data.get("new_rows", [])
     diff_rows_data = diff_data.get("diff_rows", [])
     if not import_rows and not new_rows_data:
-        raise HTTPException(400, "没有可回写的数据")
+        raise HTTPException(400, t("data_maintenance.no_writeback_data"))
 
     # 分离更新行和新增行
     new_pk_set = set(nr["pk_key"] for nr in new_rows_data)
@@ -1761,7 +1762,7 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
         raise
     except Exception as e:
         conn.rollback()
-        raise HTTPException(500, f"回写失败: {str(e)}")
+        raise HTTPException(500, t("data_maintenance.writeback_failed", error=str(e)))
     finally:
         conn.close()
 
@@ -1809,7 +1810,7 @@ def inline_update(
     pk_fields_list = [p.strip() for p in tc.primary_key_fields.split(",")]
 
     if not body.changes:
-        raise HTTPException(400, "没有变更内容")
+        raise HTTPException(400, t("data_maintenance.no_changes"))
 
     wb_batch = _gen_batch("INL")
     bk_batch = _gen_batch("BK")
@@ -2002,7 +2003,7 @@ def inline_update(
         raise
     except Exception as e:
         conn.rollback()
-        raise HTTPException(500, f"在线编辑失败: {str(e)}")
+        raise HTTPException(500, t("data_maintenance.online_edit_failed", error=str(e)))
     finally:
         conn.close()
 
@@ -2026,7 +2027,7 @@ def inline_insert(
 
     tc = _get_tc(db, table_config_id)
     if not tc.allow_insert_rows:
-        raise HTTPException(403, "该纳管表未启用新增行功能")
+        raise HTTPException(403, t("data_maintenance.insert_not_enabled"))
 
     ds = _get_ds(db, tc.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
@@ -2034,13 +2035,13 @@ def inline_insert(
     pk_fields_list = [p.strip() for p in tc.primary_key_fields.split(",")]
 
     if not body.row_data:
-        raise HTTPException(400, "没有数据")
+        raise HTTPException(400, t("data_maintenance.no_data"))
 
     # Validate PK fields are provided
     for pkf in pk_fields_list:
         pv = body.row_data.get(pkf)
         if not pv or str(pv).strip() == "":
-            raise HTTPException(400, f"主键字段 {pkf} 不能为空")
+            raise HTTPException(400, t("data_maintenance.pk_field_required", field=pkf))
 
     wb_batch = _gen_batch("INS")
     bk_batch = _gen_batch("BK")
@@ -2107,7 +2108,7 @@ def inline_insert(
             conn.commit()
         except Exception as e:
             conn.rollback()
-            raise HTTPException(500, f"新增行失败: {str(e)}")
+            raise HTTPException(500, t("data_maintenance.insert_row_failed", error=str(e)))
 
         finished_at = _now_bjt()
 
@@ -2176,7 +2177,7 @@ def inline_insert(
         raise
     except Exception as e:
         conn.rollback()
-        raise HTTPException(500, f"新增行失败: {str(e)}")
+        raise HTTPException(500, t("data_maintenance.insert_row_failed", error=str(e)))
     finally:
         conn.close()
 
@@ -2208,7 +2209,7 @@ def delete_rows(
 
     tc = _get_tc(db, table_config_id)
     if not tc.allow_delete_rows:
-        raise HTTPException(403, "该纳管表未启用删除行功能")
+        raise HTTPException(403, t("data_maintenance.delete_not_enabled"))
 
     ds = _get_ds(db, tc.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
@@ -2218,7 +2219,7 @@ def delete_rows(
     all_field_names = [f.field_name for f in export_fields]
 
     if not body.pk_values:
-        raise HTTPException(400, "未选择要删除的行")
+        raise HTTPException(400, t("data_maintenance.no_rows_selected"))
 
     conn = _connect(
         ds.db_type, ds.host, ds.port, ds.username, pwd,
@@ -2380,7 +2381,7 @@ def delete_rows(
         raise
     except Exception as e:
         conn.rollback()
-        raise HTTPException(500, f"删除失败: {str(e)}")
+        raise HTTPException(500, t("data_maintenance.delete_failed", error=str(e)))
     finally:
         conn.close()
 
@@ -2412,7 +2413,7 @@ def batch_insert(
 
     tc = _get_tc(db, table_config_id)
     if not tc.allow_insert_rows:
-        raise HTTPException(403, "该纳管表未启用新增行功能")
+        raise HTTPException(403, t("data_maintenance.insert_not_enabled"))
 
     ds = _get_ds(db, tc.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
@@ -2420,7 +2421,7 @@ def batch_insert(
     pk_fields_list = [p.strip() for p in tc.primary_key_fields.split(",")]
 
     if not body.rows:
-        raise HTTPException(400, "没有数据")
+        raise HTTPException(400, t("data_maintenance.no_data"))
 
     # Filter out completely empty rows
     valid_rows = []
@@ -2429,7 +2430,7 @@ def batch_insert(
             valid_rows.append(row_data)
 
     if not valid_rows:
-        raise HTTPException(400, "所有行都是空的")
+        raise HTTPException(400, t("data_maintenance.all_rows_empty"))
 
     # Validate PK fields for each row
     for idx, row_data in enumerate(valid_rows):
@@ -2438,7 +2439,7 @@ def batch_insert(
             if not pv or str(pv).strip() == "":
                 fc = next((f for f in fields if f.field_name == pkf), None)
                 pk_alias = fc.field_alias if fc and fc.field_alias else pkf
-                raise HTTPException(400, "第%d行主键字段「%s」不能为空" % (idx + 1, pk_alias))
+                raise HTTPException(400, t("data_maintenance.batch_pk_required", row=idx + 1, field=pk_alias))
 
     wb_batch = _gen_batch("BINS")
     bk_batch = _gen_batch("BK")
@@ -2598,7 +2599,7 @@ def batch_insert(
         raise
     except Exception as e:
         conn.rollback()
-        raise HTTPException(500, "批量新增失败: %s" % str(e))
+        raise HTTPException(500, t("data_maintenance.batch_insert_failed", error=str(e)))
     finally:
         conn.close()
 
@@ -2855,7 +2856,7 @@ def async_export(
     return {
         "task_id": task_id,
         "status": "processing",
-        "message": "导出任务已创建，将在后台执行",
+        "message": t("data_maintenance.export_task_created"),
     }
 
 
@@ -2907,11 +2908,11 @@ def download_export_task(
     """Download completed async export file."""
     task = db.query(ExportTask).filter(ExportTask.task_id == task_id).first()
     if not task:
-        raise HTTPException(404, "导出任务不存在")
+        raise HTTPException(404, t("data_maintenance.export_task_not_found"))
     if task.status != "completed":
-        raise HTTPException(400, "导出任务未完成，当前状态: %s" % task.status)
+        raise HTTPException(400, t("data_maintenance.export_not_ready", status=task.status))
     if not task.file_path or not os.path.isfile(task.file_path):
-        raise HTTPException(404, "导出文件不存在")
+        raise HTTPException(404, t("data_maintenance.export_file_not_found"))
 
     return FileResponse(
         task.file_path,
@@ -2939,9 +2940,9 @@ def batch_export(
     from openpyxl.utils import get_column_letter
 
     if not body.table_config_ids:
-        raise HTTPException(400, "未选择要导出的表")
+        raise HTTPException(400, t("data_maintenance.no_tables_selected"))
     if len(body.table_config_ids) > 20:
-        raise HTTPException(400, "单次最多导出 20 张表")
+        raise HTTPException(400, t("data_maintenance.too_many_tables"))
 
     zip_batch = _gen_batch("BEXP")
     zip_name = "batch_export_%s.zip" % zip_batch
@@ -2958,7 +2959,7 @@ def batch_export(
                 TableConfig.status == "enabled",
             ).first()
             if not tc:
-                errors.append({"table_config_id": tc_id, "error": "纳管表不存在或未启用"})
+                errors.append({"table_config_id": tc_id, "error": t("data_maintenance.table_not_found")})
                 continue
 
             ds = db.query(DatasourceConfig).filter(
@@ -2966,7 +2967,7 @@ def batch_export(
                 DatasourceConfig.is_deleted == 0,
             ).first()
             if not ds:
-                errors.append({"table_config_id": tc_id, "error": "数据源不存在"})
+                errors.append({"table_config_id": tc_id, "error": t("data_maintenance.datasource_not_found")})
                 continue
 
             pwd = decrypt_password(ds.password_encrypted)
@@ -2978,7 +2979,7 @@ def batch_export(
             )
             export_fields = [f for f in fields if f.include_in_export]
             if not export_fields:
-                errors.append({"table_config_id": tc_id, "error": "没有可导出的字段"})
+                errors.append({"table_config_id": tc_id, "error": t("data_maintenance.no_export_fields")})
                 continue
 
             col_names = [f.field_name for f in export_fields]
@@ -2994,7 +2995,7 @@ def batch_export(
                 cur.execute("SELECT %s FROM %s" % (cols_sql, qt))
                 raw_rows = cur.fetchall()
             except Exception as e:
-                errors.append({"table_config_id": tc_id, "error": "查询失败: %s" % str(e)})
+                errors.append({"table_config_id": tc_id, "error": t("data_maintenance.query_failed", error=str(e))})
                 continue
             finally:
                 conn.close()
@@ -3043,7 +3044,7 @@ def batch_export(
 
     if not exported_files:
         db.commit()
-        raise HTTPException(400, "所有表导出失败: %s" % json.dumps(errors, ensure_ascii=False))
+        raise HTTPException(400, t("data_maintenance.all_export_failed", error=json.dumps(errors, ensure_ascii=False)))
 
     # Package zip
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
