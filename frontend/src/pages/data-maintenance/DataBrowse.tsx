@@ -6,8 +6,11 @@ import {
 import {
   SearchOutlined, DownloadOutlined, UploadOutlined, ReloadOutlined, ArrowLeftOutlined,
   DeleteOutlined, ExclamationCircleOutlined, EditOutlined, PlusOutlined, SaveOutlined, CloseOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import { browseTableData, getExportInfo, exportTemplate, deleteRows, inlineUpdate, batchInsert, asyncExport } from '../../api/dataMaintenance';
+import AIQueryPanel from './AIQueryPanel';
+import type { NLQueryFilter } from '../../api/aiNlQuery';
 import type { ColumnMeta, InlineChange } from '../../api/dataMaintenance';
 import { getTableConfig } from '../../api/tableConfig';
 import { useAuth } from '../../context/AuthContext';
@@ -61,7 +64,26 @@ export default function DataBrowse() {
   const [diffModalOpen, setDiffModalOpen] = useState(false);
   const [diffData, setDiffData] = useState<Array<{ pk_key: string; field_name: string; field_alias: string; old_value: string | null; new_value: string | null }>>([]);
 
+  // v3.0: AI NL Query
+  const [aiQueryOpen, setAiQueryOpen] = useState(false);
+  const [aiFilters, setAiFilters] = useState<NLQueryFilter[]>([]);
+
   const originalRowsRef = useRef<Record<string, Record<string, string | null>>>({});
+
+  // v3.0: Apply AI filters to browse
+  const handleApplyAIFilters = useCallback((filters: NLQueryFilter[]) => {
+    setAiFilters(filters);
+    setPage(1);
+    // Clear manual filters when AI filters are applied
+    setKeyword('');
+    setFilterField(undefined);
+    setFilterValue('');
+  }, []);
+
+  const handleClearAIFilters = useCallback(() => {
+    setAiFilters([]);
+    setPage(1);
+  }, []);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -75,6 +97,7 @@ export default function DataBrowse() {
         page_size: pageSize,
         keyword: keyword || undefined,
         field_filters: Object.keys(fieldFilters).length ? JSON.stringify(fieldFilters) : undefined,
+        structured_filters: aiFilters.length > 0 ? JSON.stringify(aiFilters) : undefined,
       });
       setColumns(res.data.columns);
       setRows(res.data.rows);
@@ -93,7 +116,7 @@ export default function DataBrowse() {
     } finally {
       setLoading(false);
     }
-  }, [tableConfigId, page, pageSize, keyword, filterField, filterValue]);
+  }, [tableConfigId, page, pageSize, keyword, filterField, filterValue, aiFilters]);
 
   useEffect(() => {
     getTableConfig(tableConfigId).then(res => {
@@ -546,7 +569,15 @@ export default function DataBrowse() {
                   />
                 )}
                 <Button icon={<SearchOutlined />} type="primary" onClick={handleSearch}>{t('common.search')}</Button>
-                <Button icon={<ReloadOutlined />} onClick={() => { setKeyword(''); setFilterField(undefined); setFilterValue(''); setPage(1); setTimeout(fetchData, 0); }}>{t('common.reset')}</Button>
+                <Button icon={<ReloadOutlined />} onClick={() => { setKeyword(''); setFilterField(undefined); setFilterValue(''); setAiFilters([]); setPage(1); setTimeout(fetchData, 0); }}>{t('common.reset')}</Button>
+                <Button
+                  icon={<RobotOutlined />}
+                  type={aiQueryOpen ? 'primary' : 'default'}
+                  onClick={() => setAiQueryOpen(!aiQueryOpen)}
+                  style={aiQueryOpen ? {} : { borderColor: '#1677ff', color: '#1677ff' }}
+                >
+                  🤖 AI 查询
+                </Button>
               </Space>
             ) : (
               <Space>
@@ -599,6 +630,38 @@ export default function DataBrowse() {
             </Space>
           </Col>
         </Row>
+
+        {/* v3.0: AI Query Panel */}
+        {aiQueryOpen && (
+          <AIQueryPanel
+            tableConfigId={tableConfigId}
+            columns={columns}
+            onApplyFilters={handleApplyAIFilters}
+            onClose={() => setAiQueryOpen(false)}
+          />
+        )}
+
+        {/* v3.0: Active AI filters indicator */}
+        {aiFilters.length > 0 && !aiQueryOpen && (
+          <div style={{
+            background: '#f0f7ff',
+            border: '1px solid #91caff',
+            borderRadius: 6,
+            padding: '6px 12px',
+            marginBottom: 12,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}>
+            <RobotOutlined style={{ color: '#1677ff' }} />
+            <span style={{ fontSize: 13, color: '#333' }}>AI 筛选中：</span>
+            {aiFilters.map((f, i) => (
+              <Tag key={i} color="blue" style={{ fontSize: 12 }}>{f.display}</Tag>
+            ))}
+            <Button type="link" size="small" onClick={handleClearAIFilters} danger>清除筛选</Button>
+          </div>
+        )}
 
         <Table
           rowKey={(r) => r.__isNewRow ? '__new__' : buildPkKey(r)}

@@ -19,6 +19,7 @@ from app.routers import notifications as notifications_router
 from app.routers import ai_config as ai_config_router
 from app.routers import ai_suggest as ai_suggest_router
 from app.routers import ai_validate as ai_validate_router
+from app.routers import ai_nl_query as ai_nl_query_router
 from app.utils.auth import init_default_admin
 from app.utils.security_middleware import SecurityHeadersMiddleware, check_rate_limit
 from app.i18n import parse_accept_language, set_lang
@@ -127,6 +128,7 @@ app.include_router(notifications_router.router)
 app.include_router(ai_config_router.router)
 app.include_router(ai_suggest_router.router)
 app.include_router(ai_validate_router.router)
+app.include_router(ai_nl_query_router.router)
 app.include_router(platform_backup_router.router)
 
 

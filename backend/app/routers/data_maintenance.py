@@ -286,6 +286,7 @@ def browse_table_data(
     table_config_id: int,
     keyword: Optional[str] = None,
     field_filters: Optional[str] = None,  # JSON: {"field_name": "value", ...}
+    structured_filters: Optional[str] = None,  # JSON: [{"field":"x","operator":"eq","value":"y"}, ...]
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -336,6 +337,75 @@ def browse_table_data(
                             raise HTTPException(400, f"筛选值包含不安全字符: {fname}")
                         where_parts.append(f"{_cast_to_text(ds.db_type, _quote_col(ds.db_type, fname))} LIKE {ph}")
                         params.append(f"%{fval}%")
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        # v3.0: Structured filters from AI NL Query
+        if structured_filters:
+            try:
+                sf_list = json.loads(structured_filters)
+                valid_field_names = {f.field_name for f in display_fields}
+                _OP_MAP = {"eq", "neq", "gt", "gte", "lt", "lte", "like", "not_like", "is_null", "is_not_null", "in", "not_in", "between"}
+                for sf in sf_list:
+                    fname = sf.get("field", "")
+                    op = sf.get("operator", "")
+                    val = sf.get("value")
+                    if fname not in valid_field_names or op not in _OP_MAP:
+                        continue
+                    if check_sql_injection(str(val) if val is not None else ""):
+                        continue
+                    col_expr = _quote_col(ds.db_type, fname)
+                    # For non-date types, use CAST; for date/time comparisons, use direct column
+                    field_cfg = next((f for f in display_fields if f.field_name == fname), None)
+                    dtype = (field_cfg.db_data_type or "").lower() if field_cfg else ""
+                    is_date = any(dt in dtype for dt in ("date", "time", "timestamp"))
+                    is_numeric = any(dt in dtype for dt in ("int", "decimal", "numeric", "float", "double", "real", "bigint", "smallint"))
+
+                    if op == "eq":
+                        if is_numeric or is_date:
+                            where_parts.append(f"{col_expr} = {ph}")
+                        else:
+                            where_parts.append(f"{_cast_to_text(ds.db_type, col_expr)} = {ph}")
+                        params.append(str(val))
+                    elif op == "neq":
+                        if is_numeric or is_date:
+                            where_parts.append(f"{col_expr} != {ph}")
+                        else:
+                            where_parts.append(f"{_cast_to_text(ds.db_type, col_expr)} != {ph}")
+                        params.append(str(val))
+                    elif op == "gt":
+                        where_parts.append(f"{col_expr} > {ph}")
+                        params.append(str(val))
+                    elif op == "gte":
+                        where_parts.append(f"{col_expr} >= {ph}")
+                        params.append(str(val))
+                    elif op == "lt":
+                        where_parts.append(f"{col_expr} < {ph}")
+                        params.append(str(val))
+                    elif op == "lte":
+                        where_parts.append(f"{col_expr} <= {ph}")
+                        params.append(str(val))
+                    elif op == "like":
+                        where_parts.append(f"{_cast_to_text(ds.db_type, col_expr)} LIKE {ph}")
+                        params.append(f"%{val}%")
+                    elif op == "not_like":
+                        where_parts.append(f"{_cast_to_text(ds.db_type, col_expr)} NOT LIKE {ph}")
+                        params.append(f"%{val}%")
+                    elif op == "is_null":
+                        where_parts.append(f"{col_expr} IS NULL")
+                    elif op == "is_not_null":
+                        where_parts.append(f"{col_expr} IS NOT NULL")
+                    elif op == "in" and isinstance(val, list):
+                        phs = ", ".join([ph] * len(val))
+                        where_parts.append(f"{_cast_to_text(ds.db_type, col_expr)} IN ({phs})")
+                        params.extend([str(v) for v in val])
+                    elif op == "not_in" and isinstance(val, list):
+                        phs = ", ".join([ph] * len(val))
+                        where_parts.append(f"{_cast_to_text(ds.db_type, col_expr)} NOT IN ({phs})")
+                        params.extend([str(v) for v in val])
+                    elif op == "between" and isinstance(val, list) and len(val) == 2:
+                        where_parts.append(f"{col_expr} BETWEEN {ph} AND {ph}")
+                        params.extend([str(val[0]), str(val[1])])
             except (json.JSONDecodeError, TypeError):
                 pass
 
