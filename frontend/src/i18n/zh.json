@@ -758,6 +758,7 @@
     "autoBackupHint": "导入前系统会自动创建一份当前数据的临时备份。",
     "confirmRestore": "确认导入",
     "restoreSuccess": "导入恢复完成",
+    "restoreSensitiveHint": "敏感信息（数据源密码、AI API Key）已脱敏，恢复后需要重新配置。",
     "restoreFailed": "导入恢复失败",
     "reloginHint": "建议重新登录以加载最新数据",
     "goRelogin": "重新登录"

@@ -148,6 +148,7 @@ export default function PlatformBackup() {
           });
           setRestoreSuccess(true);
           message.success(t('platformBackup.restoreSuccess'));
+          message.warning(t('platformBackup.restoreSensitiveHint'), 8);
         } catch (err: any) {
           message.error(err?.response?.data?.detail || t('platformBackup.restoreFailed'));
         } finally {

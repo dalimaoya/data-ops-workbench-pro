@@ -758,6 +758,7 @@
     "autoBackupHint": "A temporary backup of current data will be created automatically before import.",
     "confirmRestore": "Confirm Import",
     "restoreSuccess": "Restore completed successfully",
+    "restoreSensitiveHint": "Sensitive information (datasource passwords, AI API Keys) has been masked. Please reconfigure after restore.",
     "restoreFailed": "Restore failed",
     "reloginHint": "Please re-login to load the latest data",
     "goRelogin": "Re-login"
