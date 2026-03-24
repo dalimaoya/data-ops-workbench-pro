@@ -646,33 +646,23 @@ export default function DatabaseMaintenance() {
   ];
 
   return (
-    <div style={{ maxWidth: 1400, margin: '0 auto' }}>
-      <Title level={4} style={{ marginBottom: 16 }}>
-        <DatabaseOutlined style={{ marginRight: 8 }} />
-        {t('dbMaintenance.title')}
-      </Title>
-
-      {/* Datasource selector */}
-      <Card size="small" style={{ marginBottom: 16 }}>
-        <Space>
-          <Text strong>{t('maintenance.selectDatasource')}:</Text>
-          <Select
-            value={selectedDsId}
-            onChange={val => { setSelectedDsId(val); setActiveTab('batch'); handleReset(); }}
-            placeholder={t('tableConfig.selectDatasource')}
-            style={{ width: 320 }}
-            options={datasources.map(ds => ({
-              value: ds.id,
-              label: `${ds.datasource_name} (${ds.db_type})`,
-            }))}
-          />
-        </Space>
-      </Card>
-
-      {selectedDsId && (
-        <>
-          {/* Tabs: Batch Manage / Managed Tables */}
-          <Space style={{ marginBottom: 16 }}>
+    <Card
+      title={t('dbMaintenance.title')}
+    >
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Select
+          value={selectedDsId}
+          onChange={val => { setSelectedDsId(val); setActiveTab('batch'); handleReset(); }}
+          placeholder={t('maintenance.selectDatasource')}
+          style={{ width: 280 }}
+          allowClear
+          options={datasources.map(ds => ({
+            value: ds.id,
+            label: `${ds.datasource_name} (${ds.db_type})`,
+          }))}
+        />
+        {selectedDsId && (
+          <>
             <Button
               type={activeTab === 'batch' ? 'primary' : 'default'}
               onClick={() => setActiveTab('batch')}
@@ -687,10 +677,14 @@ export default function DatabaseMaintenance() {
             >
               {t('dbMaintenance.managedTables')} ({managedTables.length})
             </Button>
-          </Space>
+          </>
+        )}
+      </Space>
 
+      {selectedDsId && (
+        <>
           {activeTab === 'batch' && (
-            <Card>
+            <>
               {/* Steps indicator */}
               <Steps
                 current={currentStep}
@@ -965,12 +959,12 @@ export default function DatabaseMaintenance() {
                   ) : null}
                 </div>
               )}
-            </Card>
+            </>
           )}
 
           {/* Managed Tables Tab */}
           {activeTab === 'managed' && (
-            <Card>
+            <>
               <Space style={{ marginBottom: 16 }}>
                 <Button
                   icon={<ReloadOutlined />}
@@ -1002,10 +996,10 @@ export default function DatabaseMaintenance() {
                 size="small"
                 pagination={{ pageSize: 20, showSizeChanger: true }}
               />
-            </Card>
+            </>
           )}
         </>
       )}
-    </div>
+    </Card>
   );
 }
