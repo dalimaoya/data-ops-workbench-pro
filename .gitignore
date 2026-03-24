@@ -38,3 +38,6 @@ Thumbs.db
 *.key
 .env
 .env.*
+
+# Temporarily exclude GitHub workflows (workflow scope not configured)
+.github/

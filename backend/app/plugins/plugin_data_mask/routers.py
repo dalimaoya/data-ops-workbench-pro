@@ -228,9 +228,11 @@ def export_masked(
                   message=f"脱敏导出 {len(rows)} 行",
                   operator=user.username)
 
-    filename = f"{tc.table_alias or tc.table_name}_masked.xlsx"
+    from urllib.parse import quote
+    raw_name = f"{tc.table_alias or tc.table_name}_masked.xlsx"
+    encoded_name = quote(raw_name)
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}"},
     )

@@ -66,7 +66,7 @@ def _fetch_all(ds: DatasourceConfig, table: str, schema: Optional[str], cols: Li
         col_str = ",".join(cols)
         sql = f"SELECT {col_str} FROM {table}"
         cur.execute(sql)
-        rows = cur.fetchmany(max_rows)
+        rows = list(cur.fetchmany(max_rows))
         return rows
     finally:
         conn.close()
@@ -95,8 +95,8 @@ def run_compare(
                             body.target_table, tgt_ds.database_name, body.target_schema,
                             tgt_ds.charset, tgt_ds.connect_timeout_seconds or 10)
 
-    src_col_names = [c["column_name"] for c in src_cols]
-    tgt_col_names = [c["column_name"] for c in tgt_cols]
+    src_col_names = [c["field_name"] for c in src_cols]
+    tgt_col_names = [c["field_name"] for c in tgt_cols]
 
     # Match by same name
     matched = [c for c in src_col_names if c in tgt_col_names]
@@ -171,7 +171,7 @@ def run_compare(
         matched_fields=json.dumps(matched),
         result_json=json.dumps(result_data, ensure_ascii=False, default=str),
         status="completed",
-        operator=user.username,
+        operator_user=user.username,
     )
     db.add(record)
     db.commit()

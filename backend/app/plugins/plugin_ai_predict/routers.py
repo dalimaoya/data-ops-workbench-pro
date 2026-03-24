@@ -67,7 +67,7 @@ async def generate_prediction(
         order = f"ORDER BY {time_field} DESC" if time_field else ""
         sql = f"SELECT {col_str} FROM {tc.table_name} {order}"
         cur.execute(sql)
-        rows = cur.fetchmany(body.rows_for_context)
+        rows = list(cur.fetchmany(body.rows_for_context))
         rows.reverse()  # chronological order
     finally:
         conn.close()
