@@ -26,6 +26,7 @@ import AIConfigPage from './pages/ai-config/AIConfigPage';
 import PlatformBackup from './pages/platform-backup/PlatformBackup';
 import DatabaseMaintenance from './pages/db-maintenance/DatabaseMaintenance';
 import HealthCheckPage from './pages/health-check/HealthCheckPage';
+import SmartImportPage from './pages/smart-import/SmartImportPage';
 
 function RequireAuth({ children }: { children: React.JSX.Element }) {
   const { isAuthenticated } = useAuth();
@@ -76,6 +77,7 @@ function App() {
           <Route path="/data-maintenance/browse/:id" element={<DataBrowse />} />
           <Route path="/data-maintenance/import/:id" element={<ImportPage />} />
           <Route path="/data-maintenance/diff/:taskId" element={<DiffPreview />} />
+          <Route path="/smart-import" element={<SmartImportPage />} />
           <Route path="/log-center" element={<LogCenter />} />
           <Route path="/version-rollback" element={<RequireRole roles={['admin']}><VersionRollback /></RequireRole>} />
           <Route path="/approval-center" element={<RequireRole roles={['admin']}><ApprovalCenter /></RequireRole>} />

@@ -24,6 +24,7 @@ import {
   RobotOutlined,
   CloudServerOutlined,
   MedicineBoxOutlined,
+  ImportOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
 import { changeMyPassword, updateMyProfile } from '../api/users';
@@ -53,6 +54,7 @@ const allMenuItems: MenuItem[] = [
     children: [
       { key: '/data-maintenance', icon: <TableOutlined />, labelKey: 'menu.tableMaintenance' },
       { key: '/db-maintenance', icon: <DatabaseOutlined />, labelKey: 'menu.dbMaintenance' },
+      { key: '/smart-import', icon: <ImportOutlined />, labelKey: 'menu.smartImport' },
     ],
   },
   { key: '/log-center', icon: <FileTextOutlined />, labelKey: 'menu.logCenter' },

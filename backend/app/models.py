@@ -366,6 +366,19 @@ class AIConfig(Base):
     updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)
 
 
+# ── 16b. smart_import_mapping_template (v3.1) ──
+class MappingTemplate(AuditMixin, Base):
+    __tablename__ = "smart_import_mapping_template"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    template_name = Column(String(128), nullable=False)
+    target_table_id = Column(Integer, nullable=False)
+    mappings_json = Column(Text, nullable=False)  # JSON: [{source_pattern, target_field, match_type}]
+    source_headers_json = Column(Text, nullable=True)  # JSON: original headers for template matching
+    use_count = Column(Integer, nullable=False, default=0)
+    last_used_at = Column(DateTime, nullable=True)
+
+
 # ── 17. health_check_result (v3.0-P2) ──
 class HealthCheckResult(Base):
     __tablename__ = "health_check_result"
