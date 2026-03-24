@@ -159,7 +159,7 @@ class WritebackLog(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     writeback_batch_no = Column(String(64), unique=True, nullable=False)
-    import_task_id = Column(Integer, nullable=False)
+    import_task_id = Column(Integer, nullable=True)  # nullable for multi-table AI writeback
     table_config_id = Column(Integer, nullable=False)
     datasource_id = Column(Integer, nullable=False)
     backup_version_no = Column(String(64), nullable=True)
