@@ -39,6 +39,21 @@ async def lifespan(app: FastAPI):
         init_scheduler()
     except Exception as e:
         logging.getLogger("scheduler").error("Failed to start scheduler: %s", e)
+    
+    # Register SPA catch-all AFTER all plugin routes to avoid intercepting plugin GET endpoints
+    if os.path.isdir(STATIC_DIR):
+        @app.get("/{full_path:path}")
+        async def spa_fallback(request: Request, full_path: str):
+            if full_path.startswith("api/"):
+                return {"detail": "Not Found"}
+            file_path = os.path.join(STATIC_DIR, full_path)
+            if full_path and os.path.isfile(file_path):
+                return FileResponse(file_path)
+            index = os.path.join(STATIC_DIR, "index.html")
+            if os.path.isfile(index):
+                return FileResponse(index)
+            return {"detail": "Frontend not built yet"}
+    
     yield
     # Shutdown scheduler
     try:
@@ -160,15 +175,6 @@ if os.path.isdir(STATIC_DIR):
     if os.path.isdir(ASSETS_DIR):
         app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
-    @app.get("/{full_path:path}")
-    async def spa_fallback(request: Request, full_path: str):
-        # Skip API routes
-        if full_path.startswith("api/"):
-            return {"detail": "Not Found"}
-        file_path = os.path.join(STATIC_DIR, full_path)
-        if full_path and os.path.isfile(file_path):
-            return FileResponse(file_path)
-        index = os.path.join(STATIC_DIR, "index.html")
-        if os.path.isfile(index):
-            return FileResponse(index)
-        return {"detail": "Frontend not built yet"}
+    # SPA catch-all is registered in lifespan startup AFTER plugin routes
+    # to avoid intercepting plugin GET endpoints
+    pass
