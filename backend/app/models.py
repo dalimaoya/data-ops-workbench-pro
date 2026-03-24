@@ -1,4 +1,4 @@
-"""Platform database models - 11 core tables (incl. field_change_log for v2.0) + ai_config for v3.0."""
+"""Platform database models - 11 core tables (incl. field_change_log for v2.0) + ai_config for v3.0 + health_check + field_sensitivity for v3.0-P2."""
 
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import (
@@ -101,6 +101,8 @@ class FieldConfig(AuditMixin, Base):
     validation_rule_json = Column(Text, nullable=True)
     default_display_type = Column(String(32), nullable=True, default="text")
     editable_roles = Column(String(255), nullable=True)  # v2.4: comma-separated roles, e.g. "admin,operator"
+    sensitivity_level = Column(String(32), nullable=True, default="normal")  # v3.0-P2: normal/sensitive/high_sensitive
+    sensitivity_note = Column(String(500), nullable=True)  # v3.0-P2: admin description of impact
     remark = Column(String(500), nullable=True)
 
 
@@ -360,5 +362,35 @@ class AIConfig(Base):
     cloud_temperature = Column(Float, nullable=True, default=0.3)
 
     feature_flags = Column(Text, nullable=True)  # JSON: 7 feature toggles
+    updated_by = Column(String(64), nullable=False, default="system")
+    updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)
+
+
+# ── 17. health_check_result (v3.0-P2) ──
+class HealthCheckResult(Base):
+    __tablename__ = "health_check_result"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    check_batch_no = Column(String(64), nullable=False, index=True)
+    datasource_id = Column(Integer, nullable=False, index=True)
+    table_config_id = Column(Integer, nullable=True)
+    check_item = Column(String(64), nullable=False)  # connection/table_exists/structure/response_time/row_count
+    check_status = Column(String(32), nullable=False)  # ok/warning/error/info
+    check_message = Column(String(1000), nullable=True)
+    detail_json = Column(Text, nullable=True)  # Extra info (e.g. old/new hash, row count)
+    response_time_ms = Column(Integer, nullable=True)
+    operator_user = Column(String(64), nullable=False, default="system")
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)
+
+
+# ── 18. health_check_config (v3.0-P2) ──
+class HealthCheckConfig(Base):
+    __tablename__ = "health_check_config"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    check_interval_minutes = Column(Integer, nullable=False, default=60)
+    auto_check_enabled = Column(SmallInteger, nullable=False, default=0)
+    notify_on_error = Column(SmallInteger, nullable=False, default=1)
+    slow_threshold_ms = Column(Integer, nullable=False, default=5000)
     updated_by = Column(String(64), nullable=False, default="system")
     updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)

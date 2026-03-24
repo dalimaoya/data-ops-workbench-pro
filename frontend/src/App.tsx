@@ -25,6 +25,7 @@ import About from './pages/About';
 import AIConfigPage from './pages/ai-config/AIConfigPage';
 import PlatformBackup from './pages/platform-backup/PlatformBackup';
 import DatabaseMaintenance from './pages/db-maintenance/DatabaseMaintenance';
+import HealthCheckPage from './pages/health-check/HealthCheckPage';
 
 function RequireAuth({ children }: { children: React.JSX.Element }) {
   const { isAuthenticated } = useAuth();
@@ -80,6 +81,7 @@ function App() {
           <Route path="/approval-center" element={<RequireRole roles={['admin']}><ApprovalCenter /></RequireRole>} />
           <Route path="/user-management" element={<RequireRole roles={['admin']}><UserManagement /></RequireRole>} />
           <Route path="/ai-config" element={<RequireRole roles={['admin']}><AIConfigPage /></RequireRole>} />
+          <Route path="/health-check" element={<RequireRole roles={['admin']}><HealthCheckPage /></RequireRole>} />
           <Route path="/platform-backup" element={<RequireRole roles={['admin']}><PlatformBackup /></RequireRole>} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -123,5 +123,13 @@
   "data_maintenance.row_pk_not_in_db_no_insert": "Row {row} primary key \"{pk}\" not found in database (insert rows not enabled)",
   "backup.rollback_success": "Rollback successful, restored {count} records",
   "auth.rate_limited": "Too many requests, please try again later",
-  "auth.account_locked": "Account is locked, please try again in {minutes} minutes"
+  "auth.account_locked": "Account is locked, please try again in {minutes} minutes",
+  "health_check.run_success": "Health check completed, {total} items checked",
+  "health_check.config_updated": "Health check config updated",
+  "health_check.not_found": "Health check record not found",
+  "impact.assess_success": "Impact assessment completed",
+  "impact.field_not_found": "Field not found",
+  "impact.sensitivity_updated": "Field sensitivity level updated",
+  "log_analyze.invalid_action": "Invalid analysis action",
+  "log_analyze.table_required": "Table ID required for trace"
 }

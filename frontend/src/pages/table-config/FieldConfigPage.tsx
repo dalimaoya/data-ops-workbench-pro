@@ -55,6 +55,8 @@ export default function FieldConfigPage() {
       max_length: f.max_length,
       enum_options_json: f.enum_options_json,
       editable_roles: (f as any).editable_roles,
+      sensitivity_level: (f as any).sensitivity_level || 'normal',
+      sensitivity_note: (f as any).sensitivity_note || '',
       remark: f.remark,
     });
   };
@@ -196,6 +198,29 @@ export default function FieldConfigPage() {
             {t(`role.${role}`)}
           </Tag>
         ));
+      },
+    },
+    {
+      title: t('fieldConfig.sensitivityLevel'), dataIndex: 'sensitivity_level', width: 120,
+      render: (v: string, r: FieldConfig) => {
+        if (editingId === r.id) {
+          return (
+            <Select
+              size="small"
+              value={(editingValues as any).sensitivity_level || 'normal'}
+              onChange={(val: string) => setEditingValues(p => ({ ...p, sensitivity_level: val }))}
+              options={[
+                { label: t('fieldConfig.sensitivityNormal'), value: 'normal' },
+                { label: t('fieldConfig.sensitivitySensitive'), value: 'sensitive' },
+                { label: t('fieldConfig.sensitivityHigh'), value: 'high_sensitive' },
+              ]}
+              style={{ width: '100%' }}
+            />
+          );
+        }
+        const color = v === 'high_sensitive' ? 'red' : v === 'sensitive' ? 'orange' : 'default';
+        const label = v === 'high_sensitive' ? t('fieldConfig.sensitivityHigh') : v === 'sensitive' ? t('fieldConfig.sensitivitySensitive') : t('fieldConfig.sensitivityNormal');
+        return <Tag color={color}>{label}</Tag>;
       },
     },
     {

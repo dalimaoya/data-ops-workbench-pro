@@ -12,6 +12,7 @@ import { listExportTasks, downloadExportTask, retryImportValidation, type Export
 import { useNavigate as useLogNavigate } from 'react-router-dom';
 import { formatBeijingTime } from '../../utils/formatTime';
 import { useTranslation } from 'react-i18next';
+import AILogAnalysis from './AILogAnalysis';
 
 const { RangePicker } = DatePicker;
 
@@ -657,6 +658,7 @@ export default function LogCenter() {
     { key: 'export-tasks', label: t('logCenter.exportTasks'), children: <ExportTaskTab /> },
     { key: 'import', label: t('logCenter.importLog'), children: <ImportLogTab dsOptions={dsOptions} onRetryNavigate={handleRetryNavigate} /> },
     { key: 'writeback', label: t('logCenter.writebackLog'), children: <WritebackLogTab dsOptions={dsOptions} /> },
+    { key: 'ai-analysis', label: '🤖 ' + t('aiLog.tabTitle'), children: <AILogAnalysis /> },
   ];
 
   return (

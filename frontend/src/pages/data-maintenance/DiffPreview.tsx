@@ -6,6 +6,7 @@ import { getImportDiff, executeWriteback, downloadDiffReport } from '../../api/d
 import type { DiffResponse, WritebackResult } from '../../api/dataMaintenance';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
+import ImpactAssessPanel from './ImpactAssessPanel';
 
 export default function DiffPreview() {
   const { t } = useTranslation();
@@ -236,6 +237,18 @@ export default function DiffPreview() {
             )}
             {diffData && diffData.failed_rows > 0 && (
               <span style={{ color: '#ff4d4f', fontSize: 12 }}>{t('diffPreview.hasFailedRows')}</span>
+            )}
+            {canWriteback && diffData && diffData.diff_rows && diffData.diff_rows.length > 0 && (
+              <ImpactAssessPanel
+                tableId={diffData.table_config_id}
+                changes={diffData.diff_rows.map((r: any) => ({
+                  row_pk: r.pk_key,
+                  field_name: r.field_alias || r.field_name,
+                  old_value: r.old_value,
+                  new_value: r.new_value,
+                  change_type: r.change_type,
+                }))}
+              />
             )}
           </Space>
         </div>
