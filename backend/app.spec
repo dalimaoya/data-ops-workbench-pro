@@ -89,6 +89,43 @@ extra_hiddenimports = [
     'starlette.routing',
     'starlette.middleware',
     'starlette.middleware.cors',
+    # pdfplumber / PDF parsing
+    'pdfplumber',
+    'pdfminer',
+    'pdfminer.high_level',
+    'pdfminer.layout',
+    'pdfminer.pdfinterp',
+    'pdfminer.pdfpage',
+    'pdfminer.pdfdocument',
+    'pdfminer.pdfparser',
+    # python-docx
+    'docx',
+    'docx.opc',
+    'docx.opc.constants',
+    'docx.oxml',
+    'docx.oxml.ns',
+    # pandas
+    'pandas',
+    'pandas.io.formats.style',
+    # apscheduler
+    'apscheduler',
+    'apscheduler.schedulers.asyncio',
+    'apscheduler.triggers.cron',
+    'apscheduler.triggers.interval',
+    'apscheduler.jobstores.memory',
+    'apscheduler.executors.asyncio',
+    # reportlab
+    'reportlab',
+    'reportlab.lib',
+    'reportlab.lib.pagesizes',
+    'reportlab.platypus',
+    'reportlab.pdfgen',
+    'reportlab.pdfbase',
+    'reportlab.pdfbase.ttfonts',
+    'reportlab.pdfbase.cidfonts',
+    # openpyxl (Excel export with colors)
+    'openpyxl',
+    'openpyxl.styles',
 ]
 
 # Conditionally add psycopg2 / pyodbc if installed
@@ -117,6 +154,10 @@ if os.path.isdir(i18n_dir):
 else:
     print("[WARN] app/i18n/locales/ not found - translations will not be bundled")
 
+# Collect data files for reportlab (fonts, etc.)
+datas += collect_data_files('reportlab')
+datas += collect_data_files('pdfminer')
+
 a = Analysis(
     ['app_entry.py'],
     pathex=[SPECPATH],
@@ -127,7 +168,7 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        'tkinter', '_tkinter', 'matplotlib', 'scipy', 'numpy',
+        'tkinter', '_tkinter', 'matplotlib', 'scipy',
         'IPython', 'notebook', 'pytest', 'setuptools',
         'pyodbc',
     ],
