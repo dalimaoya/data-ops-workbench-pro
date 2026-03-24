@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, Tag, Table, Alert, Spin, Space, Collapse, Descriptions, Empty } from 'antd';
+import { Button, Card, Tag, Table, Alert, Space } from 'antd';
 import { RobotOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { impactAssess } from '../../api/aiImpactAssess';
 import { useTranslation } from 'react-i18next';

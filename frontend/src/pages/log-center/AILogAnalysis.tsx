@@ -62,7 +62,7 @@ export default function AILogAnalysis() {
   // Render summary
   const renderSummary = () => {
     if (!result?.data) return null;
-    const { summary_text, stats, top_users, top_tables } = result.data;
+    const { summary_text, stats } = result.data;
     return (
       <div>
         <Card size="small" style={{ marginBottom: 16, background: '#f6ffed' }}>

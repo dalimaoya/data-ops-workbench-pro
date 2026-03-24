@@ -89,6 +89,8 @@ export interface FieldConfig {
   validation_rule_json?: string;
   default_display_type?: string;
   editable_roles?: string;
+  sensitivity_level?: string;
+  sensitivity_note?: string;
   remark?: string;
   created_at: string;
   updated_at: string;

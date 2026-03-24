@@ -54,9 +54,9 @@ export default function FieldConfigPage() {
       field_alias: f.field_alias,
       max_length: f.max_length,
       enum_options_json: f.enum_options_json,
-      editable_roles: (f as any).editable_roles,
-      sensitivity_level: (f as any).sensitivity_level || 'normal',
-      sensitivity_note: (f as any).sensitivity_note || '',
+      editable_roles: f.editable_roles,
+      sensitivity_level: f.sensitivity_level || 'normal',
+      sensitivity_note: f.sensitivity_note || '',
       remark: f.remark,
     });
   };

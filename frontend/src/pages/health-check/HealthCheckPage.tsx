@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Card, Button, Table, Tag, Space, Statistic, Row, Col, Modal, Form, InputNumber, Switch,
-  message, Spin, Descriptions, Tabs, Select, Empty,
+  message, Tabs, Select, Empty,
 } from 'antd';
 import {
   CheckCircleOutlined, CloseCircleOutlined, WarningOutlined, InfoCircleOutlined,
-  ReloadOutlined, SettingOutlined, DownloadOutlined, MedicineBoxOutlined,
+  ReloadOutlined, SettingOutlined, MedicineBoxOutlined,
 } from '@ant-design/icons';
 import { runHealthCheck, getHealthCheckHistory, getHealthCheckConfig, updateHealthCheckConfig } from '../../api/healthCheck';
 import { useTranslation } from 'react-i18next';
@@ -41,7 +41,7 @@ export default function HealthCheckPage() {
   const [historyPage, setHistoryPage] = useState(1);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
-  const [config, setConfig] = useState<any>(null);
+  const [_config, setConfig] = useState<any>(null);
   const [configLoading, setConfigLoading] = useState(false);
   const [form] = Form.useForm();
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
