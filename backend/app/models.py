@@ -1,8 +1,8 @@
-"""Platform database models - 11 core tables (incl. field_change_log for v2.0)."""
+"""Platform database models - 11 core tables (incl. field_change_log for v2.0) + ai_config for v3.0."""
 
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, SmallInteger
+    Column, Integer, String, Text, DateTime, SmallInteger, Float
 )
 from app.database import Base
 
@@ -323,3 +323,22 @@ class FieldChangeLog(Base):
     new_value = Column(Text, nullable=True)
     change_type = Column(String(32), nullable=False)  # update / insert / delete
     created_at = Column(DateTime, nullable=False, default=_now_bjt)
+
+
+# ── 16. ai_config (v3.0) ──
+class AIConfig(Base):
+    __tablename__ = "ai_config"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ai_enabled = Column(SmallInteger, nullable=False, default=1)  # 1=on, 0=off
+    engine_mode = Column(String(32), nullable=False, default="builtin")  # builtin / local / cloud
+    platform_name = Column(String(64), nullable=True)
+    api_protocol = Column(String(32), nullable=True, default="openai")  # openai / claude
+    api_url = Column(String(500), nullable=True)
+    api_key_encrypted = Column(Text, nullable=True)
+    model_name = Column(String(128), nullable=True)
+    max_tokens = Column(Integer, nullable=False, default=4096)
+    temperature = Column(Float, nullable=False, default=0.3)
+    feature_flags = Column(Text, nullable=True)  # JSON: 7 feature toggles
+    updated_by = Column(String(64), nullable=False, default="system")
+    updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)
