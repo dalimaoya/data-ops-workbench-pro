@@ -116,7 +116,7 @@ def get_mask_config(
                 pass
         result.append({
             "field_name": f.field_name,
-            "display_name": f.display_name or f.field_name,
+            "display_name": f.field_alias or f.field_name,
             "mask_rule": mask_rule,
         })
     return {"fields": result}
@@ -208,7 +208,7 @@ def export_masked(
 
     # Header
     for ci, f in enumerate(fields, 1):
-        ws.cell(row=1, column=ci, value=f.display_name or f.field_name)
+        ws.cell(row=1, column=ci, value=f.field_alias or f.field_name)
 
     # Data with masking
     for ri, row in enumerate(rows, 2):

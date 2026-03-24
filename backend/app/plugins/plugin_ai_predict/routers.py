@@ -46,7 +46,7 @@ async def generate_prediction(
         raise HTTPException(400, "无可用字段")
 
     col_names = [f.field_name for f in fields]
-    display_names = [f.display_name or f.field_name for f in fields]
+    display_names = [f.field_alias or f.field_name for f in fields]
 
     # Determine time field
     time_field = body.time_field
