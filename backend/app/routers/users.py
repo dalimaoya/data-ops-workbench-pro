@@ -12,7 +12,9 @@ from app.database import get_db
 from app.models import UserAccount, UserDatasourcePermission, DatasourceConfig, _now_bjt
 from app.utils.auth import (
     get_current_user, require_role, hash_password, verify_password,
+    needs_password_migration,
 )
+from app.utils.security_middleware import login_lockout
 from app.utils.audit import log_operation
 from app.i18n import t
 
@@ -76,14 +78,15 @@ def list_users(
     rows = db.query(UserAccount).order_by(UserAccount.id).all()
     result = []
     for r in rows:
-        result.append(UserOut(
+        u = UserOut(
             id=r.id,
             username=r.username,
             display_name=r.display_name,
             role=r.role,
             status=r.status,
             created_at=r.created_at.isoformat() if r.created_at else None,
-        ))
+        )
+        result.append(u)
     return result
 
 
@@ -224,8 +227,16 @@ def change_my_password(
 ):
     if not verify_password(body.old_password, user.password_hash):
         raise HTTPException(400, t("user.old_password_wrong"))
-    if len(body.new_password) < 4:
+    if len(body.new_password) < 8:
         raise HTTPException(400, t("user.password_too_short"))
+    # Validate password strength: at least one uppercase, one lowercase, one digit
+    import re
+    if not re.search(r'[A-Z]', body.new_password):
+        raise HTTPException(400, "密码必须包含至少一个大写字母")
+    if not re.search(r'[a-z]', body.new_password):
+        raise HTTPException(400, "密码必须包含至少一个小写字母")
+    if not re.search(r'[0-9]', body.new_password):
+        raise HTTPException(400, "密码必须包含至少一个数字")
     user.password_hash = hash_password(body.new_password)
     user.updated_at = _now_bjt()
     log_operation(

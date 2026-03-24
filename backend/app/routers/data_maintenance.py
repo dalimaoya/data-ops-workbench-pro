@@ -26,6 +26,8 @@ from app.utils.remote_db import _connect, fetch_sample_data, compute_structure_h
 from app.utils.audit import log_operation
 from app.utils.auth import get_current_user, require_role
 from app.utils.permissions import get_permitted_datasource_ids
+from app.utils.sql_security import sanitize_search_input, check_sql_injection
+from app.utils.security_middleware import validate_upload_file, sanitize_dict
 from app.models import UserAccount, ApprovalRequest, SystemSetting
 from app.i18n import t
 
@@ -314,6 +316,9 @@ def browse_table_data(
         params: list = []
 
         if keyword:
+            # SQL injection check on search keyword
+            if check_sql_injection(keyword):
+                raise HTTPException(400, "搜索关键字包含不安全字符")
             kw_parts = []
             for f in display_fields:
                 kw_parts.append(f"{_cast_to_text(ds.db_type, _quote_col(ds.db_type, f.field_name))} LIKE {ph}")
@@ -326,6 +331,9 @@ def browse_table_data(
                 ff = json.loads(field_filters)
                 for fname, fval in ff.items():
                     if fval and any(f.field_name == fname for f in display_fields):
+                        # SQL injection check on filter values
+                        if check_sql_injection(str(fval)):
+                            raise HTTPException(400, f"筛选值包含不安全字符: {fname}")
                         where_parts.append(f"{_cast_to_text(ds.db_type, _quote_col(ds.db_type, fname))} LIKE {ph}")
                         params.append(f"%{fval}%")
             except (json.JSONDecodeError, TypeError):
@@ -392,7 +400,7 @@ def browse_table_data(
 
         return {
             "columns": columns_meta,
-            "rows": rows,
+            "rows": sanitize_dict(rows),
             "total": total,
             "page": page,
             "page_size": page_size,
@@ -655,10 +663,17 @@ async def import_template(
     pwd = decrypt_password(ds.password_encrypted)
     fields = _get_fields(db, table_config_id)
 
-    # Save uploaded file
+    # Validate uploaded file
     file_name = file.filename or "upload.xlsx"
-    save_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4().hex}_{file_name}")
     content = await file.read()
+    
+    upload_error = validate_upload_file(file_name, content=content)
+    if upload_error:
+        raise HTTPException(400, upload_error)
+    
+    # Save uploaded file with sanitized name
+    safe_name = os.path.basename(file_name)  # prevent path traversal
+    save_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4().hex}_{safe_name}")
     with open(save_path, "wb") as f:
         f.write(content)
 

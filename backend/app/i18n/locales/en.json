@@ -120,5 +120,7 @@
   "data_maintenance.row_field_expect_number": "Row {row} field [{field}] expects number",
   "data_maintenance.row_field_not_in_enum": "Row {row} field [{field}] value not in allowed options",
   "data_maintenance.row_pk_not_in_db_no_insert": "Row {row} primary key \"{pk}\" not found in database (insert rows not enabled)",
-  "backup.rollback_success": "Rollback successful, restored {count} records"
+  "backup.rollback_success": "Rollback successful, restored {count} records",
+  "auth.rate_limited": "Too many requests, please try again later",
+  "auth.account_locked": "Account is locked, please try again in {minutes} minutes"
 }

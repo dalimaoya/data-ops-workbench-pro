@@ -120,5 +120,7 @@
   "data_maintenance.row_field_expect_number": "第{row}行 字段[{field}] 期望数值",
   "data_maintenance.row_field_not_in_enum": "第{row}行 字段[{field}] 值不在枚举范围内",
   "data_maintenance.row_pk_not_in_db_no_insert": "第{row}行 主键值「{pk}」在数据库中不存在（该表未启用新增行功能）",
-  "backup.rollback_success": "回退成功，恢复 {count} 条记录"
+  "backup.rollback_success": "回退成功，恢复 {count} 条记录",
+  "auth.rate_limited": "请求过于频繁，请稍后再试",
+  "auth.account_locked": "账号已被锁定，请 {minutes} 分钟后再试"
 }

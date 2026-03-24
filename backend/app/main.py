@@ -3,9 +3,9 @@
 import os
 import sys
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base, SessionLocal
@@ -16,6 +16,7 @@ from app.routers import users as users_router
 from app.routers import approvals as approvals_router
 from app.routers import notifications as notifications_router
 from app.utils.auth import init_default_admin
+from app.utils.security_middleware import SecurityHeadersMiddleware, check_rate_limit
 from app.i18n import parse_accept_language, set_lang
 
 
@@ -39,20 +40,70 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS for dev
+# ─────────────────────────────────────────────
+# CORS Configuration (configurable, no more wildcard)
+# ─────────────────────────────────────────────
+_allowed_origins_env = os.environ.get("ALLOWED_ORIGINS", "")
+if _allowed_origins_env:
+    _allowed_origins = [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
+else:
+    # Default: allow same-origin only (empty list with allow_credentials=False)
+    # For dev, set ALLOWED_ORIGINS=http://localhost:5173,http://localhost:8580
+    _allowed_origins = []
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_allowed_origins,
+    allow_credentials=bool(_allowed_origins),
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Security response headers middleware
+app.add_middleware(SecurityHeadersMiddleware)
 
 # i18n middleware: parse Accept-Language header and set current language
 @app.middleware("http")
 async def i18n_middleware(request: Request, call_next):
     lang = parse_accept_language(request.headers.get("accept-language"))
     set_lang(lang)
+    response = await call_next(request)
+    return response
+
+
+# General API rate limiting middleware
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    """Apply general rate limiting to API endpoints."""
+    path = request.url.path
+    
+    # Only rate-limit API endpoints (not static files)
+    if path.startswith("/api/"):
+        client_ip = request.client.host if request.client else "unknown"
+        
+        # Determine rate limit category
+        if path in ("/api/auth/login",):
+            category = "login"
+            identifier = client_ip
+        elif path in ("/api/auth/captcha",):
+            category = "captcha"
+            identifier = client_ip
+        elif "export" in path:
+            category = "export"
+            identifier = client_ip  # Will use user-level once auth is parsed
+        elif "writeback" in path or "inline-update" in path or "inline-insert" in path:
+            category = "writeback"
+            identifier = client_ip
+        else:
+            category = "general"
+            identifier = client_ip
+        
+        if not check_rate_limit(category, identifier):
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "请求过于频繁，请稍后再试"},
+            )
+    
     response = await call_next(request)
     return response
 
