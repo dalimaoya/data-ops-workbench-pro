@@ -129,6 +129,8 @@ class FieldConfigOut(BaseModel):
     validation_rule_json: Optional[str] = None
     default_display_type: Optional[str] = None
     editable_roles: Optional[str] = None
+    sensitivity_level: Optional[str] = None
+    sensitivity_note: Optional[str] = None
     remark: Optional[str] = None
     created_at: datetime
     updated_at: datetime

@@ -75,6 +75,10 @@ extra_hiddenimports = [
     'PIL.Image',
     'PIL.ImageDraw',
     'PIL.ImageFont',
+    # HTTP client (used by AI modules)
+    'httpx',
+    'httpx._transports',
+    'httpx._transports.default',
     # Other
     'anyio',
     'anyio._backends',
