@@ -38,13 +38,22 @@ interface MenuItem {
   icon: React.ReactNode;
   labelKey: string;
   roles?: string[];
+  children?: MenuItem[];
 }
 
 const allMenuItems: MenuItem[] = [
   { key: '/', icon: <HomeOutlined />, labelKey: 'menu.dashboard' },
   { key: '/datasource', icon: <DatabaseOutlined />, labelKey: 'menu.datasource', roles: ['admin'] },
   { key: '/table-config', icon: <TableOutlined />, labelKey: 'menu.tableConfig' },
-  { key: '/data-maintenance', icon: <ToolOutlined />, labelKey: 'menu.dataMaintenance' },
+  {
+    key: '/data-maintenance-group',
+    icon: <ToolOutlined />,
+    labelKey: 'menu.dataMaintenance',
+    children: [
+      { key: '/data-maintenance', icon: <TableOutlined />, labelKey: 'menu.tableMaintenance' },
+      { key: '/db-maintenance', icon: <DatabaseOutlined />, labelKey: 'menu.dbMaintenance' },
+    ],
+  },
   { key: '/log-center', icon: <FileTextOutlined />, labelKey: 'menu.logCenter' },
   { key: '/approval-center', icon: <AuditOutlined />, labelKey: 'menu.approvalCenter', roles: ['admin'] },
   { key: '/version-rollback', icon: <HistoryOutlined />, labelKey: 'menu.versionRollback', roles: ['admin'] },
@@ -118,13 +127,50 @@ export default function MainLayout() {
   const userRole = user?.role || '';
   const siderWidth = collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
-  const menuItems = allMenuItems
-    .filter(item => !item.roles || item.roles.includes(userRole))
-    .map(({ key, icon, labelKey }) => ({ key, icon, label: t(labelKey) }));
+  // Expand state for submenus
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
-  const selectedKey = menuItems
-    .filter(i => location.pathname.startsWith(i.key) && i.key !== '/')
-    .sort((a, b) => b.key.length - a.key.length)[0]?.key
+  const toggleGroup = (key: string) => {
+    setExpandedGroups(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Flatten menu items, filtering by role
+  const flatMenuItems: Array<{ key: string; icon: React.ReactNode; label: string; isChild?: boolean; parentKey?: string }> = [];
+  const allFlatKeys: string[] = [];
+
+  allMenuItems.forEach(item => {
+    if (item.roles && !item.roles.includes(userRole)) return;
+    if (item.children) {
+      // Parent group
+      flatMenuItems.push({ key: item.key, icon: item.icon, label: t(item.labelKey) });
+      item.children.forEach(child => {
+        if (child.roles && !child.roles.includes(userRole)) return;
+        flatMenuItems.push({ key: child.key, icon: child.icon, label: t(child.labelKey), isChild: true, parentKey: item.key });
+        allFlatKeys.push(child.key);
+      });
+    } else {
+      flatMenuItems.push({ key: item.key, icon: item.icon, label: t(item.labelKey) });
+      allFlatKeys.push(item.key);
+    }
+  });
+
+  // Auto-expand group if a child is active
+  useEffect(() => {
+    allMenuItems.forEach(item => {
+      if (item.children) {
+        const childActive = item.children.some(c => location.pathname.startsWith(c.key));
+        if (childActive) {
+          setExpandedGroups(prev => ({ ...prev, [item.key]: true }));
+        }
+      }
+    });
+  }, [location.pathname]);
+
+  const menuItems = flatMenuItems;
+
+  const selectedKey = allFlatKeys
+    .filter(k => location.pathname.startsWith(k) && k !== '/')
+    .sort((a, b) => b.length - a.length)[0]
     || (location.pathname === '/' ? '/' : '/');
 
   const handleLogout = () => {
@@ -292,8 +338,22 @@ export default function MainLayout() {
         {/* Menu Items */}
         <div style={{ padding: '16px 12px 8px 12px', flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
           {menuItems.map(item => {
-            const isSelected = item.key === selectedKey;
+            const isGroup = item.key.endsWith('-group');
+            const isChild = !!(item as any).isChild;
+            const parentKey = (item as any).parentKey;
+
+            // Hide children of collapsed groups
+            if (isChild && parentKey && !expandedGroups[parentKey] && !collapsed) {
+              return null;
+            }
+
+            const isSelected = !isGroup && item.key === selectedKey;
             const isHovered = hoveredKey === item.key;
+
+            // Check if any child in this group is selected
+            const isGroupActive = isGroup && allMenuItems
+              .find(m => m.key === item.key)?.children
+              ?.some(c => location.pathname.startsWith(c.key));
 
             let bg = 'transparent';
             let border = '1px solid transparent';
@@ -307,6 +367,9 @@ export default function MainLayout() {
               borderLeft = '3px solid #35D6C1';
               textColor = '#FFFFFF';
               iconColor = '#FFFFFF';
+            } else if (isGroupActive) {
+              textColor = '#E0EAFF';
+              iconColor = '#8CB4FF';
             } else if (isHovered) {
               bg = 'rgba(255,255,255,0.05)';
               iconColor = '#DDE8FF';
@@ -315,16 +378,22 @@ export default function MainLayout() {
             return (
               <div
                 key={item.key}
-                onClick={() => navigate(item.key)}
+                onClick={() => {
+                  if (isGroup) {
+                    toggleGroup(item.key);
+                  } else {
+                    navigate(item.key);
+                  }
+                }}
                 onMouseEnter={() => setHoveredKey(item.key)}
                 onMouseLeave={() => setHoveredKey(null)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 12,
-                  height: 48,
-                  padding: collapsed ? '0' : '0 16px',
-                  marginBottom: 8,
+                  gap: isChild && !collapsed ? 8 : 12,
+                  height: isChild ? 40 : 48,
+                  padding: collapsed ? '0' : isChild ? '0 16px 0 36px' : '0 16px',
+                  marginBottom: isChild ? 2 : 8,
                   borderRadius: 12,
                   cursor: 'pointer',
                   color: textColor,
@@ -333,8 +402,8 @@ export default function MainLayout() {
                   borderLeft: borderLeft,
                   transition: 'all 0.2s ease',
                   justifyContent: collapsed ? 'center' : 'flex-start',
-                  fontSize: 16,
-                  fontWeight: 500,
+                  fontSize: isChild ? 14 : 16,
+                  fontWeight: isChild ? 400 : 500,
                   lineHeight: '24px',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
@@ -342,7 +411,7 @@ export default function MainLayout() {
               >
                 <span
                   style={{
-                    fontSize: 20,
+                    fontSize: isChild ? 16 : 20,
                     color: iconColor,
                     display: 'flex',
                     alignItems: 'center',
@@ -356,8 +425,13 @@ export default function MainLayout() {
                   {item.icon}
                 </span>
                 {!collapsed && (
-                  <span style={{ transition: 'opacity 0.2s', opacity: 1 }}>
+                  <span style={{ transition: 'opacity 0.2s', opacity: 1, flex: 1 }}>
                     {item.label}
+                  </span>
+                )}
+                {!collapsed && isGroup && (
+                  <span style={{ fontSize: 10, color: '#7F8CA8', transition: 'transform 0.2s', transform: expandedGroups[item.key] ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                    ▶
                   </span>
                 )}
               </div>

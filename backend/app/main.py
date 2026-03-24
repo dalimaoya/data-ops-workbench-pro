@@ -23,6 +23,7 @@ from app.routers import ai_nl_query as ai_nl_query_router
 from app.routers import ai_batch_fill as ai_batch_fill_router
 from app.routers import ai_batch_fill_multi as ai_batch_fill_multi_router
 from app.routers import writeback_multi as writeback_multi_router
+from app.routers import batch_manage as batch_manage_router
 from app.utils.auth import init_default_admin
 from app.utils.security_middleware import SecurityHeadersMiddleware, check_rate_limit
 from app.i18n import parse_accept_language, set_lang
@@ -136,6 +137,7 @@ app.include_router(ai_batch_fill_router.router)
 app.include_router(ai_batch_fill_multi_router.router)
 app.include_router(writeback_multi_router.router)
 app.include_router(platform_backup_router.router)
+app.include_router(batch_manage_router.router)
 
 
 @app.get("/api/health")

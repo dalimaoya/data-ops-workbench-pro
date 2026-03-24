@@ -24,6 +24,7 @@ import ApprovalCenter from './pages/approval-center/ApprovalCenter';
 import About from './pages/About';
 import AIConfigPage from './pages/ai-config/AIConfigPage';
 import PlatformBackup from './pages/platform-backup/PlatformBackup';
+import DatabaseMaintenance from './pages/db-maintenance/DatabaseMaintenance';
 
 function RequireAuth({ children }: { children: React.JSX.Element }) {
   const { isAuthenticated } = useAuth();
@@ -70,6 +71,7 @@ function App() {
           <Route path="/table-config/detail/:id" element={<TableConfigDetail />} />
           <Route path="/table-config/fields/:id" element={<FieldConfigPage />} />
           <Route path="/data-maintenance" element={<MaintenanceList />} />
+          <Route path="/db-maintenance" element={<DatabaseMaintenance />} />
           <Route path="/data-maintenance/browse/:id" element={<DataBrowse />} />
           <Route path="/data-maintenance/import/:id" element={<ImportPage />} />
           <Route path="/data-maintenance/diff/:taskId" element={<DiffPreview />} />
