@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons';
 import { browseTableData, getExportInfo, exportTemplate, deleteRows, inlineUpdate, batchInsert, asyncExport } from '../../api/dataMaintenance';
 import AIQueryPanel from './AIQueryPanel';
+import AIBatchFillPanel from './AIBatchFillPanel';
 import type { NLQueryFilter } from '../../api/aiNlQuery';
 import type { ColumnMeta, InlineChange } from '../../api/dataMaintenance';
 import { getTableConfig } from '../../api/tableConfig';
@@ -67,6 +68,9 @@ export default function DataBrowse() {
   // v3.0: AI NL Query
   const [aiQueryOpen, setAiQueryOpen] = useState(false);
   const [aiFilters, setAiFilters] = useState<NLQueryFilter[]>([]);
+
+  // v3.0: AI Batch Fill
+  const [batchFillOpen, setBatchFillOpen] = useState(false);
 
   const originalRowsRef = useRef<Record<string, Record<string, string | null>>>({});
 
@@ -625,6 +629,15 @@ export default function DataBrowse() {
                   )}
                   <Button icon={<DownloadOutlined />} onClick={handleExportClick}>{t('dataBrowse.exportTemplate')}</Button>
                   {canOperate && <Button icon={<UploadOutlined />} onClick={() => navigate(`/data-maintenance/import/${tableConfigId}`)}>{t('dataBrowse.uploadTemplate')}</Button>}
+                  {canOperate && (
+                    <Button
+                      icon={<RobotOutlined />}
+                      onClick={() => setBatchFillOpen(true)}
+                      style={{ borderColor: '#722ed1', color: '#722ed1' }}
+                    >
+                      🤖 AI 批量修改
+                    </Button>
+                  )}
                 </>
               )}
             </Space>
@@ -830,6 +843,14 @@ export default function DataBrowse() {
           ]}
         />
       </Modal>
+
+      {/* v3.0: AI Batch Fill Panel */}
+      <AIBatchFillPanel
+        open={batchFillOpen}
+        onClose={() => setBatchFillOpen(false)}
+        tableConfigId={tableConfigId}
+        tableAlias={(tableInfo as { table_alias?: string }).table_alias || (tableInfo as { table_name?: string }).table_name}
+      />
     </div>
   );
 }
