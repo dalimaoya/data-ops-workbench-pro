@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Card, Select, Table, Input, Button, Checkbox, Space, Progress, Tag, message,
   Typography, Tooltip, Steps, Divider, Radio, Result, Spin,
@@ -7,7 +8,8 @@ import {
 import {
   SearchOutlined, RocketOutlined, CheckCircleOutlined,
   LeftOutlined, RightOutlined, DownloadOutlined, DatabaseOutlined,
-  ReloadOutlined, CheckOutlined,
+  ReloadOutlined, CheckOutlined, EyeOutlined, EditOutlined,
+  ImportOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { listDatasources, type Datasource } from '../../api/datasource';
@@ -55,6 +57,7 @@ interface EditableFieldConfig {
 
 export default function DatabaseMaintenance() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   // Step management
   const [currentStep, setCurrentStep] = useState(0);
@@ -414,6 +417,14 @@ export default function DatabaseMaintenance() {
       title: t('common.tableName'),
       dataIndex: 'table_name',
       ellipsis: true,
+      render: (val: string, record: TableSelectItem) => (
+        record.is_managed && record.table_config_id ? (
+          <a onClick={() => navigate(`/data-maintenance/browse/${record.table_config_id}`)}
+             style={{ cursor: 'pointer' }}>
+            {val}
+          </a>
+        ) : val
+      ),
     },
     {
       title: t('dbMaintenance.fieldCount'),
@@ -428,6 +439,30 @@ export default function DatabaseMaintenance() {
       render: (val: boolean) => val
         ? <Tag color="success">{t('dbMaintenance.managed')}</Tag>
         : <Tag>{t('dbMaintenance.unmanaged')}</Tag>,
+    },
+    {
+      title: t('common.actions'),
+      width: 120,
+      render: (_: any, record: TableSelectItem) => record.is_managed && record.table_config_id ? (
+        <Space size="small">
+          <Tooltip title={t('maintenance.browse')}>
+            <Button
+              type="link"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => navigate(`/data-maintenance/browse/${record.table_config_id}`)}
+            />
+          </Tooltip>
+          <Tooltip title={t('maintenance.import')}>
+            <Button
+              type="link"
+              size="small"
+              icon={<ImportOutlined />}
+              onClick={() => navigate(`/data-maintenance/import/${record.table_config_id}`)}
+            />
+          </Tooltip>
+        </Space>
+      ) : null,
     },
   ];
 
@@ -542,6 +577,12 @@ export default function DatabaseMaintenance() {
       title: t('common.tableName'),
       dataIndex: 'table_name',
       ellipsis: true,
+      render: (val: string, record: TableConfig) => (
+        <a onClick={() => navigate(`/data-maintenance/browse/${record.id}`)}
+           style={{ cursor: 'pointer' }}>
+          {val}
+        </a>
+      ),
     },
     {
       title: t('maintenance.tableAlias'),
@@ -563,6 +604,38 @@ export default function DatabaseMaintenance() {
       dataIndex: 'updated_at',
       width: 160,
       render: (val: string) => val ? new Date(val).toLocaleString('zh-CN') : '—',
+    },
+    {
+      title: t('common.actions'),
+      width: 180,
+      render: (_: any, record: TableConfig) => (
+        <Space size="small">
+          <Tooltip title={t('maintenance.browse')}>
+            <Button
+              type="link"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => navigate(`/data-maintenance/browse/${record.id}`)}
+            />
+          </Tooltip>
+          <Tooltip title={t('maintenance.import')}>
+            <Button
+              type="link"
+              size="small"
+              icon={<ImportOutlined />}
+              onClick={() => navigate(`/data-maintenance/import/${record.id}`)}
+            />
+          </Tooltip>
+          <Tooltip title={t('tableConfig.fieldConfig')}>
+            <Button
+              type="link"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => navigate(`/table-config/fields/${record.id}`)}
+            />
+          </Tooltip>
+        </Space>
+      ),
     },
   ];
 

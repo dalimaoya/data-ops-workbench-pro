@@ -40,7 +40,8 @@
     "time": "Time",
     "type": "Type",
     "langZh": "中文",
-    "langEn": "English"
+    "langEn": "English",
+    "actions": "Actions"
   },
   "menu": {
     "dashboard": "Dashboard",
@@ -261,7 +262,8 @@
     "fields": "Fields",
     "deleted": "Deleted",
     "selected": "Selected",
-    "select": "Select"
+    "select": "Select",
+    "fieldConfig": "Field Config"
   },
   "tableDetail": {
     "basicInfo": "Table Info",
@@ -337,7 +339,9 @@
     "batchExportFailed": "Batch export failed",
     "structureNormal": "Normal",
     "structureChanged": "Changed",
-    "structureError": "Check Failed"
+    "structureError": "Check Failed",
+    "browse": "Browse Data",
+    "import": "Import Data"
   },
   "dataBrowse": {
     "title": "Data Browse",

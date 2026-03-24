@@ -40,7 +40,8 @@
     "time": "时间",
     "type": "类型",
     "langZh": "中文",
-    "langEn": "English"
+    "langEn": "English",
+    "actions": "操作"
   },
   "menu": {
     "dashboard": "工作台总览",
@@ -261,7 +262,8 @@
     "fields": "字段",
     "deleted": "已删除",
     "selected": "已选择",
-    "select": "选择"
+    "select": "选择",
+    "fieldConfig": "字段配置"
   },
   "tableDetail": {
     "basicInfo": "表基础信息",
@@ -337,7 +339,9 @@
     "batchExportFailed": "批量导出失败",
     "structureNormal": "正常",
     "structureChanged": "已变化",
-    "structureError": "检查失败"
+    "structureError": "检查失败",
+    "browse": "浏览数据",
+    "import": "导入数据"
   },
   "dataBrowse": {
     "title": "数据浏览",
