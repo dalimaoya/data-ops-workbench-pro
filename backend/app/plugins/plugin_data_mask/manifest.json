@@ -1,0 +1,14 @@
+{
+  "name": "plugin-data-mask",
+  "version": "3.3.0",
+  "display_name": "数据脱敏导出",
+  "display_name_en": "Data Masking Export",
+  "description": "字段级脱敏规则配置，导出时自动应用脱敏",
+  "author": "dalimaoya",
+  "license": "proprietary",
+  "requires_core": ">=3.2.0",
+  "dependencies": [],
+  "frontend": {
+    "menu_items": []
+  }
+}

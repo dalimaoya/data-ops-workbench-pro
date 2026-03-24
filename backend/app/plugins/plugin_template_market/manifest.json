@@ -1,0 +1,21 @@
+{
+  "name": "plugin-template-market",
+  "version": "3.3.0",
+  "display_name": "模板市场",
+  "display_name_en": "Template Market",
+  "description": "内置经济/人口/政务/教育/安全生产等预设模板，一键导入建表",
+  "author": "dalimaoya",
+  "license": "proprietary",
+  "requires_core": ">=3.2.0",
+  "dependencies": [],
+  "frontend": {
+    "menu_items": [
+      {
+        "key": "/template-market",
+        "icon": "ShopOutlined",
+        "label_key": "menu.templateMarket",
+        "roles": ["admin"]
+      }
+    ]
+  }
+}

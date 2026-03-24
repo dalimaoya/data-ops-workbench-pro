@@ -29,6 +29,12 @@ import HealthCheckPage from './pages/health-check/HealthCheckPage';
 import SmartImportPage from './pages/smart-import/SmartImportPage';
 import SchedulerPage from './pages/scheduler/SchedulerPage';
 import DbManagerPage from './pages/db-manager/DbManagerPage';
+import NotifyPushConfig from './pages/notify-push/NotifyPushConfig';
+import DataTrendPage from './pages/data-trend/DataTrendPage';
+import DataComparePage from './pages/data-compare/DataComparePage';
+import TemplateMarketPage from './pages/template-market/TemplateMarketPage';
+import WebhookConfigPage from './pages/webhook-config/WebhookConfigPage';
+import SqlConsolePage from './pages/sql-console/SqlConsolePage';
 
 function RequireAuth({ children }: { children: React.JSX.Element }) {
   const { isAuthenticated } = useAuth();
@@ -89,6 +95,12 @@ function App() {
           <Route path="/platform-backup" element={<RequireRole roles={['admin']}><PlatformBackup /></RequireRole>} />
           <Route path="/scheduler" element={<RequireRole roles={['admin']}><SchedulerPage /></RequireRole>} />
           <Route path="/db-manager" element={<RequireRole roles={['admin']}><DbManagerPage /></RequireRole>} />
+          <Route path="/notify-push-config" element={<RequireRole roles={['admin']}><NotifyPushConfig /></RequireRole>} />
+          <Route path="/data-trend" element={<DataTrendPage />} />
+          <Route path="/data-compare" element={<DataComparePage />} />
+          <Route path="/template-market" element={<RequireRole roles={['admin']}><TemplateMarketPage /></RequireRole>} />
+          <Route path="/webhook-config" element={<RequireRole roles={['admin']}><WebhookConfigPage /></RequireRole>} />
+          <Route path="/sql-console" element={<RequireRole roles={['admin']}><SqlConsolePage /></RequireRole>} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

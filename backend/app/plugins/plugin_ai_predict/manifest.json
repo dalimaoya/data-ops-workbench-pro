@@ -1,0 +1,14 @@
+{
+  "name": "plugin-ai-predict",
+  "version": "3.3.0",
+  "display_name": "AI 数据预填",
+  "display_name_en": "AI Data Prediction",
+  "description": "基于历史数据 AI 预测下一期数据，生成预填模板",
+  "author": "dalimaoya",
+  "license": "proprietary",
+  "requires_core": ">=3.2.0",
+  "dependencies": ["httpx"],
+  "frontend": {
+    "menu_items": []
+  }
+}

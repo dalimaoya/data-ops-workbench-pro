@@ -27,6 +27,15 @@ ALL_KNOWN_PLUGINS = [
     "plugin-smart-import",
     "plugin-ai-assistant",
     "plugin-db-manager",
+    "plugin-data-mask",
+    "plugin-notify-push",
+    "plugin-data-trend",
+    "plugin-audit-export",
+    "plugin-data-compare",
+    "plugin-template-market",
+    "plugin-ai-predict",
+    "plugin-webhook",
+    "plugin-sql-console",
 ]
 
 

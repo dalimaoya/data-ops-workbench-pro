@@ -28,6 +28,12 @@ import {
   ScheduleOutlined,
   LockOutlined,
   ConsoleSqlOutlined,
+  SendOutlined,
+  LineChartOutlined,
+  SwapOutlined,
+  ShopOutlined,
+  ApiOutlined,
+  CodeOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
 import { changeMyPassword, updateMyProfile } from '../api/users';
@@ -84,6 +90,12 @@ const pluginMenuDefs: PluginMenuDef[] = [
   { pluginName: 'plugin-ai-assistant', menuItem: { key: '/ai-config', icon: <RobotOutlined />, labelKey: 'menu.aiConfig', roles: ['admin'] }, insertAfter: '/health-check' },
   { pluginName: 'plugin-scheduler', menuItem: { key: '/scheduler', icon: <ScheduleOutlined />, labelKey: 'menu.scheduler', roles: ['admin'] }, insertAfter: '/ai-config' },
   { pluginName: 'plugin-backup', menuItem: { key: '/platform-backup', icon: <CloudServerOutlined />, labelKey: 'menu.platformBackup', roles: ['admin'] }, insertAfter: '/scheduler' },
+  { pluginName: 'plugin-data-trend', menuItem: { key: '/data-trend', icon: <LineChartOutlined />, labelKey: 'menu.dataTrend', roles: ['admin', 'operator'] }, insertAfter: '/platform-backup' },
+  { pluginName: 'plugin-data-compare', menuItem: { key: '/data-compare', icon: <SwapOutlined />, labelKey: 'menu.dataCompare', roles: ['admin', 'operator'] }, insertAfter: '/data-trend' },
+  { pluginName: 'plugin-template-market', menuItem: { key: '/template-market', icon: <ShopOutlined />, labelKey: 'menu.templateMarket', roles: ['admin'] }, insertAfter: '/data-compare' },
+  { pluginName: 'plugin-notify-push', menuItem: { key: '/notify-push-config', icon: <SendOutlined />, labelKey: 'menu.notifyPush', roles: ['admin'] }, insertAfter: '/template-market' },
+  { pluginName: 'plugin-webhook', menuItem: { key: '/webhook-config', icon: <ApiOutlined />, labelKey: 'menu.webhookConfig', roles: ['admin'] }, insertAfter: '/notify-push-config' },
+  { pluginName: 'plugin-sql-console', menuItem: { key: '/sql-console', icon: <CodeOutlined />, labelKey: 'menu.sqlConsole', roles: ['admin'] }, parentGroup: '/data-maintenance-group' },
 ];
 
 interface PluginStatus {

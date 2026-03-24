@@ -1,0 +1,21 @@
+{
+  "name": "plugin-notify-push",
+  "version": "3.3.0",
+  "display_name": "外部通知推送",
+  "display_name_en": "External Notification Push",
+  "description": "企业微信/钉钉/邮件推送，支持回写、审批、巡检、定时任务事件",
+  "author": "dalimaoya",
+  "license": "proprietary",
+  "requires_core": ">=3.2.0",
+  "dependencies": ["httpx"],
+  "frontend": {
+    "menu_items": [
+      {
+        "key": "/notify-push-config",
+        "icon": "SendOutlined",
+        "label_key": "menu.notifyPush",
+        "roles": ["admin"]
+      }
+    ]
+  }
+}
