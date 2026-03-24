@@ -271,7 +271,7 @@ def apply_rule_to_data(
     Each change: {"row_index": int, "pk_value": str, "field": str, "field_alias": str, "old_value": str, "new_value": str}
     """
     changes: list[dict] = []
-    target_field = rule["target_field"]
+    target_field = rule.get("target_field", "")
     
     # Find field alias
     field_alias = target_field
@@ -280,15 +280,15 @@ def apply_rule_to_data(
             field_alias = f.get("field_alias") or target_field
             break
 
-    action = rule["action"]
+    action = rule.get("action") or {}
     condition = rule.get("condition")
 
     for row_idx, row in enumerate(data):
         # Check condition
         if condition:
-            cond_field = condition["field"]
-            cond_op = condition["operator"]
-            cond_value = condition["value"]
+            cond_field = condition.get("field", "")
+            cond_op = condition.get("operator", "")
+            cond_value = condition.get("value", "")
             cell_value = row.get(cond_field)
             
             if cell_value is None:
@@ -316,38 +316,41 @@ def apply_rule_to_data(
         old_str = str(old_value) if old_value is not None else ""
 
         # Apply action
-        if action["type"] == "set":
-            new_value = action["value"]
+        action_type = action.get("type", "")
+        if action_type == "set":
+            new_value = action.get("value", "")
+            if old_str == str(new_value):
+                continue
+        elif action_type == "replace":
+            old_replace = action.get("old_value", "")
+            new_replace = action.get("new_value", "")
+            if not old_replace or old_replace not in old_str:
+                continue
+            new_value = old_str.replace(old_replace, new_replace)
             if old_str == new_value:
                 continue
-        elif action["type"] == "replace":
-            if action["old_value"] not in old_str:
-                continue
-            new_value = old_str.replace(action["old_value"], action["new_value"])
-            if old_str == new_value:
-                continue
-        elif action["type"] == "clear":
+        elif action_type == "clear":
             if old_value is None or old_str == "":
                 continue
             new_value = ""
-        elif action["type"] == "add":
+        elif action_type == "add":
             try:
                 num = float(old_str) if old_str else 0
-                result = num + action["value"]
+                result = num + action.get("value", 0)
                 new_value = _format_number(result, old_str)
             except (ValueError, TypeError):
                 continue
-        elif action["type"] == "subtract":
+        elif action_type == "subtract":
             try:
                 num = float(old_str) if old_str else 0
-                result = num - action["value"]
+                result = num - action.get("value", 0)
                 new_value = _format_number(result, old_str)
             except (ValueError, TypeError):
                 continue
-        elif action["type"] == "multiply":
+        elif action_type == "multiply":
             try:
                 num = float(old_str) if old_str else 0
-                result = num * action["value"]
+                result = num * action.get("value", 0)
                 new_value = _format_number(result, old_str)
             except (ValueError, TypeError):
                 continue
@@ -382,41 +385,45 @@ def _format_number(value: float, original_str: str) -> str:
 
 def build_explanation(rule: dict, fields: list[dict]) -> str:
     """Build a human-readable explanation of the parsed rule."""
-    target_alias = rule["target_field"]
+    target_alias = rule.get("target_field", "未知字段")
     for f in fields:
-        if f["field_name"] == rule["target_field"]:
-            target_alias = f.get("field_alias") or rule["target_field"]
+        if f["field_name"] == rule.get("target_field"):
+            target_alias = f.get("field_alias") or rule.get("target_field", "未知字段")
             break
 
-    action = rule["action"]
+    action = rule.get("action") or {}
     condition = rule.get("condition")
 
     parts = []
     if condition:
-        cond_alias = condition["field"]
+        cond_alias = condition.get("field", "未知字段")
         for f in fields:
-            if f["field_name"] == condition["field"]:
-                cond_alias = f.get("field_alias") or condition["field"]
+            if f["field_name"] == condition.get("field"):
+                cond_alias = f.get("field_alias") or condition.get("field", "未知字段")
                 break
+        cond_op = condition.get("operator", "")
         op_text = {"eq": "等于", ">": "大于", ">=": "不小于", "<": "小于", "<=": "不大于"}.get(
-            condition["operator"], condition["operator"]
+            cond_op, cond_op
         )
-        parts.append(f"筛选【{cond_alias}】{op_text}'{condition['value']}'的记录")
+        parts.append(f"筛选【{cond_alias}】{op_text}'{condition.get('value', '')}'的记录")
 
-    if action["type"] == "set":
-        parts.append(f"将【{target_alias}】修改为'{action['value']}'")
-    elif action["type"] == "replace":
-        parts.append(f"将【{target_alias}】中的'{action['old_value']}'替换为'{action['new_value']}'")
-    elif action["type"] == "clear":
+    action_type = action.get("type", "")
+    if action_type == "set":
+        parts.append(f"将【{target_alias}】修改为'{action.get('value', '')}'")
+    elif action_type == "replace":
+        parts.append(f"将【{target_alias}】中的'{action.get('old_value', '')}'替换为'{action.get('new_value', '')}'")
+    elif action_type == "clear":
         parts.append(f"清空【{target_alias}】字段")
-    elif action["type"] == "add":
-        parts.append(f"将【{target_alias}】增加 {action['value']}")
-    elif action["type"] == "subtract":
-        parts.append(f"将【{target_alias}】减少 {action['value']}")
-    elif action["type"] == "multiply":
-        parts.append(f"将【{target_alias}】乘以 {action['value']}")
+    elif action_type == "add":
+        parts.append(f"将【{target_alias}】增加 {action.get('value', 0)}")
+    elif action_type == "subtract":
+        parts.append(f"将【{target_alias}】减少 {action.get('value', 0)}")
+    elif action_type == "multiply":
+        parts.append(f"将【{target_alias}】乘以 {action.get('value', 0)}")
+    else:
+        parts.append("规则不适用于此表")
 
-    return "，".join(parts)
+    return "，".join(parts) if parts else "规则不适用于此表"
 
 
 # ── LLM-enhanced parsing ──
@@ -495,5 +502,17 @@ def parse_llm_response(content: str) -> Optional[dict]:
     # Validate required fields
     if not result.get("rule_type") or not result.get("target_field") or not result.get("action"):
         return None
+
+    # Validate action completeness — LLM may return incomplete actions for non-matching tables
+    action = result.get("action", {})
+    action_type = action.get("type", "")
+    if action_type == "replace":
+        if "old_value" not in action or "new_value" not in action:
+            return {"error": "规则不适用于此表（替换操作缺少必要参数）"}
+    elif action_type in ("set", "add", "subtract", "multiply"):
+        if "value" not in action:
+            return {"error": "规则不适用于此表（操作缺少目标值）"}
+    elif action_type not in ("clear",):
+        return {"error": f"不支持的操作类型: {action_type}"}
 
     return result
