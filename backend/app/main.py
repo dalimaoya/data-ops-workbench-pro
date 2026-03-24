@@ -16,6 +16,7 @@ from app.routers import users as users_router
 from app.routers import approvals as approvals_router
 from app.routers import notifications as notifications_router
 from app.routers import ai_config as ai_config_router
+from app.routers import ai_suggest as ai_suggest_router
 from app.utils.auth import init_default_admin
 from app.utils.security_middleware import SecurityHeadersMiddleware, check_rate_limit
 from app.i18n import parse_accept_language, set_lang
@@ -122,6 +123,7 @@ app.include_router(users_router.router)
 app.include_router(approvals_router.router)
 app.include_router(notifications_router.router)
 app.include_router(ai_config_router.router)
+app.include_router(ai_suggest_router.router)
 
 
 @app.get("/api/health")

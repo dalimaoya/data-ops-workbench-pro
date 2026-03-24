@@ -8,6 +8,7 @@ import {
   type TableConfig as TC, type FieldConfig,
 } from '../../api/tableConfig';
 import { useTranslation } from 'react-i18next';
+import AIFieldSuggestModal from './AIFieldSuggestModal';
 
 export default function FieldConfigPage() {
   const { t } = useTranslation();
@@ -89,6 +90,38 @@ export default function FieldConfigPage() {
       fetchData();
     } catch (e: any) {
       message.error(e?.response?.data?.detail || t('common.failed'));
+    }
+  };
+
+  // AI suggestions apply: update local state (not saved to DB until user clicks save)
+  const handleAIApply = (updates: Record<number, Partial<FieldConfig>>) => {
+    setFields(prev => prev.map(f => {
+      const u = updates[f.id];
+      if (!u) return f;
+      // Don't overwrite fields the user has already manually configured (has alias)
+      // unless the update comes from explicit acceptance
+      return { ...f, ...u };
+    }));
+    setUnsavedChanges(true);
+  };
+
+  const [unsavedChanges, setUnsavedChanges] = useState(false);
+
+  const handleSaveAll = async () => {
+    try {
+      // Save all changed fields
+      const promises = fields.map(f => updateField(f.id, {
+        field_alias: f.field_alias,
+        is_editable: f.is_editable,
+        is_system_field: f.is_system_field,
+        enum_options_json: f.enum_options_json,
+      }));
+      await Promise.all(promises);
+      message.success(t('common.success'));
+      setUnsavedChanges(false);
+      fetchData();
+    } catch {
+      message.error(t('common.failed'));
     }
   };
 
@@ -185,6 +218,10 @@ export default function FieldConfigPage() {
       title={`${t('fieldConfig.title')} — ${tc?.table_alias || tc?.table_name || ''}`}
       extra={
         <Space>
+          <AIFieldSuggestModal tableConfigId={tcId} fields={fields} onApply={handleAIApply} />
+          {unsavedChanges && (
+            <Button size="small" type="primary" onClick={handleSaveAll}>{t('aiSuggest.saveConfig')}</Button>
+          )}
           <Button size="small" onClick={handleSyncFields}>{t('fieldConfig.syncFromDb')}</Button>
           <Button size="small" onClick={() => navigate(`/table-config/detail/${tcId}`)}>{t('fieldConfig.backToConfig')}</Button>
           <Button size="small" onClick={() => navigate('/table-config')}>{t('fieldConfig.backToList')}</Button>
