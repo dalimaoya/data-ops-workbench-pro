@@ -307,17 +307,17 @@ export default function MainLayout() {
         }}
       >
         {/* Brand Area */}
-        <div style={{ padding: '20px 16px 0 16px', flexShrink: 0 }}>
+        <div style={{ padding: '12px 12px 0 12px', flexShrink: 0 }}>
           <div
             style={{
               background: 'rgba(255,255,255,0.03)',
               border: '1px solid rgba(126,167,255,0.15)',
-              borderRadius: 12,
-              height: 80,
+              borderRadius: 10,
+              height: 56,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: collapsed ? '0 8px' : '0 12px',
+              padding: collapsed ? '0 6px' : '0 10px',
               overflow: 'hidden',
               transition: 'padding 0.25s',
             }}
@@ -326,9 +326,9 @@ export default function MainLayout() {
               src="/logo.png"
               alt="DataOps Workbench"
               style={{
-                width: collapsed ? 40 : '100%',
-                height: collapsed ? 40 : 'auto',
-                maxHeight: 60,
+                width: collapsed ? 36 : '100%',
+                height: collapsed ? 36 : 'auto',
+                maxHeight: 44,
                 objectFit: collapsed ? 'cover' : 'contain',
                 objectPosition: 'left',
                 transition: 'all 0.25s',
@@ -338,7 +338,7 @@ export default function MainLayout() {
         </div>
 
         {/* Menu Items */}
-        <div style={{ padding: '16px 12px 8px 12px', flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+        <div style={{ padding: '8px 10px 4px 10px', flex: 1, overflowY: 'hidden', overflowX: 'hidden' }}>
           {menuItems.map(item => {
             const isGroup = item.key.endsWith('-group');
             const isChild = !!(item as any).isChild;
@@ -392,11 +392,11 @@ export default function MainLayout() {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: isChild && !collapsed ? 8 : 12,
-                  height: isChild ? 40 : 48,
-                  padding: collapsed ? '0' : isChild ? '0 16px 0 36px' : '0 16px',
-                  marginBottom: isChild ? 2 : 8,
-                  borderRadius: 12,
+                  gap: isChild && !collapsed ? 6 : 10,
+                  height: isChild ? 34 : 38,
+                  padding: collapsed ? '0' : isChild ? '0 12px 0 32px' : '0 12px',
+                  marginBottom: isChild ? 1 : 3,
+                  borderRadius: 10,
                   cursor: 'pointer',
                   color: textColor,
                   background: bg,
@@ -404,7 +404,7 @@ export default function MainLayout() {
                   borderLeft: borderLeft,
                   transition: 'all 0.2s ease',
                   justifyContent: collapsed ? 'center' : 'flex-start',
-                  fontSize: isChild ? 14 : 16,
+                  fontSize: isChild ? 13 : 14,
                   fontWeight: isChild ? 400 : 500,
                   lineHeight: '24px',
                   whiteSpace: 'nowrap',
@@ -413,7 +413,7 @@ export default function MainLayout() {
               >
                 <span
                   style={{
-                    fontSize: isChild ? 16 : 20,
+                    fontSize: isChild ? 14 : 18,
                     color: iconColor,
                     display: 'flex',
                     alignItems: 'center',
@@ -446,10 +446,10 @@ export default function MainLayout() {
           style={{
             flexShrink: 0,
             borderTop: '1px solid rgba(255,255,255,0.08)',
-            paddingTop: 12,
-            paddingBottom: 16,
-            paddingLeft: 12,
-            paddingRight: 12,
+            paddingTop: 8,
+            paddingBottom: 10,
+            paddingLeft: 10,
+            paddingRight: 10,
           }}
         >
           <div
@@ -462,10 +462,10 @@ export default function MainLayout() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: collapsed ? 'center' : 'flex-start',
-              gap: 10,
-              height: 42,
-              padding: collapsed ? '0' : '0 16px',
-              borderRadius: 10,
+              gap: 8,
+              height: 36,
+              padding: collapsed ? '0' : '0 12px',
+              borderRadius: 8,
               cursor: 'pointer',
               color: '#7F8CA8',
               background: collapseActive
