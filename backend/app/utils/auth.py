@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import UserAccount, _now_bjt
+from app.i18n import t
 
 SECRET_KEY = os.environ.get("JWT_SECRET", "data-ops-workbench-secret-key-2026")
 ALGORITHM = "HS256"
@@ -42,7 +43,7 @@ def decode_token(token: str) -> dict:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
     except JWTError:
-        raise HTTPException(status_code=401, detail="Token 无效或已过期")
+        raise HTTPException(status_code=401, detail=t("auth.token_invalid_expired"))
 
 
 def get_current_user(
@@ -51,17 +52,17 @@ def get_current_user(
 ) -> UserAccount:
     """Extract current user from JWT token."""
     if not credentials:
-        raise HTTPException(status_code=401, detail="未提供认证信息")
+        raise HTTPException(status_code=401, detail=t("auth.no_credentials"))
     payload = decode_token(credentials.credentials)
     username = payload.get("sub")
     if not username:
-        raise HTTPException(status_code=401, detail="Token 无效")
+        raise HTTPException(status_code=401, detail=t("auth.token_invalid"))
     user = db.query(UserAccount).filter(
         UserAccount.username == username,
         UserAccount.status == "enabled",
     ).first()
     if not user:
-        raise HTTPException(status_code=401, detail="用户不存在或已禁用")
+        raise HTTPException(status_code=401, detail=t("auth.user_not_found_disabled"))
     return user
 
 
@@ -69,7 +70,7 @@ def require_role(*roles: str):
     """Dependency: require user has one of the given roles."""
     def checker(user: UserAccount = Depends(get_current_user)):
         if user.role not in roles:
-            raise HTTPException(status_code=403, detail=f"权限不足，需要角色: {', '.join(roles)}")
+            raise HTTPException(status_code=403, detail=t("auth.insufficient_role", roles=', '.join(roles)))
         return user
     return checker
 

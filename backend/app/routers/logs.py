@@ -13,6 +13,7 @@ from app.models import (
     DatasourceConfig, TableConfig, UserAccount, FieldChangeLog,
 )
 from app.utils.auth import get_current_user
+from app.i18n import t
 
 router = APIRouter(prefix="/api/logs", tags=["日志中心"])
 
@@ -359,7 +360,7 @@ def list_field_changes(
     """查询某次回写的逐字段变更明细。"""
     wb = db.query(WritebackLog).filter(WritebackLog.id == writeback_log_id).first()
     if not wb:
-        raise HTTPException(404, "回写日志不存在")
+        raise HTTPException(404, t("log.writeback_not_found"))
 
     q = db.query(FieldChangeLog).filter(FieldChangeLog.writeback_log_id == writeback_log_id)
     if field_name:

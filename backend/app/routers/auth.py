@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models import UserAccount
 from app.utils.auth import verify_password, create_access_token, get_current_user
 from app.utils.captcha import generate_captcha, verify_captcha
+from app.i18n import t
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
 
@@ -51,16 +52,16 @@ def get_captcha():
 def login(req: LoginRequest, db: Session = Depends(get_db)):
     # Verify captcha first
     if not req.captcha_id or not req.captcha_code:
-        raise HTTPException(status_code=400, detail="请输入验证码")
+        raise HTTPException(status_code=400, detail=t("auth.captcha_required"))
     if not verify_captcha(req.captcha_id, req.captcha_code):
-        raise HTTPException(status_code=400, detail="验证码错误或已过期")
+        raise HTTPException(status_code=400, detail=t("auth.captcha_invalid"))
 
     user = db.query(UserAccount).filter(
         UserAccount.username == req.username,
         UserAccount.status == "enabled",
     ).first()
     if not user or not verify_password(req.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="用户名或密码错误")
+        raise HTTPException(status_code=401, detail=t("auth.credentials_invalid"))
     token = create_access_token({"sub": user.username, "role": user.role})
     return LoginResponse(
         token=token,

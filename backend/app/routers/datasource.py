@@ -19,6 +19,7 @@ from app.utils.audit import log_operation
 from app.utils.auth import get_current_user, require_role
 from app.utils.permissions import get_permitted_datasource_ids
 from app.models import UserAccount
+from app.i18n import t
 
 router = APIRouter(prefix="/api/datasource", tags=["数据源管理"])
 
@@ -97,7 +98,7 @@ def get_datasource(ds_id: int, db: Session = Depends(get_db), user: UserAccount 
         DatasourceConfig.id == ds_id, DatasourceConfig.is_deleted == 0
     ).first()
     if not row:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("datasource.not_found"))
     return row
 
 
@@ -138,7 +139,7 @@ def update_datasource(ds_id: int, body: DatasourceUpdate, db: Session = Depends(
         DatasourceConfig.id == ds_id, DatasourceConfig.is_deleted == 0
     ).first()
     if not row:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("datasource.not_found"))
     updates = body.model_dump(exclude_unset=True)
     if "password" in updates:
         updates["password_encrypted"] = encrypt_password(updates.pop("password"))
@@ -162,7 +163,7 @@ def delete_datasource(ds_id: int, db: Session = Depends(get_db), user: UserAccou
         DatasourceConfig.id == ds_id, DatasourceConfig.is_deleted == 0
     ).first()
     if not row:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("datasource.not_found"))
     row.is_deleted = 1
     row.updated_at = _now_bjt()
     log_operation(db, "数据源管理", "删除数据源", "success",
@@ -171,7 +172,7 @@ def delete_datasource(ds_id: int, db: Session = Depends(get_db), user: UserAccou
                   message=f"删除数据源 {row.datasource_name}",
                   operator=user.username)
     db.commit()
-    return {"detail": "已删除"}
+    return {"detail": t("datasource.deleted")}
 
 
 @router.post("/test-connection", response_model=TestConnectionResponse)
@@ -191,7 +192,7 @@ def test_existing_datasource(ds_id: int, db: Session = Depends(get_db), user: Us
         DatasourceConfig.id == ds_id, DatasourceConfig.is_deleted == 0
     ).first()
     if not row:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("datasource.not_found"))
     pwd = decrypt_password(row.password_encrypted)
     ok, msg = test_connection(
         db_type=row.db_type, host=row.host, port=row.port,

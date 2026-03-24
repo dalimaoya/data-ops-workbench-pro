@@ -120,7 +120,7 @@ def list_tables(db_type: str, host: str, port: int, user: str, password: str,
             sch = schema or "dbo"
             sql = """
                 SELECT t.name AS table_name,
-                       ep.value AS table_comment
+                       CAST(ep.value AS NVARCHAR(MAX)) AS table_comment
                 FROM sys.tables t
                 LEFT JOIN sys.extended_properties ep
                     ON ep.major_id = t.object_id AND ep.minor_id = 0 AND ep.name = 'MS_Description'

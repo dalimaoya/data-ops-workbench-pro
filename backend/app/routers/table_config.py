@@ -20,6 +20,7 @@ from app.utils.audit import log_operation
 from app.utils.auth import get_current_user, require_role
 from app.utils.permissions import get_permitted_datasource_ids
 from app.models import UserAccount
+from app.i18n import t
 
 router = APIRouter(prefix="/api/table-config", tags=["纳管表配置"])
 
@@ -47,7 +48,7 @@ def _get_ds(db: Session, ds_id: int) -> DatasourceConfig:
         DatasourceConfig.id == ds_id, DatasourceConfig.is_deleted == 0
     ).first()
     if not ds:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("datasource.not_found"))
     return ds
 
 
@@ -73,7 +74,7 @@ def get_remote_tables(
             charset=ds.charset, timeout=ds.connect_timeout_seconds or 10,
         )
     except Exception as e:
-        raise HTTPException(500, f"获取表清单失败: {str(e)}")
+        raise HTTPException(500, t("table_config.fetch_tables_failed", error=str(e)))
     return RemoteTablesResponse(
         datasource_id=ds_id,
         db_name=use_db,
@@ -160,7 +161,7 @@ def get_table_config(tc_id: int, db: Session = Depends(get_db), user: UserAccoun
         TableConfig.id == tc_id, TableConfig.is_deleted == 0
     ).first()
     if not row:
-        raise HTTPException(404, "纳管表不存在")
+        raise HTTPException(404, t("table_config.not_found"))
     out = TableConfigOut.model_validate(row)
     ds = db.query(DatasourceConfig).filter(DatasourceConfig.id == row.datasource_id).first()
     if ds:
@@ -185,7 +186,7 @@ def create_table_config(body: TableConfigCreate, db: Session = Depends(get_db), 
         TableConfig.is_deleted == 0,
     ).first()
     if existing:
-        raise HTTPException(409, "该表已被纳管")
+        raise HTTPException(409, t("table_config.already_managed"))
 
     # Fetch columns to compute initial hash
     pwd = decrypt_password(ds.password_encrypted)
@@ -200,7 +201,7 @@ def create_table_config(body: TableConfigCreate, db: Session = Depends(get_db), 
             charset=ds.charset, timeout=ds.connect_timeout_seconds or 10,
         )
     except Exception as e:
-        raise HTTPException(500, f"拉取表结构失败: {str(e)}")
+        raise HTTPException(500, t("table_config.fetch_columns_failed", error=str(e)))
 
     structure_hash = compute_structure_hash(columns)
 
@@ -370,7 +371,7 @@ def update_table_config(tc_id: int, body: TableConfigUpdate, db: Session = Depen
         TableConfig.id == tc_id, TableConfig.is_deleted == 0
     ).first()
     if not row:
-        raise HTTPException(404, "纳管表不存在")
+        raise HTTPException(404, t("table_config.not_found"))
     updates = body.model_dump(exclude_unset=True)
     for k, v in updates.items():
         setattr(row, k, v)
@@ -394,7 +395,7 @@ def delete_table_config(tc_id: int, db: Session = Depends(get_db), user: UserAcc
         TableConfig.id == tc_id, TableConfig.is_deleted == 0
     ).first()
     if not row:
-        raise HTTPException(404, "纳管表不存在")
+        raise HTTPException(404, t("table_config.not_found"))
     row.is_deleted = 1
     row.updated_at = _now_bjt()
     # Also soft-delete fields
@@ -407,7 +408,7 @@ def delete_table_config(tc_id: int, db: Session = Depends(get_db), user: UserAcc
                   message=f"删除纳管表 {row.table_alias or row.table_name}",
                   operator=user.username)
     db.commit()
-    return {"detail": "已删除"}
+    return {"detail": t("table_config.deleted")}
 
 
 # ── Structure check ──
@@ -418,7 +419,7 @@ def check_structure(tc_id: int, db: Session = Depends(get_db), user: UserAccount
         TableConfig.id == tc_id, TableConfig.is_deleted == 0
     ).first()
     if not row:
-        raise HTTPException(404, "纳管表不存在")
+        raise HTTPException(404, t("table_config.not_found"))
     ds = _get_ds(db, row.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
     try:
@@ -434,7 +435,7 @@ def check_structure(tc_id: int, db: Session = Depends(get_db), user: UserAccount
         row.last_structure_check_at = _now_bjt()
         db.commit()
         return StructureCheckResponse(
-            status="error", message=f"无法连接远程数据库: {str(e)}",
+            status="error", message=t("table_config.remote_db_error", error=str(e)),
             current_hash=None, saved_hash=row.structure_version_hash,
         )
 
@@ -450,7 +451,7 @@ def check_structure(tc_id: int, db: Session = Depends(get_db), user: UserAccount
                       operator=user.username)
         db.commit()
         return StructureCheckResponse(
-            status="normal", message="表结构未发生变化",
+            status="normal", message=t("table_config.structure_normal"),
             current_hash=current_hash, saved_hash=saved_hash,
         )
     else:
@@ -462,7 +463,7 @@ def check_structure(tc_id: int, db: Session = Depends(get_db), user: UserAccount
                       operator=user.username)
         db.commit()
         return StructureCheckResponse(
-            status="changed", message="表结构已发生变化，请重新配置字段后再操作",
+            status="changed", message=t("table_config.structure_changed"),
             current_hash=current_hash, saved_hash=saved_hash,
         )
 
@@ -475,7 +476,7 @@ def sync_fields(tc_id: int, db: Session = Depends(get_db), user: UserAccount = D
         TableConfig.id == tc_id, TableConfig.is_deleted == 0
     ).first()
     if not row:
-        raise HTTPException(404, "纳管表不存在")
+        raise HTTPException(404, t("table_config.not_found"))
     ds = _get_ds(db, row.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
     try:
@@ -496,7 +497,7 @@ def sync_fields(tc_id: int, db: Session = Depends(get_db), user: UserAccount = D
             limit=5,
         )
     except Exception as e:
-        raise HTTPException(500, f"拉取字段失败: {str(e)}")
+        raise HTTPException(500, t("table_config.fetch_fields_failed", error=str(e)))
 
     # Attach sample values
     sample_map = {}
@@ -526,7 +527,7 @@ def sync_fields(tc_id: int, db: Session = Depends(get_db), user: UserAccount = D
                   operator=user.username)
     db.commit()
 
-    return {"detail": "字段已重新同步", "field_count": len(columns), "structure_hash": new_hash}
+    return {"detail": t("table_config.fields_synced"), "field_count": len(columns), "structure_hash": new_hash}
 
 
 # ── Sample data preview ──
@@ -541,7 +542,7 @@ def get_sample_data(
         TableConfig.id == tc_id, TableConfig.is_deleted == 0
     ).first()
     if not row:
-        raise HTTPException(404, "纳管表不存在")
+        raise HTTPException(404, t("table_config.not_found"))
     ds = _get_ds(db, row.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
     try:
@@ -554,7 +555,7 @@ def get_sample_data(
             limit=limit,
         )
     except Exception as e:
-        raise HTTPException(500, f"获取样例数据失败: {str(e)}")
+        raise HTTPException(500, t("table_config.fetch_sample_failed", error=str(e)))
     return SampleDataResponse(columns=columns, rows=rows, total=len(rows))
 
 

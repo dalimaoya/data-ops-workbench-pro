@@ -11,6 +11,7 @@ from app.database import get_db
 from app.models import FieldConfig, TableConfig, UserAccount, _now_bjt
 from app.schemas.table_config import FieldConfigOut, FieldConfigUpdate, FieldConfigBatchUpdate
 from app.utils.auth import get_current_user, require_role
+from app.i18n import t
 
 router = APIRouter(prefix="/api/field-config", tags=["字段配置"])
 
@@ -26,7 +27,7 @@ def list_fields(
         TableConfig.id == table_config_id, TableConfig.is_deleted == 0
     ).first()
     if not tc:
-        raise HTTPException(404, "纳管表不存在")
+        raise HTTPException(404, t("field_config.table_not_found"))
     fields = (
         db.query(FieldConfig)
         .filter(FieldConfig.table_config_id == table_config_id, FieldConfig.is_deleted == 0)
@@ -47,7 +48,7 @@ def get_field(
         FieldConfig.id == field_id, FieldConfig.is_deleted == 0
     ).first()
     if not row:
-        raise HTTPException(404, "字段不存在")
+        raise HTTPException(404, t("field_config.not_found"))
     return row
 
 
@@ -63,7 +64,7 @@ def update_field(
         FieldConfig.id == field_id, FieldConfig.is_deleted == 0
     ).first()
     if not row:
-        raise HTTPException(404, "字段不存在")
+        raise HTTPException(404, t("field_config.not_found"))
     updates = body.model_dump(exclude_unset=True)
     for k, v in updates.items():
         setattr(row, k, v)
@@ -83,7 +84,7 @@ def batch_update_fields(
 ):
     updates = body.updates.model_dump(exclude_unset=True)
     if not updates:
-        raise HTTPException(400, "没有需要更新的字段")
+        raise HTTPException(400, t("field_config.no_fields_to_update"))
     count = 0
     for fid in body.field_ids:
         row = db.query(FieldConfig).filter(
@@ -96,7 +97,7 @@ def batch_update_fields(
             row.updated_at = _now_bjt()
             count += 1
     db.commit()
-    return {"detail": f"已更新 {count} 个字段"}
+    return {"detail": t("field_config.updated_count", count=count)}
 
 
 # ── Delete field ──
@@ -110,8 +111,8 @@ def delete_field(
         FieldConfig.id == field_id, FieldConfig.is_deleted == 0
     ).first()
     if not row:
-        raise HTTPException(404, "字段不存在")
+        raise HTTPException(404, t("field_config.not_found"))
     row.is_deleted = 1
     row.updated_at = _now_bjt()
     db.commit()
-    return {"detail": "已删除"}
+    return {"detail": t("field_config.deleted")}

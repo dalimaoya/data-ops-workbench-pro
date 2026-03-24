@@ -15,6 +15,7 @@ from app.models import (
     _now_bjt, _BJT,
 )
 from app.utils.auth import get_current_user
+from app.i18n import t
 
 router = APIRouter(prefix="/api/dashboard", tags=["总览"])
 
@@ -162,10 +163,8 @@ def dashboard_alerts(
         alerts.append({
             "type": "structure_changed",
             "level": "warning",
-            "title": "表结构变化",
-            "message": "纳管表 [{}] 结构已发生变化，请前往纳管表配置检查并更新字段".format(
-                tc.table_alias or tc.table_name
-            ),
+            "title": t("dashboard.structure_change_title"),
+            "message": t("dashboard.structure_change_msg", name=tc.table_alias or tc.table_name),
             "target_id": tc.id,
             "table_config_id": tc.id,
             "target_name": tc.table_name,
@@ -191,10 +190,8 @@ def dashboard_alerts(
         alerts.append({
             "type": "import_failed",
             "level": "error",
-            "title": "导入校验失败",
-            "message": "文件 [{}] 导入 [{}] 校验失败，共 {} 行错误".format(
-                imp.import_file_name, table_label, imp.failed_row_count
-            ),
+            "title": t("dashboard.import_validation_fail_title"),
+            "message": t("dashboard.import_fail_msg", file=imp.import_file_name, table=table_label, count=imp.failed_row_count),
             "target_id": imp.id,
             "table_config_id": imp.table_config_id,
             "target_name": imp.import_file_name,

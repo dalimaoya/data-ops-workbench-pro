@@ -15,6 +15,7 @@ from app.models import (
 )
 from app.utils.auth import get_current_user, require_role
 from app.utils.audit import log_operation
+from app.i18n import t
 
 router = APIRouter(prefix="/api", tags=["审批流"])
 
@@ -101,7 +102,7 @@ def create_approval(
         TableConfig.id == body.table_config_id, TableConfig.is_deleted == 0
     ).first()
     if not tc:
-        raise HTTPException(404, "纳管表不存在")
+        raise HTTPException(404, t("table_config.not_found"))
 
     approval = ApprovalRequest(
         import_task_id=body.import_task_id,
@@ -136,7 +137,7 @@ def create_approval(
     return {
         "id": approval.id,
         "status": "pending",
-        "message": "已提交审批，等待管理员审核",
+        "message": t("approval.submitted"),
     }
 
 
@@ -192,7 +193,7 @@ def get_approval_detail(
 ):
     approval = db.query(ApprovalRequest).filter(ApprovalRequest.id == approval_id).first()
     if not approval:
-        raise HTTPException(404, "审批不存在")
+        raise HTTPException(404, t("approval.not_found"))
     tc = db.query(TableConfig).filter(TableConfig.id == approval.table_config_id).first()
     ds = None
     if tc:
@@ -239,9 +240,9 @@ def approve_request(
 ):
     approval = db.query(ApprovalRequest).filter(ApprovalRequest.id == approval_id).first()
     if not approval:
-        raise HTTPException(404, "审批不存在")
+        raise HTTPException(404, t("approval.not_found"))
     if approval.status != "pending":
-        raise HTTPException(400, "该审批已处理")
+        raise HTTPException(400, t("approval.already_processed"))
 
     # Check structure hash hasn't changed
     tc = db.query(TableConfig).filter(TableConfig.id == approval.table_config_id).first()
@@ -249,7 +250,7 @@ def approve_request(
         if tc.structure_version_hash != approval.structure_hash_at_request:
             raise HTTPException(
                 400,
-                "表结构在审批期间发生了变化，无法通过审批。请让操作员重新提交。",
+                t("approval.structure_changed"),
             )
 
     approval.status = "approved"
@@ -282,7 +283,7 @@ def approve_request(
     return {
         "id": approval.id,
         "status": "approved",
-        "message": "审批通过，操作已执行",
+        "message": t("approval.approved"),
         "execution_result": result,
     }
 
@@ -296,9 +297,9 @@ def reject_request(
 ):
     approval = db.query(ApprovalRequest).filter(ApprovalRequest.id == approval_id).first()
     if not approval:
-        raise HTTPException(404, "审批不存在")
+        raise HTTPException(404, t("approval.not_found"))
     if approval.status != "pending":
-        raise HTTPException(400, "该审批已处理")
+        raise HTTPException(400, t("approval.already_processed"))
 
     approval.status = "rejected"
     approval.approved_by = user.username
@@ -330,7 +331,7 @@ def reject_request(
     return {
         "id": approval.id,
         "status": "rejected",
-        "message": "审批已拒绝",
+        "message": t("approval.rejected"),
     }
 
 
@@ -349,7 +350,7 @@ def _execute_approved_operation(approval: ApprovalRequest, db: Session, admin_us
         UserAccount.username == approval.requested_by
     ).first()
     if not requester:
-        return {"error": "请求用户不存在"}
+        return {"error": t("user.not_found")}
 
     try:
         if approval.request_type == "writeback" and approval.import_task_id:
@@ -404,7 +405,7 @@ def _execute_approved_operation(approval: ApprovalRequest, db: Session, admin_us
             )
             return result
 
-        return {"message": "未知操作类型: %s" % approval.request_type}
+        return {"message": t("approval.unknown_type", type=approval.request_type)}
 
     except HTTPException as e:
         return {"error": e.detail}
