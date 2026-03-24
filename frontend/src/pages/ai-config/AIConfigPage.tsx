@@ -113,7 +113,6 @@ export default function AIConfigPage() {
       setLoading(true);
       const res = await getAIConfig();
       setConfig(res.data);
-      // Populate form
       form.setFieldsValue({
         ai_enabled: res.data.ai_enabled,
         engine_mode: res.data.engine_mode,
@@ -124,10 +123,8 @@ export default function AIConfigPage() {
         max_tokens: res.data.max_tokens,
         temperature: res.data.temperature,
       });
-      // Set platform
       const preset = PLATFORM_PRESETS.find(p => p.name === res.data.platform_name);
       setSelectedPlatform(preset || null);
-      // Load validate config
       try {
         const vcRes = await getAIValidateConfig();
         setValidateConfig(vcRes.data);
@@ -171,7 +168,6 @@ export default function AIConfigPage() {
         temperature: values.temperature,
         feature_flags: config?.feature_flags,
       };
-      // Only send api_key if user typed something
       if (apiKeyInput) {
         data.api_key = apiKeyInput;
       }
@@ -234,54 +230,107 @@ export default function AIConfigPage() {
   }
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      <Title level={3}>
-        <RobotOutlined style={{ marginRight: 8 }} />
-        {t('aiConfig.title')}
-      </Title>
-
+    <Card
+      title={
+        <Space>
+          <RobotOutlined />
+          <span>{t('aiConfig.title')}</span>
+        </Space>
+      }
+      style={{ margin: 0 }}
+      styles={{ body: { padding: '16px 24px' } }}
+    >
       <Form form={form} layout="vertical" initialValues={{ ai_enabled: true, engine_mode: 'builtin' }}>
 
         {/* ── AI Master Switch ── */}
-        <Card style={{ marginBottom: 16 }}>
-          <Form.Item name="ai_enabled" valuePropName="checked" label={t('aiConfig.masterSwitch')} style={{ marginBottom: 0 }}>
+        <div style={{ marginBottom: 8 }}>
+          <Form.Item name="ai_enabled" valuePropName="checked" label={t('aiConfig.masterSwitch')} style={{ marginBottom: 4 }}>
             <Switch checkedChildren={t('common.enable')} unCheckedChildren={t('common.disable')} />
           </Form.Item>
           <Text type="secondary" style={{ fontSize: 12 }}>{t('aiConfig.masterSwitchHint')}</Text>
-        </Card>
+        </div>
 
         {aiEnabled && (
           <>
+            <Divider />
+
             {/* ── Engine Mode ── */}
-            <Card title={t('aiConfig.engineMode')} style={{ marginBottom: 16 }}>
-              <Form.Item name="engine_mode" style={{ marginBottom: 0 }}>
-                <Radio.Group>
-                  <Radio.Button value="builtin">{t('aiConfig.modeBuiltin')}</Radio.Button>
-                  <Radio.Button value="local">{t('aiConfig.modeLocal')}</Radio.Button>
-                  <Radio.Button value="cloud">{t('aiConfig.modeCloud')}</Radio.Button>
-                </Radio.Group>
-              </Form.Item>
-              {engineMode === 'builtin' && (
-                <Alert
-                  style={{ marginTop: 12 }}
-                  type="info"
-                  showIcon
-                  message={t('aiConfig.builtinHint')}
-                />
-              )}
-            </Card>
+            <Title level={5} style={{ marginTop: 0 }}>{t('aiConfig.engineMode')}</Title>
+            <Form.Item name="engine_mode" style={{ marginBottom: 8 }}>
+              <Radio.Group>
+                <Radio.Button value="builtin">{t('aiConfig.modeBuiltin')}</Radio.Button>
+                <Radio.Button value="local">{t('aiConfig.modeLocal')}</Radio.Button>
+                <Radio.Button value="cloud">{t('aiConfig.modeCloud')}</Radio.Button>
+              </Radio.Group>
+            </Form.Item>
+            {engineMode === 'builtin' && (
+              <Alert
+                style={{ marginBottom: 16 }}
+                type="info"
+                showIcon
+                message={t('aiConfig.builtinHint')}
+              />
+            )}
 
             {/* ── Local Model Config ── */}
             {engineMode === 'local' && (
-              <Card title={t('aiConfig.localConfig')} style={{ marginBottom: 16 }}>
+              <>
+                <Divider />
+                <Title level={5} style={{ marginTop: 0 }}>{t('aiConfig.localConfig')}</Title>
+
+                {/* API Protocol */}
+                <Form.Item name="api_protocol" label={t('aiConfig.apiProtocol')}>
+                  <Radio.Group>
+                    <Radio value="openai">OpenAI {t('aiConfig.compatible')}</Radio>
+                    <Radio value="claude">Claude {t('aiConfig.compatible')}</Radio>
+                  </Radio.Group>
+                </Form.Item>
+
                 {/* Local API URL */}
                 <Form.Item name="api_url" label={t('aiConfig.localApiUrl')}>
-                  <Input placeholder={t('aiConfig.localApiUrlPlaceholder')} />
+                  <Input placeholder="http://localhost:11434/v1" />
+                </Form.Item>
+
+                {/* API Key (optional) */}
+                <Form.Item label={
+                  <Space>
+                    <span>{t('aiConfig.apiKey')}</span>
+                    <Text type="secondary" style={{ fontSize: 12, fontWeight: 'normal' }}>
+                      ({isZh ? '可选，留空则不传 Authorization 头' : 'Optional, leave empty to skip Authorization header'})
+                    </Text>
+                  </Space>
+                }>
+                  <Space.Compact style={{ width: '100%' }}>
+                    <Input
+                      style={{ flex: 1 }}
+                      type={showApiKey ? 'text' : 'password'}
+                      placeholder={config?.api_key_set
+                        ? (config.api_key_masked || t('aiConfig.apiKeySet'))
+                        : t('aiConfig.apiKeyPlaceholder')
+                      }
+                      value={apiKeyInput}
+                      onChange={e => setApiKeyInput(e.target.value)}
+                    />
+                    <Button
+                      icon={showApiKey ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                      onClick={() => setShowApiKey(!showApiKey)}
+                    />
+                  </Space.Compact>
                 </Form.Item>
 
                 {/* Model Name (manual input) */}
                 <Form.Item name="model_name" label={t('aiConfig.localModelName')}>
                   <Input placeholder={t('aiConfig.localModelNamePlaceholder')} />
+                </Form.Item>
+
+                {/* Max Tokens */}
+                <Form.Item name="max_tokens" label={t('aiConfig.maxTokens')}>
+                  <InputNumber min={256} max={128000} step={256} style={{ width: 200 }} />
+                </Form.Item>
+
+                {/* Temperature */}
+                <Form.Item name="temperature" label={t('aiConfig.temperature')}>
+                  <Slider min={0} max={1} step={0.05} marks={{ 0: '0', 0.3: '0.3', 0.7: '0.7', 1: '1' }} />
                 </Form.Item>
 
                 {/* Test Connection */}
@@ -304,12 +353,15 @@ export default function AIConfigPage() {
                     )}
                   </Space>
                 </Form.Item>
-              </Card>
+              </>
             )}
 
             {/* ── Cloud LLM Config ── */}
             {engineMode === 'cloud' && (
-              <Card title={t('aiConfig.cloudConfig')} style={{ marginBottom: 16 }}>
+              <>
+                <Divider />
+                <Title level={5} style={{ marginTop: 0 }}>{t('aiConfig.cloudConfig')}</Title>
+
                 {/* Platform */}
                 <Form.Item name="platform_name" label={t('aiConfig.platform')}>
                   <Select
@@ -371,7 +423,6 @@ export default function AIConfigPage() {
                         ? selectedPlatform.models.map(m => ({ value: m, label: m }))
                         : []
                     }
-                    // Allow free-text input
                     mode={undefined}
                     dropdownRender={menu => (
                       <>
@@ -415,33 +466,34 @@ export default function AIConfigPage() {
                     )}
                   </Space>
                 </Form.Item>
-              </Card>
+              </>
             )}
 
+            <Divider />
+
             {/* ── Feature Switches ── */}
-            <Card title={t('aiConfig.featureSwitches')} style={{ marginBottom: 16 }}>
-              {FEATURE_KEYS.map(f => (
-                <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-                  <Text>{isZh ? f.zhLabel : f.enLabel}</Text>
-                  <Switch
-                    checked={config?.feature_flags?.[f.key] ?? true}
-                    onChange={(checked) => handleFeatureToggle(f.key, checked)}
-                  />
-                </div>
-              ))}
-            </Card>
+            <Title level={5} style={{ marginTop: 0 }}>{t('aiConfig.featureSwitches')}</Title>
+            {FEATURE_KEYS.map(f => (
+              <div key={f.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <Text>{isZh ? f.zhLabel : f.enLabel}</Text>
+                <Switch
+                  checked={config?.feature_flags?.[f.key] ?? true}
+                  onChange={(checked) => handleFeatureToggle(f.key, checked)}
+                />
+              </div>
+            ))}
 
             {/* ── AI Validate Config (v3.0) ── */}
             {config?.feature_flags?.data_validate && validateConfig && (
-              <Card
-                title={
+              <>
+                <Divider />
+                <Title level={5} style={{ marginTop: 0 }}>
                   <Space>
                     <SafetyCertificateOutlined />
                     {isZh ? '智能校验配置' : 'Smart Validation Config'}
                   </Space>
-                }
-                style={{ marginBottom: 16 }}
-              >
+                </Title>
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {/* Outlier range */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -545,28 +597,28 @@ export default function AIConfigPage() {
                     />
                   </div>
                 </div>
-              </Card>
+              </>
             )}
           </>
         )}
 
+        <Divider />
+
         {/* ── Action Buttons ── */}
-        <Card>
-          <Space>
-            <Button
-              type="primary"
-              icon={<SaveOutlined />}
-              onClick={handleSave}
-              loading={saving}
-            >
-              {t('aiConfig.saveConfig')}
-            </Button>
-            <Button icon={<UndoOutlined />} onClick={handleReset}>
-              {t('aiConfig.resetConfig')}
-            </Button>
-          </Space>
-        </Card>
+        <Space>
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            onClick={handleSave}
+            loading={saving}
+          >
+            {t('aiConfig.saveConfig')}
+          </Button>
+          <Button icon={<UndoOutlined />} onClick={handleReset}>
+            {t('aiConfig.resetConfig')}
+          </Button>
+        </Space>
       </Form>
-    </div>
+    </Card>
   );
 }
