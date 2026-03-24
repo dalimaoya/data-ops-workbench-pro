@@ -41,7 +41,8 @@
     "type": "类型",
     "langZh": "中文",
     "langEn": "English",
-    "actions": "操作"
+    "actions": "操作",
+    "retry": "重试"
   },
   "menu": {
     "dashboard": "工作台总览",
@@ -247,6 +248,7 @@
     "saveAndSync": "保存并自动拉取字段",
     "createSuccess": "纳管表创建成功",
     "getTablesFailed": "获取表清单失败",
+    "checkDatasourceConnection": "请检查数据源连接是否正常，确认数据库地址、端口、用户名密码等配置正确后重试。",
     "dbSchema": "库/Schema",
     "fieldCount": "字段数",
     "configVersion": "配置版本",

@@ -85,6 +85,9 @@ export default function DatabaseMaintenance() {
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<any>(null);
 
+  // Error state for table loading
+  const [tableLoadError, setTableLoadError] = useState<string | null>(null);
+
   // Managed tables tab
   const [activeTab, setActiveTab] = useState<'batch' | 'managed'>('batch');
   const [managedTables, setManagedTables] = useState<TableConfig[]>([]);
@@ -104,6 +107,7 @@ export default function DatabaseMaintenance() {
     setLoadingTables(true);
     setRemoteTables([]);
     setSelectedTableNames([]);
+    setTableLoadError(null);
     try {
       const [remoteRes, managedRes] = await Promise.all([
         getRemoteTables(dsId),
@@ -126,8 +130,10 @@ export default function DatabaseMaintenance() {
         };
       });
       setRemoteTables(items);
-    } catch {
-      message.error(t('tableConfig.getTablesFailed'));
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || err?.message || t('tableConfig.getTablesFailed');
+      setTableLoadError(detail);
+      message.error(detail);
     } finally {
       setLoadingTables(false);
     }
@@ -701,6 +707,25 @@ export default function DatabaseMaintenance() {
               {/* Step 1: Table Selection */}
               {currentStep === 0 && (
                 <>
+                  {tableLoadError && (
+                    <Alert
+                      type="error"
+                      showIcon
+                      style={{ marginBottom: 12 }}
+                      message={tableLoadError}
+                      description={t('tableConfig.checkDatasourceConnection')}
+                      action={
+                        <Button
+                          size="small"
+                          icon={<ReloadOutlined />}
+                          onClick={() => selectedDsId && loadTables(selectedDsId)}
+                          loading={loadingTables}
+                        >
+                          {t('common.retry')}
+                        </Button>
+                      }
+                    />
+                  )}
                   <Space style={{ marginBottom: 12 }}>
                     <Input
                       placeholder={t('tableConfig.searchTable')}

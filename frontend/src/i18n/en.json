@@ -41,7 +41,8 @@
     "type": "Type",
     "langZh": "中文",
     "langEn": "English",
-    "actions": "Actions"
+    "actions": "Actions",
+    "retry": "Retry"
   },
   "menu": {
     "dashboard": "Dashboard",
@@ -247,6 +248,7 @@
     "saveAndSync": "Save & Auto Fetch Fields",
     "createSuccess": "Managed table created",
     "getTablesFailed": "Failed to fetch table list",
+    "checkDatasourceConnection": "Please check if the datasource connection is working properly. Verify the database address, port, username, and password, then retry.",
     "dbSchema": "DB/Schema",
     "fieldCount": "Fields",
     "configVersion": "Version",

@@ -8,6 +8,7 @@
   "table_config.deleted": "Deleted",
   "table_config.already_managed": "This table is already managed",
   "table_config.fetch_tables_failed": "Failed to fetch table list: {error}",
+  "table_config.datasource_connect_failed": "Cannot connect to datasource: {error}",
   "table_config.fetch_columns_failed": "Failed to fetch table structure: {error}",
   "table_config.fetch_fields_failed": "Failed to fetch fields: {error}",
   "table_config.fetch_sample_failed": "Failed to fetch sample data: {error}",

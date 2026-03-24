@@ -74,7 +74,7 @@ def get_remote_tables(
             charset=ds.charset, timeout=ds.connect_timeout_seconds or 10,
         )
     except Exception as e:
-        raise HTTPException(500, t("table_config.fetch_tables_failed", error=str(e)))
+        raise HTTPException(400, t("table_config.datasource_connect_failed", error=str(e)))
     return RemoteTablesResponse(
         datasource_id=ds_id,
         db_name=use_db,
@@ -90,7 +90,7 @@ def list_table_configs(
     status: Optional[str] = None,
     keyword: Optional[str] = None,
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=500),
     db: Session = Depends(get_db),
     user: UserAccount = Depends(get_current_user),
 ):

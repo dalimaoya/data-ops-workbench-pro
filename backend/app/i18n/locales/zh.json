@@ -8,6 +8,7 @@
   "table_config.deleted": "已删除",
   "table_config.already_managed": "该表已被纳管",
   "table_config.fetch_tables_failed": "获取表清单失败: {error}",
+  "table_config.datasource_connect_failed": "无法连接数据源: {error}",
   "table_config.fetch_columns_failed": "拉取表结构失败: {error}",
   "table_config.fetch_fields_failed": "拉取字段失败: {error}",
   "table_config.fetch_sample_failed": "获取样例数据失败: {error}",
