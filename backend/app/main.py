@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base, SessionLocal
 from app.routers import datasource, table_config, field_config, data_maintenance, backup_version, logs
+from app.routers import platform_backup as platform_backup_router
 from app.routers import auth as auth_router
 from app.routers import dashboard as dashboard_router
 from app.routers import users as users_router
@@ -126,6 +127,7 @@ app.include_router(notifications_router.router)
 app.include_router(ai_config_router.router)
 app.include_router(ai_suggest_router.router)
 app.include_router(ai_validate_router.router)
+app.include_router(platform_backup_router.router)
 
 
 @app.get("/api/health")

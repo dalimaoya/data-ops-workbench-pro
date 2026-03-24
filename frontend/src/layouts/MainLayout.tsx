@@ -22,6 +22,7 @@ import {
   CheckOutlined,
   GlobalOutlined,
   RobotOutlined,
+  CloudServerOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
 import { changeMyPassword, updateMyProfile } from '../api/users';
@@ -49,6 +50,7 @@ const allMenuItems: MenuItem[] = [
   { key: '/version-rollback', icon: <HistoryOutlined />, labelKey: 'menu.versionRollback', roles: ['admin'] },
   { key: '/user-management', icon: <TeamOutlined />, labelKey: 'menu.userManagement', roles: ['admin'] },
   { key: '/ai-config', icon: <RobotOutlined />, labelKey: 'menu.aiConfig', roles: ['admin'] },
+  { key: '/platform-backup', icon: <CloudServerOutlined />, labelKey: 'menu.platformBackup', roles: ['admin'] },
   { key: '/about', icon: <InfoCircleOutlined />, labelKey: 'menu.about' },
 ];
 
