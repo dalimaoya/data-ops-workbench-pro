@@ -328,7 +328,7 @@
     "sensitivityHigh": "高敏感"
   },
   "maintenance": {
-    "title": "数据维护",
+    "title": "数据表维护",
     "enterMaintenance": "进入维护",
     "tableAlias": "表别名",
     "dbSchema": "库/Schema",

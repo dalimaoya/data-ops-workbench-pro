@@ -328,7 +328,7 @@
     "sensitivityHigh": "High Sensitive"
   },
   "maintenance": {
-    "title": "Data Maintenance",
+    "title": "Table Maintenance",
     "enterMaintenance": "Maintain",
     "tableAlias": "Table Alias",
     "dbSchema": "DB/Schema",
