@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Card, message, Typography, Space } from 'antd';
+import { Form, Input, Button, Card, message, Space } from 'antd';
 import { UserOutlined, LockOutlined, SafetyOutlined, GithubOutlined, LinkOutlined } from '@ant-design/icons';
 import { login as loginApi, getCaptcha } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
-
-const { Title, Text } = Typography;
 
 export default function Login() {
   const { t } = useTranslation();
@@ -78,11 +76,7 @@ export default function Login() {
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <img src="/logo.png" alt="DataOps Workbench" style={{ height: 64, marginBottom: 12 }} />
-          <Title level={3} style={{ marginTop: 0, marginBottom: 4 }}>
-            {t('login.title')}
-          </Title>
-          <Text type="secondary">{t('login.subtitle')}</Text>
+          <img src="/logo.png" alt="DataOps Workbench" style={{ height: 96, marginBottom: 12 }} />
         </div>
         <Form
           name="login"
