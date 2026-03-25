@@ -624,6 +624,25 @@ def export_template(
             else:
                 cell.protection = locked_cell
 
+    # v3.10: Add "_操作" column (last column) for delete marking
+    from openpyxl.comments import Comment as XlComment
+    op_col = len(export_fields) + 1
+    op_header = ws.cell(row=1, column=op_col, value="_操作")
+    op_header.font = header_font
+    op_header.fill = header_fill
+    op_header.protection = locked_cell
+    op_header.comment = XlComment("填 DELETE 标记删除", "系统")
+    # Data rows — unlocked so user can mark DELETE
+    for row_idx in range(2, 2 + data_row_count):
+        cell = ws.cell(row=row_idx, column=op_col, value="")
+        cell.protection = unlocked_cell
+        cell.fill = editable_fill
+    # Blank rows
+    for row_idx in range(blank_start, blank_start + RESERVED_BLANK_ROWS):
+        cell = ws.cell(row=row_idx, column=op_col, value="")
+        cell.protection = unlocked_cell
+        cell.fill = blank_zone_fill
+
     # Enable worksheet protection — v3.5: with password, stricter settings
     ws.protection = SheetProtection(
         sheet=True,
@@ -655,6 +674,7 @@ def export_template(
         "blank_row_start": blank_start,
         "reserved_blank_rows": RESERVED_BLANK_ROWS,
         "allow_insert_rows": tc.allow_insert_rows,
+        "has_operation_column": True,
     }
     meta_ws.cell(row=1, column=1, value=json.dumps(meta_info, ensure_ascii=False))
     meta_ws.sheet_state = "hidden"
@@ -663,6 +683,8 @@ def export_template(
     for i, f in enumerate(export_fields, 1):
         col_letter = get_column_letter(i)
         ws.column_dimensions[col_letter].width = max(12, len(f.field_alias or f.field_name) * 2 + 4)
+    # v3.10: auto-width for operation column
+    ws.column_dimensions[get_column_letter(op_col)].width = 12
 
     file_name = f"{tc.table_alias or tc.table_name}_{batch_no}.xlsx"
     file_path = os.path.join(EXPORT_DIR, file_name)
@@ -806,6 +828,16 @@ async def import_template(
 
     pk_fields = set(meta.get("primary_key_fields", []))
 
+    # v3.10: Detect "_操作" (operation) column for DELETE marking
+    _OPERATION_COL_NAME = "_操作"
+    _DELETE_MARKERS = {"DELETE", "delete", "删除"}
+    has_operation_col = _OPERATION_COL_NAME in header_row or meta.get("has_operation_column", False)
+    operation_col_idx = None
+    if _OPERATION_COL_NAME in header_row:
+        operation_col_idx = header_row.index(_OPERATION_COL_NAME)
+        # Remove operation column from header for field matching
+        header_row = [h for h in header_row if h != _OPERATION_COL_NAME]
+
     # Build field map
     import_fields = [f for f in fields if f.include_in_import or f.is_primary_key]
     export_fields = [f for f in fields if f.include_in_export]
@@ -834,8 +866,14 @@ async def import_template(
         )
 
     # ── 5. Field completeness check ──
+    # v3.10: build mapped_cols using the cleaned header_row (without _操作 column)
+    # The actual Excel column indices need to account for the removed operation column
     mapped_cols: Dict[int, str] = {}
-    for i, h in enumerate(header_row):
+    _real_header = [cell.value for cell in data_ws[1]]
+    _real_header = [h for h in _real_header if h is not None]
+    for i, h in enumerate(_real_header):
+        if h == _OPERATION_COL_NAME:
+            continue  # skip operation column
         if h in field_alias_to_name:
             mapped_cols[i] = field_alias_to_name[h]
         elif h in field_name_map:
