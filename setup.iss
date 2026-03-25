@@ -39,15 +39,19 @@ Name: "{app}\backups"; Permissions: users-full
 Name: "{app}\logs"; Permissions: users-full
 
 [Icons]
-Name: "{group}\数据运维工作台"; Filename: "{app}\数据运维工作台.exe"
+; 优先使用 exe 启动器，如无则用 start.bat
+Name: "{group}\数据运维工作台"; Filename: "{app}\数据运维工作台.exe"; Check: FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
+Name: "{group}\数据运维工作台"; Filename: "{app}\start.bat"; Check: not FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
 Name: "{group}\卸载数据运维工作台"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\数据运维工作台"; Filename: "{app}\数据运维工作台.exe"; Tasks: desktopicon
+Name: "{autodesktop}\数据运维工作台"; Filename: "{app}\数据运维工作台.exe"; Tasks: desktopicon; Check: FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
+Name: "{autodesktop}\数据运维工作台"; Filename: "{app}\start.bat"; Tasks: desktopicon; Check: not FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "DataOpsWorkbench"; ValueData: """{app}\数据运维工作台.exe"""; Flags: uninsdeletevalue; Tasks: startupicon
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "DataOpsWorkbench"; ValueData: """{app}\start.bat"""; Flags: uninsdeletevalue; Tasks: startupicon
 
 [Run]
-Filename: "{app}\数据运维工作台.exe"; Description: "立即启动数据运维工作台"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\数据运维工作台.exe"; Description: "立即启动数据运维工作台"; Flags: nowait postinstall skipifsilent; Check: FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
+Filename: "{app}\start.bat"; Description: "立即启动数据运维工作台"; Flags: nowait postinstall skipifsilent; Check: not FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
 
 [UninstallDelete]
 Type: filesandirs; Name: "{app}\logs"

@@ -10,10 +10,13 @@ import signal
 import subprocess
 import threading
 import webbrowser
+import json
 import tkinter as tk
 from tkinter import ttk, messagebox
+from urllib.request import urlopen, Request
+from urllib.error import URLError
 
-VERSION = "3.4.1"
+VERSION = "3.4.2"
 PORT = 8580
 URL = f"http://localhost:{PORT}"
 
@@ -56,6 +59,28 @@ def _create_icon_image(size=64):
     return img
 
 
+# ── 版本在线检测 ────────────────────────────────────────────────
+GITHUB_RELEASES_API = "https://api.github.com/repos/dalimaoya/data-ops-workbench-pro/releases/latest"
+GITHUB_RELEASES_PAGE = "https://github.com/dalimaoya/data-ops-workbench-pro/releases/latest"
+
+
+def _check_update(current_version, callback):
+    """后台线程检查 GitHub Releases 最新版本，检测失败静默跳过"""
+    def _worker():
+        try:
+            req = Request(GITHUB_RELEASES_API, headers={"Accept": "application/vnd.github.v3+json",
+                                                         "User-Agent": "DataOpsWorkbench"})
+            with urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            tag = data.get("tag_name", "")
+            latest = tag.lstrip("vV")
+            if latest and latest != current_version:
+                callback(latest)
+        except Exception:
+            pass  # 无网络 / API 不可达 → 静默跳过
+    threading.Thread(target=_worker, daemon=True).start()
+
+
 # ══════════════════════════════════════════════════════════════════
 class LauncherApp:
     def __init__(self):
@@ -74,6 +99,7 @@ class LauncherApp:
 
         self._build_ui()
         self._start_tray()
+        self._check_for_update()
 
     # ── UI 布局 ──────────────────────────────────────────────────
     def _build_ui(self):
@@ -129,6 +155,50 @@ class LauncherApp:
         tk.Label(footer, text="关闭窗口 → 最小化到托盘  |  托盘右键 → 完全退出",
                  font=("Microsoft YaHei", 8), bg="#eee", fg="#999").pack(pady=4)
 
+    # ── 端口占用检测 ───────────────────────────────────────────────
+    def _kill_port_occupier(self):
+        """检测并终止占用 PORT 的旧进程"""
+        if sys.platform != "win32":
+            return
+        try:
+            result = subprocess.run(
+                ["netstat", "-aon"],
+                capture_output=True, text=True, timeout=5
+            )
+            for line in result.stdout.splitlines():
+                if f":{PORT} " in line and "LISTENING" in line:
+                    parts = line.strip().split()
+                    pid = parts[-1]
+                    if pid.isdigit() and int(pid) > 0:
+                        try:
+                            subprocess.run(["taskkill", "/F", "/PID", pid],
+                                           capture_output=True, timeout=5)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+    # ── 健康检查 + 自动打开浏览器 ────────────────────────────────
+    def _wait_and_open_browser(self):
+        """轮询健康检查，通过后自动打开浏览器"""
+        import time
+        max_wait = 60
+        waited = 0
+        while waited < max_wait:
+            try:
+                req = Request(f"{URL}/api/health", headers={"User-Agent": "DataOpsLauncher"})
+                with urlopen(req, timeout=2) as resp:
+                    if resp.status == 200:
+                        # 健康检查通过
+                        webbrowser.open(URL)
+                        self.root.after(0, lambda: self.status_label.config(text="运行中 ✓", fg="#27ae60"))
+                        return
+            except Exception:
+                pass
+            time.sleep(2)
+            waited += 2
+        # 超时也不报错，用户可手动点"打开控制台"
+
     # ── 服务控制 ─────────────────────────────────────────────────
     def _toggle_service(self):
         if self.running:
@@ -158,6 +228,9 @@ class LauncherApp:
         if sys.platform == "win32":
             creation_flags = subprocess.CREATE_NO_WINDOW
 
+        # 检测端口占用
+        self._kill_port_occupier()
+
         try:
             self.process = subprocess.Popen(
                 [self.server_bin, "--port", str(PORT)],
@@ -168,6 +241,8 @@ class LauncherApp:
             )
             self.running = True
             self._update_status()
+            # 后台线程做健康检查，通过后自动打开浏览器
+            threading.Thread(target=self._wait_and_open_browser, daemon=True).start()
         except Exception as e:
             messagebox.showerror("启动失败", str(e))
 

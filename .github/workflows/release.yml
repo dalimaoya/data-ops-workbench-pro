@@ -322,6 +322,7 @@ jobs:
 
       - name: Nuitka compile launcher (Windows)
         shell: pwsh
+        continue-on-error: true
         run: |
           python -m nuitka `
             --standalone `
@@ -336,21 +337,6 @@ jobs:
             --include-module=pystray._win32 `
             --assume-yes-for-downloads `
             launcher.py
-        continue-on-error: true
-
-      - name: Nuitka compile launcher (Windows)
-        shell: pwsh
-        run: |
-          python -m nuitka `
-            --standalone `
-            --onefile `
-            --windows-disable-console `
-            --mingw64 `
-            --output-filename="数据运维工作台.exe" `
-            --include-package=pystray `
-            --include-package=PIL `
-            --assume-yes-for-downloads `
-            launcher.py
 
       - name: Assemble & package (Windows)
         shell: pwsh
@@ -363,7 +349,9 @@ jobs:
           Copy-Item start.bat dist\data-ops-workbench\start.bat -ErrorAction SilentlyContinue
           Copy-Item start.sh dist\data-ops-workbench\start.sh -ErrorAction SilentlyContinue
           Copy-Item README.md dist\data-ops-workbench\README.md
-          # 复制图形启动器到发布包根目录
+          # 复制 VBS 启动器（可靠备选，不依赖编译）
+          Copy-Item "数据运维工作台.vbs" "dist\data-ops-workbench\数据运维工作台.vbs" -ErrorAction SilentlyContinue
+          # 复制图形启动器到发布包根目录（如果编译成功）
           Copy-Item "数据运维工作台.exe" "dist\data-ops-workbench\数据运维工作台.exe" -ErrorAction SilentlyContinue
           
           foreach ($d in @("data","backups","logs")) {
