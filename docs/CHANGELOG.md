@@ -2,6 +2,37 @@
 
 ---
 
+## v3.4.2 — 2026-03-26 Windows 三项修复
+
+### 问题 1：启动器 exe 无反应
+- 根因：Nuitka --onefile 模式下 pystray/tkinter/PIL 依赖未完整打入
+- 修复：
+  - 新增 `数据运维工作台.vbs` 作为可靠的备选启动器（无编译依赖，双击即用）
+  - CI 中 launcher 编译改为 `continue-on-error`，编译失败自动降级到 VBS 方案
+  - Inno Setup 安装器自动检测 exe 是否存在，不存在时回退到 start.bat 快捷方式
+  - launcher.py 版本号更新至 3.4.2
+
+### 问题 2：服务启动慢 + 拒绝访问
+- 根因：start.bat 前台阻塞启动服务，用户无法得知就绪状态；关闭终端后旧进程占用端口
+- 修复：
+  - start.bat 完全重写：后台启动服务进程 (`start /B`)
+  - 启动前自动检测 8580 端口占用，如有旧进程自动 taskkill
+  - 启动后轮询 `/api/health` 健康检查（PowerShell `Invoke-WebRequest`）
+  - 最长等待 60 秒，超时给出日志路径提示
+  - launcher.py 同步增加端口占用检测和健康检查
+
+### 问题 3：自动打开浏览器
+- start.bat 健康检查通过后自动执行 `start http://localhost:8580`
+- launcher.py 在后台线程中健康检查通过后自动 `webbrowser.open()`
+- 两个入口（bat / launcher）均实现自动拉起浏览器
+
+### 其他改进
+- start.bat 全面汉化提示信息
+- 服务日志输出到 logs/server.log，bat 窗口实时 tail 显示
+- 打包模式和开发模式统一行为：端口检测 → 后台启动 → 健康检查 → 自动浏览器
+
+---
+
 ## v3.6.0 — 2026-03-25 用户权限管理
 
 ### 用户管理（管理员功能）

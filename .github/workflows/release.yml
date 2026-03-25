@@ -324,9 +324,9 @@ jobs:
         shell: pwsh
         continue-on-error: true
         run: |
+          # v3.4.2: 使用 --standalone 代替 --onefile，减少运行时依赖问题
           python -m nuitka `
             --standalone `
-            --onefile `
             --output-dir=.\launcher-out `
             --output-filename="数据运维工作台.exe" `
             --mingw64 `
@@ -359,10 +359,22 @@ jobs:
             New-Item -ItemType File -Force -Path "dist\data-ops-workbench\$d\.gitkeep" | Out-Null
           }
           
-          # Copy launcher exe if built
-          $launcherExe = Get-ChildItem -Path "launcher-out" -Filter "数据运维工作台.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($launcherExe) {
-            Copy-Item $launcherExe.FullName "dist\data-ops-workbench\数据运维工作台.exe"
+          # Copy launcher standalone build (v3.4.2: standalone 模式，复制整个目录)
+          $launcherDist = Get-ChildItem -Path "launcher-out" -Directory -Filter "*.dist" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($launcherDist) {
+            # 复制 standalone 依赖目录
+            Copy-Item -Recurse $launcherDist.FullName "dist\data-ops-workbench\launcher"
+            # 把 exe 复制到根目录方便用户双击
+            $launcherExe = Get-ChildItem -Path $launcherDist.FullName -Filter "数据运维工作台.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($launcherExe) {
+              Copy-Item $launcherExe.FullName "dist\data-ops-workbench\数据运维工作台.exe"
+            }
+          } else {
+            # fallback: 直接找 exe（兼容旧模式）
+            $launcherExe = Get-ChildItem -Path "launcher-out" -Filter "数据运维工作台.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($launcherExe) {
+              Copy-Item $launcherExe.FullName "dist\data-ops-workbench\数据运维工作台.exe"
+            }
           }
           
           # Copy plugin manifests

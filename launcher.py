@@ -2,6 +2,10 @@
 """
 数据运维工作台 - Windows 图形启动器
 tkinter 主窗口 + pystray 系统托盘
+
+v3.4.2: CI 编译改为 --standalone 模式（不再用 --onefile），
+        减少在用户机器上因缺少 VC++ Runtime 等依赖导致的启动失败。
+        如果 standalone 也不稳定，start.bat 为主启动方式。
 """
 
 import os

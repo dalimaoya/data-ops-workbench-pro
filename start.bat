@@ -1,7 +1,9 @@
 @echo off
+:: 数据运维工作台 - Windows 启动脚本
+:: v3.4.2: 端口检测 + 健康检查轮询 + 自动打开浏览器
 setlocal enabledelayedexpansion
 chcp 65001 >nul 2>&1
-title 数据运维工作台 - Data Ops Workbench
+title 数据运维工作台
 
 echo ============================================
 echo   数据运维工作台  Data Ops Workbench
