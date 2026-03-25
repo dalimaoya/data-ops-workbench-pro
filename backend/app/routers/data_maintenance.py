@@ -493,7 +493,7 @@ def export_template(
     keyword: Optional[str] = None,
     field_filters: Optional[str] = None,
     db: Session = Depends(get_db),
-    user: UserAccount = Depends(get_current_user),
+    user: UserAccount = Depends(require_role("admin", "operator")),
 ):
     """导出含隐藏元信息的 Excel 模板。"""
     import openpyxl

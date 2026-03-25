@@ -104,7 +104,11 @@ def login(req: LoginRequest, request: Request, db: Session = Depends(get_db)):
     # Auto-migrate legacy password hash to bcrypt
     if needs_password_migration(user.password_hash):
         user.password_hash = hash_password(req.password)
-        db.commit()
+    
+    # v3.6: Record last login time
+    from app.models import _now_bjt
+    user.last_login_at = _now_bjt()
+    db.commit()
     
     token = create_access_token({"sub": user.username, "role": user.role})
     return LoginResponse(

@@ -43,16 +43,20 @@ class UserOut(BaseModel):
     role: str
     status: str
     created_at: Optional[str] = None
+    last_login_at: Optional[str] = None  # v3.6
 
     class Config:
         from_attributes = True
+
+
+VALID_ROLES = ("admin", "operator", "viewer")
 
 
 class UserCreate(BaseModel):
     username: str
     display_name: Optional[str] = None
     password: str
-    role: str  # admin / operator / readonly
+    role: str  # admin / operator / viewer
 
 
 class UserUpdate(BaseModel):
@@ -98,6 +102,7 @@ def list_users(
             role=r.role,
             status=r.status,
             created_at=r.created_at.isoformat() if r.created_at else None,
+            last_login_at=r.last_login_at.isoformat() if r.last_login_at else None,
         )
         result.append(u)
     return result
@@ -109,8 +114,11 @@ def create_user(
     db: Session = Depends(get_db),
     user: UserAccount = Depends(require_role("admin")),
 ):
-    if body.role not in ("admin", "operator", "readonly"):
+    if body.role not in VALID_ROLES:
         raise HTTPException(400, t("user.role_invalid"))
+    # v3.6: Validate username format
+    if not re.match(r'^[a-zA-Z0-9_]{4,32}$', body.username):
+        raise HTTPException(400, "用户名必须为4-32位英文字母、数字或下划线")
     validate_password_strength(body.password)
     existing = db.query(UserAccount).filter(UserAccount.username == body.username).first()
     if existing:
@@ -141,6 +149,7 @@ def create_user(
         role=new_user.role,
         status=new_user.status,
         created_at=new_user.created_at.isoformat() if new_user.created_at else None,
+        last_login_at=None,
     )
 
 
@@ -157,8 +166,16 @@ def update_user(
     if body.display_name is not None:
         target.display_name = body.display_name
     if body.role is not None:
-        if body.role not in ("admin", "operator", "readonly"):
+        if body.role not in VALID_ROLES:
             raise HTTPException(400, t("user.role_invalid"))
+        # v3.6: Prevent demoting the last admin
+        if target.role == "admin" and body.role != "admin":
+            admin_count = db.query(UserAccount).filter(
+                UserAccount.role == "admin",
+                UserAccount.status == "enabled",
+            ).count()
+            if admin_count <= 1:
+                raise HTTPException(400, "不能修改最后一个管理员的角色")
         target.role = body.role
     target.updated_at = _now_bjt()
     log_operation(
@@ -177,6 +194,7 @@ def update_user(
         role=target.role,
         status=target.status,
         created_at=target.created_at.isoformat() if target.created_at else None,
+        last_login_at=target.last_login_at.isoformat() if target.last_login_at else None,
     )
 
 
@@ -190,8 +208,17 @@ def update_user_status(
     target = db.query(UserAccount).filter(UserAccount.id == user_id).first()
     if not target:
         raise HTTPException(404, t("user.not_found"))
-    if target.username == "admin" and body.status == "disabled":
-        raise HTTPException(400, t("user.cannot_disable_admin"))
+    # v3.6: Cannot disable yourself
+    if target.id == user.id and body.status == "disabled":
+        raise HTTPException(400, "不可禁用自己的账号")
+    # v3.6: Cannot disable the last admin
+    if target.role == "admin" and body.status == "disabled":
+        admin_count = db.query(UserAccount).filter(
+            UserAccount.role == "admin",
+            UserAccount.status == "enabled",
+        ).count()
+        if admin_count <= 1:
+            raise HTTPException(400, t("user.cannot_disable_admin"))
     if body.status not in ("enabled", "disabled"):
         raise HTTPException(400, t("user.status_invalid"))
     target.status = body.status

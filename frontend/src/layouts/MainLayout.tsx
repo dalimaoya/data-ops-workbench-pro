@@ -58,7 +58,7 @@ interface MenuItem {
 const coreMenuItems: MenuItem[] = [
   { key: '/', icon: <HomeOutlined />, labelKey: 'menu.dashboard' },
   { key: '/datasource', icon: <DatabaseOutlined />, labelKey: 'menu.datasource', roles: ['admin'] },
-  { key: '/table-config', icon: <TableOutlined />, labelKey: 'menu.tableConfig' },
+  { key: '/table-config', icon: <TableOutlined />, labelKey: 'menu.tableConfig', roles: ['admin'] },
   {
     key: '/data-maintenance-group',
     icon: <ToolOutlined />,

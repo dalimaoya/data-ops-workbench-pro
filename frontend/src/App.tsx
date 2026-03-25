@@ -76,16 +76,16 @@ function App() {
           <Route path="/datasource" element={<RequireRole roles={['admin']}><DatasourceList /></RequireRole>} />
           <Route path="/datasource/create" element={<RequireRole roles={['admin']}><DatasourceForm /></RequireRole>} />
           <Route path="/datasource/edit/:id" element={<RequireRole roles={['admin']}><DatasourceForm /></RequireRole>} />
-          <Route path="/table-config" element={<TableConfigList />} />
-          <Route path="/table-config/create" element={<TableConfigCreate />} />
-          <Route path="/table-config/detail/:id" element={<TableConfigDetail />} />
-          <Route path="/table-config/fields/:id" element={<FieldConfigPage />} />
+          <Route path="/table-config" element={<RequireRole roles={['admin']}><TableConfigList /></RequireRole>} />
+          <Route path="/table-config/create" element={<RequireRole roles={['admin']}><TableConfigCreate /></RequireRole>} />
+          <Route path="/table-config/detail/:id" element={<RequireRole roles={['admin']}><TableConfigDetail /></RequireRole>} />
+          <Route path="/table-config/fields/:id" element={<RequireRole roles={['admin']}><FieldConfigPage /></RequireRole>} />
           <Route path="/data-maintenance" element={<MaintenanceList />} />
-          <Route path="/db-maintenance" element={<DatabaseMaintenance />} />
+          <Route path="/db-maintenance" element={<RequireRole roles={['admin', 'operator']}><DatabaseMaintenance /></RequireRole>} />
           <Route path="/data-maintenance/browse/:id" element={<DataBrowse />} />
-          <Route path="/data-maintenance/import/:id" element={<ImportPage />} />
-          <Route path="/data-maintenance/diff/:taskId" element={<DiffPreview />} />
-          <Route path="/smart-import" element={<SmartImportPage />} />
+          <Route path="/data-maintenance/import/:id" element={<RequireRole roles={['admin', 'operator']}><ImportPage /></RequireRole>} />
+          <Route path="/data-maintenance/diff/:taskId" element={<RequireRole roles={['admin', 'operator']}><DiffPreview /></RequireRole>} />
+          <Route path="/smart-import" element={<RequireRole roles={['admin', 'operator']}><SmartImportPage /></RequireRole>} />
           <Route path="/log-center" element={<LogCenter />} />
           <Route path="/version-rollback" element={<RequireRole roles={['admin']}><VersionRollback /></RequireRole>} />
           <Route path="/approval-center" element={<RequireRole roles={['admin']}><ApprovalCenter /></RequireRole>} />

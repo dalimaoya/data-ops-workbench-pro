@@ -23,6 +23,28 @@ from app.plugin_loader import load_plugins, get_loaded_plugins, get_all_plugin_s
 async def lifespan(app: FastAPI):
     # Create all tables on startup
     Base.metadata.create_all(bind=engine)
+    # Run v3.6 migration (idempotent) — add last_login_at, rename readonly→viewer
+    try:
+        import sqlite3 as _sqlite3
+        _db_path = os.path.join(
+            os.environ.get('DATA_OPS_DATA_DIR',
+                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data")),
+            "platform.db",
+        )
+        if os.path.exists(_db_path):
+            _conn = _sqlite3.connect(_db_path)
+            _cur = _conn.cursor()
+            _cur.execute("PRAGMA table_info(user_account)")
+            _cols = [r[1] for r in _cur.fetchall()]
+            if "last_login_at" not in _cols:
+                _cur.execute("ALTER TABLE user_account ADD COLUMN last_login_at DATETIME")
+            _cur.execute("UPDATE user_account SET role = 'viewer' WHERE role = 'readonly'")
+            _cur.execute("UPDATE user_account SET role = 'admin' WHERE username = 'admin' AND role != 'admin'")
+            _conn.commit()
+            _conn.close()
+    except Exception as _e:
+        import logging
+        logging.getLogger("startup").warning("v3.6 migration: %s", _e)
     # Init default admin account
     db = SessionLocal()
     try:

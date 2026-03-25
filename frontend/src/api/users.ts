@@ -7,6 +7,7 @@ export interface UserItem {
   role: string;
   status: string;
   created_at: string | null;
+  last_login_at: string | null;
 }
 
 export interface CreateUserRequest {

@@ -213,9 +213,10 @@ class UserAccount(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(64), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
-    role = Column(String(32), nullable=False, default="readonly")  # admin / operator / readonly
+    role = Column(String(32), nullable=False, default="operator")  # admin / operator / viewer
     display_name = Column(String(128), nullable=True)
     status = Column(String(32), nullable=False, default="enabled")
+    last_login_at = Column(DateTime, nullable=True)  # v3.6: track last login time
     created_at = Column(DateTime, nullable=False, default=_now_bjt)
     updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)
 

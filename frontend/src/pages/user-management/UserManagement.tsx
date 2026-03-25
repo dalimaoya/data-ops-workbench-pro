@@ -21,18 +21,20 @@ export default function UserManagement() {
   const roleOptions = [
     { label: t('role.admin'), value: 'admin' },
     { label: t('role.operator'), value: 'operator' },
-    { label: t('role.readonly'), value: 'readonly' },
+    { label: t('role.viewer'), value: 'viewer' },
   ];
 
   const roleLabels: Record<string, string> = {
     admin: t('role.admin'),
     operator: t('role.operator'),
-    readonly: t('role.readonly'),
+    viewer: t('role.viewer'),
+    readonly: t('role.viewer'),  // backward compat
   };
 
   const roleColors: Record<string, string> = {
     admin: 'red',
     operator: 'blue',
+    viewer: 'default',
     readonly: 'default',
   };
 
@@ -193,8 +195,12 @@ export default function UserManagement() {
       ),
     },
     {
-      title: t('userManagement.createdAt'), dataIndex: 'created_at', key: 'created_at', width: 180,
+      title: t('userManagement.createdAt'), dataIndex: 'created_at', key: 'created_at', width: 170,
       render: (val: string) => formatBeijingTime(val),
+    },
+    {
+      title: t('userManagement.lastLoginAt'), dataIndex: 'last_login_at', key: 'last_login_at', width: 170,
+      render: (val: string) => val ? formatBeijingTime(val) : '-',
     },
     {
       title: t('common.operation'), key: 'action', width: 340,

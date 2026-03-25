@@ -627,7 +627,7 @@ export default function DataBrowse() {
                       {t('dataBrowse.deleteSelectedRows', { count: selectedRowKeys.length })}
                     </Button>
                   )}
-                  <Button icon={<DownloadOutlined />} onClick={handleExportClick}>{t('dataBrowse.exportTemplate')}</Button>
+                  {canOperate && <Button icon={<DownloadOutlined />} onClick={handleExportClick}>{t('dataBrowse.exportTemplate')}</Button>}
                   {canOperate && <Button icon={<UploadOutlined />} onClick={() => navigate(`/data-maintenance/import/${tableConfigId}`)}>{t('dataBrowse.uploadTemplate')}</Button>}
                   {canOperate && (
                     <Button

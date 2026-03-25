@@ -111,7 +111,8 @@
   "role": {
     "admin": "Admin",
     "operator": "Operator",
-    "readonly": "Readonly"
+    "readonly": "Readonly",
+    "viewer": "Viewer"
   },
   "header": {
     "changePassword": "Change Password",
@@ -646,7 +647,8 @@
     "noDatasource": "No datasources",
     "permUpdateSuccess": "Datasource permissions updated",
     "permLoadFailed": "Failed to load permissions",
-    "listFailed": "Failed to load user list"
+    "listFailed": "Failed to load user list",
+    "lastLoginAt": "Last Login"
   },
   "approval": {
     "title": "Approval Center",

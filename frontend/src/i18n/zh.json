@@ -111,7 +111,8 @@
   "role": {
     "admin": "管理员",
     "operator": "操作员",
-    "readonly": "只读用户"
+    "readonly": "只读用户",
+    "viewer": "只读用户"
   },
   "header": {
     "changePassword": "修改密码",
@@ -646,7 +647,8 @@
     "noDatasource": "暂无数据源",
     "permUpdateSuccess": "数据源权限已更新",
     "permLoadFailed": "获取权限信息失败",
-    "listFailed": "获取用户列表失败"
+    "listFailed": "获取用户列表失败",
+    "lastLoginAt": "最后登录"
   },
   "approval": {
     "title": "审批中心",
