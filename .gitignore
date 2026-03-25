@@ -40,3 +40,5 @@ Thumbs.db
 .env.*
 
 # GitHub workflows - now tracked for CI/CD
+release/
+backend/nuitka-out/
