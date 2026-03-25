@@ -39,5 +39,4 @@ Thumbs.db
 .env
 .env.*
 
-# Temporarily exclude GitHub workflows (workflow scope not configured)
-.github/
+# GitHub workflows - now tracked for CI/CD
