@@ -13,6 +13,7 @@ def register(app: FastAPI, manifest: dict):
     from app.routers.ai_log_analyze import router as ai_log_analyze_router
     from app.routers.ai_impact_assess import router as ai_impact_assess_router
     from app.routers.ai_indicator import router as ai_indicator_router
+    from app.routers.ai_smart_fill import router as ai_smart_fill_router
 
     app.include_router(ai_config_router)
     app.include_router(ai_suggest_router)
@@ -23,5 +24,6 @@ def register(app: FastAPI, manifest: dict):
     app.include_router(ai_log_analyze_router)
     app.include_router(ai_impact_assess_router)
     app.include_router(ai_indicator_router)
+    app.include_router(ai_smart_fill_router)
 
     print(f"[PLUGIN] {manifest['display_name']} v{manifest['version']} loaded")

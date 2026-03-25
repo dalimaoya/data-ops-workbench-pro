@@ -6,11 +6,12 @@ import {
 import {
   SearchOutlined, DownloadOutlined, UploadOutlined, ReloadOutlined, ArrowLeftOutlined,
   DeleteOutlined, ExclamationCircleOutlined, EditOutlined, PlusOutlined, SaveOutlined, CloseOutlined,
-  RobotOutlined,
+  RobotOutlined, BulbOutlined,
 } from '@ant-design/icons';
 import { browseTableData, getExportInfo, exportTemplate, deleteRows, inlineUpdate, batchInsert, asyncExport } from '../../api/dataMaintenance';
 import AIQueryPanel from './AIQueryPanel';
 import AIBatchFillPanel from './AIBatchFillPanel';
+import AISmartFillModal from './AISmartFillModal';
 import type { NLQueryFilter } from '../../api/aiNlQuery';
 import type { ColumnMeta, InlineChange } from '../../api/dataMaintenance';
 import { getTableConfig } from '../../api/tableConfig';
@@ -71,6 +72,9 @@ export default function DataBrowse() {
 
   // v3.0: AI Batch Fill
   const [batchFillOpen, setBatchFillOpen] = useState(false);
+
+  // v4.4: AI Smart Fill
+  const [smartFillOpen, setSmartFillOpen] = useState(false);
 
   const originalRowsRef = useRef<Record<string, Record<string, string | null>>>({});
 
@@ -638,6 +642,15 @@ export default function DataBrowse() {
                       🤖 AI 批量修改
                     </Button>
                   )}
+                  {canOperate && (
+                    <Button
+                      icon={<BulbOutlined />}
+                      onClick={() => setSmartFillOpen(true)}
+                      style={{ borderColor: '#13c2c2', color: '#13c2c2' }}
+                    >
+                      🧠 AI 智能填充
+                    </Button>
+                  )}
                 </>
               )}
             </Space>
@@ -850,6 +863,21 @@ export default function DataBrowse() {
         onClose={() => setBatchFillOpen(false)}
         tableConfigId={tableConfigId}
         tableAlias={(tableInfo as { table_alias?: string }).table_alias || (tableInfo as { table_name?: string }).table_name}
+      />
+
+      {/* v4.4: AI Smart Fill Modal */}
+      <AISmartFillModal
+        open={smartFillOpen}
+        onClose={() => setSmartFillOpen(false)}
+        tableConfigId={tableConfigId}
+        tableAlias={(tableInfo as { table_alias?: string }).table_alias || (tableInfo as { table_name?: string }).table_name}
+        columns={columns.map(c => ({
+          field_name: c.field_name,
+          field_alias: c.field_alias,
+          is_editable: c.is_editable,
+          is_primary_key: c.is_primary_key,
+          is_system_field: c.is_system_field,
+        }))}
       />
     </div>
   );
