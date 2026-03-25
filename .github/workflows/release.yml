@@ -389,7 +389,21 @@ jobs:
           echo "ASSET_PATH=dist/${RELEASE_NAME}.zip" >> $env:GITHUB_ENV
           echo "ASSET_NAME=${RELEASE_NAME}.zip" >> $env:GITHUB_ENV
 
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer with Inno Setup
+        shell: pwsh
+        run: |
+          $TAG = "${{ github.ref_name }}"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=$TAG setup.iss
+          $setupExe = Get-ChildItem -Path dist -Filter "*setup*.exe" -Recurse | Select-Object -First 1
+          echo "SETUP_EXE_PATH=$($setupExe.FullName)" >> $env:GITHUB_ENV
+          echo "SETUP_EXE_NAME=$($setupExe.Name)" >> $env:GITHUB_ENV
+
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.ASSET_PATH }}
+          files: |
+            ${{ env.ASSET_PATH }}
+            ${{ env.SETUP_EXE_PATH }}
