@@ -20,7 +20,7 @@ from tkinter import ttk, messagebox
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
-VERSION = "3.4.2"
+CURRENT_VERSION = "3.8.0"
 PORT = 8580
 URL = f"http://localhost:{PORT}"
 
@@ -105,6 +105,18 @@ class LauncherApp:
         self._start_tray()
         self._check_for_update()
 
+    # ── 版本检测回调 ────────────────────────────────────────────
+    def _check_for_update(self):
+        """启动后台线程检测新版本，有新版本时弹窗提示。"""
+        def _on_new_version(latest: str):
+            self.root.after(0, lambda: self._show_update_dialog(latest))
+        _check_update(CURRENT_VERSION, _on_new_version)
+
+    def _show_update_dialog(self, latest: str):
+        """弹窗提示用户发现新版本。"""
+        if messagebox.askyesno("发现新版本", f"发现新版本 v{latest}，是否前往下载？"):
+            webbrowser.open(GITHUB_RELEASES_PAGE)
+
     # ── UI 布局 ──────────────────────────────────────────────────
     def _build_ui(self):
         root = self.root
@@ -121,7 +133,7 @@ class LauncherApp:
         info_frame = tk.Frame(root, bg="#f5f7fa", padx=24, pady=16)
         info_frame.pack(fill=tk.X)
 
-        tk.Label(info_frame, text=f"版本：v{VERSION}", font=("Microsoft YaHei", 10),
+        tk.Label(info_frame, text=f"版本：v{CURRENT_VERSION}", font=("Microsoft YaHei", 10),
                  bg="#f5f7fa", fg="#555").grid(row=0, column=0, sticky="w", pady=2)
 
         tk.Label(info_frame, text="服务状态：", font=("Microsoft YaHei", 10),
