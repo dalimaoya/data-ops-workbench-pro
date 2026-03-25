@@ -32,6 +32,7 @@ class DataValidateRequest(BaseModel):
 class ValidationWarning(BaseModel):
     row: int
     column: str
+    field_name: Optional[str] = None
     value: Optional[str] = None
     check_type: str
     message: str
@@ -44,6 +45,7 @@ class ValidationWarning(BaseModel):
 
 DEFAULT_VALIDATE_CONFIG = {
     "outlier_range": "p5_p95",      # p1_p99 / p5_p95 / p10_p90
+    "outlier_stddev_factor": 3,     # flag values beyond N standard deviations
     "history_sample_size": 1000,
     "warning_behavior": "warn",     # warn / block
     "skip_fields": [],
@@ -56,13 +58,13 @@ def _get_validate_config(db: Session) -> dict:
     config = DEFAULT_VALIDATE_CONFIG.copy()
 
     # Try reading from system_setting
-    for key in ("outlier_range", "history_sample_size", "warning_behavior", "skip_fields"):
+    for key in ("outlier_range", "outlier_stddev_factor", "history_sample_size", "warning_behavior", "skip_fields"):
         full_key = f"ai_validate_{key}"
         row = db.query(SystemSetting).filter(SystemSetting.setting_key == full_key).first()
         if row:
-            if key == "history_sample_size":
+            if key in ("history_sample_size", "outlier_stddev_factor"):
                 try:
-                    config[key] = int(row.setting_value)
+                    config[key] = int(row.setting_value) if key == "history_sample_size" else float(row.setting_value)
                 except ValueError:
                     pass
             elif key == "skip_fields":
@@ -234,6 +236,8 @@ def _run_outlier_checks(import_data: List[Dict], historical_data: List[Dict],
     warnings = []
     range_key = config.get("outlier_range", "p5_p95")
 
+    stddev_factor = config.get("outlier_stddev_factor", 3)
+
     for field in fields:
         fname = field.field_name
         if fname in skip_fields or field.is_primary_key:
@@ -242,7 +246,7 @@ def _run_outlier_checks(import_data: List[Dict], historical_data: List[Dict],
         is_numeric = _is_numeric_column(field.db_data_type)
 
         if is_numeric:
-            # Numeric outlier: P-range based
+            # Numeric outlier: P-range based + stddev based
             hist_nums = [_try_float(r.get(fname)) for r in historical_data]
             hist_nums = [v for v in hist_nums if v is not None]
             if len(hist_nums) < 5:
@@ -250,15 +254,28 @@ def _run_outlier_checks(import_data: List[Dict], historical_data: List[Dict],
 
             lower, upper = _get_percentile_bounds(hist_nums, range_key)
 
+            # Also compute mean/stddev for 3-sigma detection
+            avg = sum(hist_nums) / len(hist_nums)
+            variance = sum((x - avg) ** 2 for x in hist_nums) / len(hist_nums)
+            stddev = variance ** 0.5
+            sigma_lower = avg - stddev_factor * stddev
+            sigma_upper = avg + stddev_factor * stddev
+
+            flagged_rows = set()  # avoid duplicate warnings for same cell
+
             for i, row in enumerate(import_data):
                 val = _try_float(row.get(fname))
                 if val is None:
                     continue
+                row_num = row.get("_row_num", i + 2)
+
+                # Percentile range check
                 if val < lower or val > upper:
                     range_label = range_key.replace("p", "P").replace("_", "-")
                     warnings.append({
-                        "row": row.get("_row_num", i + 2),
+                        "row": row_num,
                         "column": field.field_alias or fname,
+                        "field_name": fname,
                         "value": str(row.get(fname, "")),
                         "check_type": "outlier",
                         "message": f"数值偏离正常范围（{range_label}: {lower:.2f} ~ {upper:.2f}）",
@@ -266,6 +283,23 @@ def _run_outlier_checks(import_data: List[Dict], historical_data: List[Dict],
                         "severity": "warning",
                         "historical_pattern": f"{lower:.2f}~{upper:.2f}",
                     })
+                    flagged_rows.add(row_num)
+
+                # 3-sigma stddev check (only if not already flagged by percentile)
+                if row_num not in flagged_rows and stddev > 0:
+                    if val < sigma_lower or val > sigma_upper:
+                        deviation = abs(val - avg) / stddev
+                        warnings.append({
+                            "row": row_num,
+                            "column": field.field_alias or fname,
+                            "field_name": fname,
+                            "value": str(row.get(fname, "")),
+                            "check_type": "outlier",
+                            "message": f"数值偏离 {deviation:.1f} 倍标准差（均值 {avg:.2f}，标准差 {stddev:.2f}）",
+                            "detail": f"历史均值 {avg:.2f}，标准差 {stddev:.2f}，当前值 {val} 偏离 {deviation:.1f}σ",
+                            "severity": "warning" if deviation < stddev_factor * 2 else "error",
+                            "historical_pattern": f"μ={avg:.2f}, σ={stddev:.2f}",
+                        })
         else:
             # Text length outlier
             hist_lens = []
@@ -292,6 +326,7 @@ def _run_outlier_checks(import_data: List[Dict], historical_data: List[Dict],
                     warnings.append({
                         "row": row.get("_row_num", i + 2),
                         "column": field.field_alias or fname,
+                        "field_name": fname,
                         "value": v[:50] + ("..." if len(v) > 50 else ""),
                         "check_type": "outlier",
                         "message": f"文本长度{direction}历史平均（平均 {avg_len:.0f} 字符，当前 {cur_len} 字符）",
@@ -343,6 +378,7 @@ def _run_format_checks(import_data: List[Dict], historical_data: List[Dict],
                                 "row": row.get("_row_num", i + 2),
                                 "column": field.field_alias or fname,
                                 "value": v,
+                                "field_name": fname,
                                 "check_type": "format",
                                 "message": f"格式与历史数据不一致（历史主流: {dominant_fmt}，当前: {cur_fmt}）",
                                 "detail": f"历史数据中 {dominant_pct*100:.0f}% 为{dominant_fmt}格式",
@@ -375,6 +411,7 @@ def _run_format_checks(import_data: List[Dict], historical_data: List[Dict],
                                 "row": row.get("_row_num", i + 2),
                                 "column": field.field_alias or fname,
                                 "value": v,
+                                "field_name": fname,
                                 "check_type": "format",
                                 "message": f"日期格式不统一（历史: {dominant_fmt}，当前: {cur_fmt}）",
                                 "detail": f"历史数据中 {dominant_pct*100:.0f}% 使用 {dominant_fmt} 格式",
@@ -410,6 +447,7 @@ def _run_format_checks(import_data: List[Dict], historical_data: List[Dict],
                                 "row": row.get("_row_num", i + 2),
                                 "column": field.field_alias or fname,
                                 "value": v,
+                                "field_name": fname,
                                 "check_type": "format",
                                 "message": f"编码前缀不一致（历史: {dominant_prefix}，当前: {prefix_match.group(1)}）",
                                 "detail": f"历史数据中 {dominant_pct*100:.0f}% 以 '{dominant_prefix}' 开头",
@@ -431,6 +469,7 @@ def _run_format_checks(import_data: List[Dict], historical_data: List[Dict],
                                 "row": row.get("_row_num", i + 2),
                                 "column": field.field_alias or fname,
                                 "value": v,
+                                "field_name": fname,
                                 "check_type": "format",
                                 "message": f"编码长度不一致（历史: {dominant_len}位，当前: {len(v)}位）",
                                 "detail": f"历史数据中 {dominant_pct*100:.0f}% 长度为 {dominant_len}",
@@ -461,6 +500,7 @@ def _run_duplicate_checks(import_data: List[Dict], historical_data: List[Dict],
                 "row": 0,
                 "column": field.field_alias or fname,
                 "value": str(list(unique_import)[0])[:50],
+                "field_name": fname,
                 "check_type": "duplicate",
                 "message": f"导入数据的 {field.field_alias or fname} 列所有值都相同（{list(unique_import)[0]}），可能是批量填充错误",
                 "detail": f"共 {len(import_vals)} 行数据全部为同一值",
@@ -485,7 +525,8 @@ def _run_duplicate_checks(import_data: List[Dict], historical_data: List[Dict],
                             "row": dup_rows[0] if dup_rows else 0,
                             "column": field.field_alias or fname,
                             "value": str(dup_val)[:50],
-                            "check_type": "duplicate",
+                            "field_name": fname,
+                "check_type": "duplicate",
                             "message": f"历史数据中该字段值唯一，但导入数据出现重复（值 '{str(dup_val)[:30]}' 出现 {dup_count} 次）",
                             "detail": f"历史唯一率 {hist_unique_ratio*100:.0f}%，重复出现在行: {dup_rows[:5]}",
                             "severity": "warning",
@@ -517,6 +558,7 @@ def _run_cross_field_checks(import_data: List[Dict], fields: List[FieldConfig],
                                     "row": row.get("_row_num", i + 2),
                                     "column": f"{sf.field_alias or sf.field_name} / {ef.field_alias or ef.field_name}",
                                     "value": f"{sv} > {ev}",
+                                    "field_name": sf.field_name,
                                     "check_type": "cross_field",
                                     "message": f"{sf.field_alias or sf.field_name}({sv}) 晚于 {ef.field_alias or ef.field_name}({ev})",
                                     "detail": "开始日期不应晚于结束日期",
@@ -548,6 +590,7 @@ def _run_cross_field_checks(import_data: List[Dict], fields: List[FieldConfig],
                                 "row": row.get("_row_num", i + 2),
                                 "column": f"{f.field_alias or f.field_name} / {f2.field_alias or f2.field_name}",
                                 "value": f"{min_v} > {max_v}",
+                                "field_name": f.field_name,
                                 "check_type": "cross_field",
                                 "message": f"最小值({min_v}) 大于 最大值({max_v})",
                                 "detail": f"{f.field_alias or f.field_name} 不应大于 {f2.field_alias or f2.field_name}",
@@ -697,16 +740,23 @@ async def data_validate(
 
     elapsed = int((time.time() - start) * 1000)
 
+    error_items = [w for w in all_warnings if w.get("severity") == "error"]
+    warning_items = [w for w in all_warnings if w.get("severity") != "error"]
+
     return {
         "success": True,
         "data": {
             "warnings": all_warnings,
             "stats": {
                 "rows_checked": len(body.import_data),
-                "warnings_count": len(all_warnings),
+                "total_issues": len(all_warnings),
+                "error_count": len(error_items),
+                "warning_count": len(warning_items),
+                "warnings_count": len(all_warnings),  # backward compat
                 "check_elapsed_ms": elapsed,
                 "historical_rows": len(historical_data),
             },
+            "has_errors": len(error_items) > 0,
             "warning_behavior": validate_config.get("warning_behavior", "warn"),
         },
     }

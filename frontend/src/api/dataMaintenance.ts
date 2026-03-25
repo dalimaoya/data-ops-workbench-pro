@@ -50,6 +50,7 @@ export interface ExportInfo {
 export interface AIWarningItem {
   row: number;
   column: string;
+  field_name?: string;
   value?: string;
   check_type: string;
   message: string;
