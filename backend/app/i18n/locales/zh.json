@@ -68,8 +68,8 @@
   "data_maintenance.submitted_for_approval": "已提交审批，等待管理员审核",
   "data_maintenance.export_task_created": "导出任务已创建，将在后台执行",
   "data_maintenance.field_missing": "导入字段 {field} 缺失",
-  "data_maintenance.col_count_mismatch": "列数不匹配 (期望 {expected}，实际 {actual})",
-  "data_maintenance.col_name_mismatch": "第 {col} 列列名不匹配 (期望 {expected}，实际 {actual})",
+  "data_maintenance.col_count_mismatch": "上传文件包含 {actual} 列，模板定义 {expected} 列，请使用最新模板",
+  "data_maintenance.col_name_mismatch": "第 {col} 列名称不匹配：期望「{expected}」，实际「{actual}」",
   "backup.not_found": "备份版本不存在",
   "backup.not_rollbackable": "该版本不可回退（已过期或已被清理）",
   "backup.status_abnormal": "备份状态异常: {status}",
@@ -137,5 +137,7 @@
   "scheduler.created": "定时任务创建成功",
   "scheduler.updated": "定时任务更新成功",
   "scheduler.deleted": "定时任务已删除",
-  "scheduler.run_started": "任务已开始执行"
+  "scheduler.run_started": "任务已开始执行",
+  "data_maintenance.row_pk_modified": "第{row}行主键值被修改：原值「{old_val}」，新值「{new_val}」，主键不允许修改",
+  "data_maintenance.row_field_expect_date": "第{row}行 字段[{field}] 期望日期格式，实际值「{value}」"
 }

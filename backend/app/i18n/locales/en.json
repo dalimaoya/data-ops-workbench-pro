@@ -68,8 +68,8 @@
   "data_maintenance.submitted_for_approval": "Submitted for approval, waiting for admin review",
   "data_maintenance.export_task_created": "Export task created, will execute in background",
   "data_maintenance.field_missing": "Import field {field} is missing",
-  "data_maintenance.col_count_mismatch": "Column count mismatch (expected {expected}, actual {actual})",
-  "data_maintenance.col_name_mismatch": "Column {col} name mismatch (expected {expected}, actual {actual})",
+  "data_maintenance.col_count_mismatch": "Upload file contains {actual} columns, template defines {expected} columns, please use the latest template",
+  "data_maintenance.col_name_mismatch": "Column {col} name mismatch: expected '{expected}', actual '{actual}'",
   "backup.not_found": "Backup version not found",
   "backup.not_rollbackable": "This version cannot be rolled back (expired or cleaned up)",
   "backup.status_abnormal": "Backup status abnormal: {status}",
@@ -137,5 +137,7 @@
   "scheduler.created": "Scheduled task created",
   "scheduler.updated": "Scheduled task updated",
   "scheduler.deleted": "Scheduled task deleted",
-  "scheduler.run_started": "Task execution started"
+  "scheduler.run_started": "Task execution started",
+  "data_maintenance.row_pk_modified": "Row {row} primary key modified: original '{old_val}', new '{new_val}', primary key cannot be modified",
+  "data_maintenance.row_field_expect_date": "Row {row} field [{field}] expects date format, actual value '{value}'"
 }

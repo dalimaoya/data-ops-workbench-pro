@@ -553,8 +553,11 @@ def export_template(
         conn.close()
 
     # Generate Excel with openpyxl
-    from openpyxl.styles import Protection as CellProtection
+    from openpyxl.styles import Protection as CellProtection, PatternFill, Font as XlFont
     from openpyxl.worksheet.protection import SheetProtection
+
+    # v3.5: protection password (internal, not exposed to user)
+    _SHEET_PROTECTION_PASSWORD = "DOW_tpl_v35_sec"
 
     batch_no = _gen_batch("EXP")
     wb = openpyxl.Workbook()
@@ -564,6 +567,13 @@ def export_template(
     RESERVED_BLANK_ROWS = 50  # 预留空白行数
     locked_cell = CellProtection(locked=True)
     unlocked_cell = CellProtection(locked=False)
+
+    # v3.5: Visual style fills
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = XlFont(bold=True, color="FFFFFF", size=11)
+    readonly_fill = PatternFill(start_color="F0F0F0", end_color="F0F0F0", fill_type="solid")
+    editable_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+    blank_zone_fill = PatternFill(start_color="FFFFF0", end_color="FFFFF0", fill_type="solid")
 
     # Build editable field set for quick lookup (v2.4: respect editable_roles)
     user_role = user.role if user else "readonly"
@@ -578,29 +588,34 @@ def export_template(
 
     data_row_count = len(raw_rows)
 
-    # Row 1: Header (field aliases) — always locked
+    # Row 1: Header (field aliases) — always locked, v3.5: blue bg + white bold font
     for i, f in enumerate(export_fields, 1):
         cell = ws.cell(row=1, column=i, value=f.field_alias or f.field_name)
-        cell.font = openpyxl.styles.Font(bold=True)
+        cell.font = header_font
+        cell.fill = header_fill
         cell.protection = locked_cell
 
-    # Row 2+: Data rows
+    # Row 2+: Data rows — v3.5: visual color coding
     for row_idx, raw in enumerate(raw_rows, 2):
         for col_idx, (val, ef) in enumerate(zip(raw, export_fields), 1):
             cell = ws.cell(row=row_idx, column=col_idx, value=str(val) if val is not None else "")
             if ef.field_name in pk_set:
-                # 已有数据行的主键列 — 锁定
+                # 已有数据行的主键列 — 锁定 + 灰色
                 cell.protection = locked_cell
+                cell.fill = readonly_fill
             elif ef.field_name in editable_field_names:
                 cell.protection = unlocked_cell
+                cell.fill = editable_fill
             else:
                 cell.protection = locked_cell
+                cell.fill = readonly_fill
 
-    # Reserved blank rows (for new-row support) — v2.0: 主键列也解锁
+    # Reserved blank rows (for new-row support) — v2.0: 主键列也解锁, v3.5: 浅黄色背景
     blank_start = 2 + data_row_count
     for row_idx in range(blank_start, blank_start + RESERVED_BLANK_ROWS):
         for col_idx, ef in enumerate(export_fields, 1):
             cell = ws.cell(row=row_idx, column=col_idx, value="")
+            cell.fill = blank_zone_fill
             if ef.field_name in pk_set:
                 # v2.0: 空白行的主键列 — 解锁，允许用户填写新主键
                 cell.protection = unlocked_cell
@@ -609,9 +624,10 @@ def export_template(
             else:
                 cell.protection = locked_cell
 
-    # Enable worksheet protection
+    # Enable worksheet protection — v3.5: with password, stricter settings
     ws.protection = SheetProtection(
         sheet=True,
+        password=_SHEET_PROTECTION_PASSWORD,
         formatColumns=False,
         formatRows=False,
         formatCells=False,
@@ -909,7 +925,7 @@ async def import_template(
                     "message": t("data_maintenance.row_field_too_long", row=row_idx, field=fc.field_alias or fname, max_len=fc.max_length),
                 })
 
-            # Data type check
+            # Data type check — v3.5: enhanced with date validation
             if str_val and fc.db_data_type:
                 dtype = fc.db_data_type.lower()
                 if any(dt in dtype for dt in ("int", "bigint", "smallint", "tinyint")):
@@ -929,6 +945,17 @@ async def import_template(
                             "row": row_idx, "field": fname,
                             "type": "data_type", "value": str_val,
                             "message": t("data_maintenance.row_field_expect_number", row=row_idx, field=fc.field_alias or fname),
+                        })
+                elif any(dt in dtype for dt in ("date", "time", "timestamp", "datetime")):
+                    # v3.5: date/datetime format validation
+                    from dateutil import parser as date_parser
+                    try:
+                        date_parser.parse(str_val)
+                    except (ValueError, OverflowError):
+                        row_errors.append({
+                            "row": row_idx, "field": fname,
+                            "type": "data_type", "value": str_val,
+                            "message": t("data_maintenance.row_field_expect_date", row=row_idx, field=fc.field_alias or fname, value=str_val),
                         })
 
             # Enum check
@@ -1007,6 +1034,23 @@ async def import_template(
             conn.close()
 
         db_all_pk_set = set(db_pk_map.keys())
+
+        # v3.5: 主键不可变校验 — 原数据行的主键不允许修改
+        # 通过 meta 中的 data_row_count 和 blank_row_start 判断哪些是原数据行
+        meta_blank_start = meta.get("blank_row_start", 2 + meta_data_row_count)
+        for row in data_rows:
+            if row["errors"]:
+                continue
+            pk_key = row["pk_key"]
+            row_num = row["row_num"]
+            # 如果是原数据区域的行（非空白区新增行），但 PK 在 DB 中找不到，说明 PK 被修改了
+            if row_num < meta_blank_start and pk_key not in db_all_pk_set:
+                row["errors"].append({
+                    "row": row_num, "field": ",".join(pk_fields),
+                    "type": "pk_modified", "value": pk_key,
+                    "message": t("data_maintenance.row_pk_modified", row=row_num, old_val="(原始值)", new_val=pk_key),
+                })
+                errors.append(row["errors"][-1])
 
         # v2.0: 区分已有行和新增行
         editable_fields = [f for f in fields if f.is_editable and f.include_in_import]
@@ -2810,8 +2854,11 @@ def _run_async_export(task_id: str, table_config_id: int, export_type: str,
             conn.close()
 
         # Generate Excel
-        from openpyxl.styles import Protection as CellProtection
+        from openpyxl.styles import Protection as CellProtection, PatternFill, Font as XlFont
         from openpyxl.worksheet.protection import SheetProtection
+
+        # v3.5: protection password (internal)
+        _SHEET_PROTECTION_PASSWORD = "DOW_tpl_v35_sec"
 
         batch_no = _gen_batch("EXP")
         wb = openpyxl.Workbook()
@@ -2823,9 +2870,17 @@ def _run_async_export(task_id: str, table_config_id: int, export_type: str,
         data_row_count = len(raw_rows)
         RESERVED_BLANK_ROWS = 50
 
+        # v3.5: Visual style fills
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_font = XlFont(bold=True, color="FFFFFF", size=11)
+        readonly_fill = PatternFill(start_color="F0F0F0", end_color="F0F0F0", fill_type="solid")
+        editable_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+        blank_zone_fill = PatternFill(start_color="FFFFF0", end_color="FFFFF0", fill_type="solid")
+
         for i, f in enumerate(export_fields, 1):
             cell = ws.cell(row=1, column=i, value=f.field_alias or f.field_name)
-            cell.font = openpyxl.styles.Font(bold=True)
+            cell.font = header_font
+            cell.fill = header_fill
             cell.protection = locked_cell
 
         for row_idx, raw in enumerate(raw_rows, 2):
@@ -2833,15 +2888,19 @@ def _run_async_export(task_id: str, table_config_id: int, export_type: str,
                 cell = ws.cell(row=row_idx, column=col_idx, value=str(val) if val is not None else "")
                 if ef.field_name in pk_set:
                     cell.protection = locked_cell
+                    cell.fill = readonly_fill
                 elif ef.field_name in editable_field_names:
                     cell.protection = unlocked_cell
+                    cell.fill = editable_fill
                 else:
                     cell.protection = locked_cell
+                    cell.fill = readonly_fill
 
         blank_start = 2 + data_row_count
         for row_idx in range(blank_start, blank_start + RESERVED_BLANK_ROWS):
             for col_idx, ef in enumerate(export_fields, 1):
                 cell = ws.cell(row=row_idx, column=col_idx, value="")
+                cell.fill = blank_zone_fill
                 if ef.field_name in pk_set:
                     cell.protection = unlocked_cell
                 elif ef.field_name in editable_field_names:
@@ -2850,7 +2909,8 @@ def _run_async_export(task_id: str, table_config_id: int, export_type: str,
                     cell.protection = locked_cell
 
         ws.protection = SheetProtection(
-            sheet=True, formatColumns=False, formatRows=False, formatCells=False,
+            sheet=True, password=_SHEET_PROTECTION_PASSWORD,
+            formatColumns=False, formatRows=False, formatCells=False,
             insertRows=False, deleteRows=True, deleteColumns=True, insertColumns=True,
             sort=False, autoFilter=False,
         )
