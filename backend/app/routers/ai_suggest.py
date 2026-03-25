@@ -1,9 +1,12 @@
-"""AI field suggestion API — POST /api/ai/field-suggest."""
+"""AI field suggestion API — POST /api/ai/field-suggest.
+
+v4.0: Added simple-format endpoint and enhanced rules engine with enum suggestions.
+"""
 
 import time
 import json
 import re
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -15,7 +18,10 @@ from app.utils.auth import get_current_user, require_role
 from app.utils.crypto import decrypt_password
 from app.utils.remote_db import _connect
 from app.ai.ai_engine import AIEngine
-from app.ai.rules_engine import suggest_semantic_name, is_system_field, is_readonly_field, FIELD_NAME_MAP
+from app.ai.rules_engine import (
+    suggest_semantic_name, is_system_field, is_readonly_field,
+    suggest_enum, FIELD_NAME_MAP,
+)
 
 router = APIRouter(prefix="/api/ai", tags=["AI Field Suggest"])
 
@@ -25,6 +31,25 @@ router = APIRouter(prefix="/api/ai", tags=["AI Field Suggest"])
 class FieldSuggestRequest(BaseModel):
     table_id: int
     sample_count: int = 100
+
+
+class SimpleFieldInput(BaseModel):
+    name: str
+    type: str
+
+
+class SimpleFieldSuggestRequest(BaseModel):
+    datasource_id: Optional[int] = None
+    table_name: Optional[str] = None
+    fields: List[SimpleFieldInput]
+
+
+class SimpleFieldSuggestion(BaseModel):
+    field_name: str
+    display_name: str
+    is_readonly: bool
+    is_system: bool
+    suggested_enum: Optional[List[str]] = None
 
 
 # ── Helpers ──
@@ -273,7 +298,8 @@ async def field_suggest(
                 "confidence": 0.95,
             })
 
-        # 4d. Enum values suggestion (non-numeric, unique ≤ 20)
+        # 4d. Enum values suggestion
+        # Priority: sample data > rules engine
         if not is_numeric and "enum_candidates" in sample_analysis:
             candidates = sample_analysis["enum_candidates"]
             unique_count = sample_analysis.get("unique_count", len(candidates))
@@ -283,6 +309,16 @@ async def field_suggest(
                 "reason": f"采样{actual_sample_count}条数据中发现{unique_count}个唯一值",
                 "confidence": 0.85 if unique_count <= 10 else 0.70,
             })
+        else:
+            # Fallback: rules-based enum suggestion
+            rule_enum = suggest_enum(fname)
+            if rule_enum:
+                recommendations.append({
+                    "property": "enum_values",
+                    "value": rule_enum,
+                    "reason": f"字段名'{fname}'匹配常见枚举模式",
+                    "confidence": 0.80,
+                })
 
         # 4e. Numeric stats
         if is_numeric and "min" in sample_analysis:
@@ -370,6 +406,57 @@ async def field_suggest(
             "sample_count": actual_sample_count,
             "suggestions": suggestions,
             "engine": engine_used,
+            "elapsed_ms": elapsed,
+        },
+    }
+
+
+# ── Simple-format endpoint (v4.0) ──
+# Accepts raw field list (no DB lookup needed), returns flat suggestions.
+# Rules engine only — fast, offline, no DB connection required.
+
+@router.post("/field-suggest-simple")
+async def field_suggest_simple(
+    body: SimpleFieldSuggestRequest,
+    current_user=Depends(require_role("admin")),
+):
+    """Lightweight AI field suggestion — rules engine only, no DB sampling.
+
+    Accepts a list of {name, type} and returns display_name, is_readonly,
+    is_system, and suggested_enum for each field.
+    """
+    start = time.time()
+    suggestions: list[dict] = []
+
+    for f in body.fields:
+        fname = f.name
+        ftype = f.type
+
+        # Display name
+        display_name = suggest_semantic_name(fname) or fname
+
+        # Readonly / system
+        ro = is_readonly_field(fname)
+        sys_field = is_system_field(fname)
+
+        # Enum suggestion: first try rules, then data-type heuristics
+        enum_vals = suggest_enum(fname)
+
+        suggestions.append({
+            "field_name": fname,
+            "display_name": display_name,
+            "is_readonly": ro or sys_field,
+            "is_system": sys_field,
+            "suggested_enum": enum_vals,
+        })
+
+    elapsed = int((time.time() - start) * 1000)
+
+    return {
+        "success": True,
+        "data": {
+            "suggestions": suggestions,
+            "engine": "builtin_rules",
             "elapsed_ms": elapsed,
         },
     }
