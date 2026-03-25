@@ -12,7 +12,7 @@ echo "============================================"
 echo ""
 
 # ── 检测打包产物 ──
-SERVER_BIN="$SCRIPT_DIR/server/app/app"
+SERVER_BIN="$SCRIPT_DIR/server/app/dataops-server"
 if [ -x "$SERVER_BIN" ]; then
   # ═══════════════════════════════════════════
   #  打包模式：直接运行独立可执行文件

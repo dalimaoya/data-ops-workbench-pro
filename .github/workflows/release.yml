@@ -212,6 +212,7 @@ jobs:
           pip install --upgrade pip
           pip install -r backend\requirements.txt
           pip install nuitka ordered-set zstandard
+          pip install pystray Pillow
 
       - name: Install MinGW
         uses: egor-tensin/setup-mingw@v2
@@ -319,6 +320,24 @@ jobs:
             --assume-yes-for-downloads `
             app_entry.py
 
+      - name: Nuitka compile launcher (Windows)
+        shell: pwsh
+        run: |
+          python -m nuitka `
+            --standalone `
+            --onefile `
+            --output-dir=.\launcher-out `
+            --output-filename="数据运维工作台.exe" `
+            --mingw64 `
+            --windows-disable-console `
+            --windows-icon-from-ico=icon.ico `
+            --include-package=pystray `
+            --include-package=PIL `
+            --include-module=pystray._win32 `
+            --assume-yes-for-downloads `
+            launcher.py
+        continue-on-error: true
+
       - name: Assemble & package (Windows)
         shell: pwsh
         run: |
@@ -334,6 +353,12 @@ jobs:
           foreach ($d in @("data","backups","logs")) {
             New-Item -ItemType Directory -Force -Path "dist\data-ops-workbench\$d" | Out-Null
             New-Item -ItemType File -Force -Path "dist\data-ops-workbench\$d\.gitkeep" | Out-Null
+          }
+          
+          # Copy launcher exe if built
+          $launcherExe = Get-ChildItem -Path "launcher-out" -Filter "数据运维工作台.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($launcherExe) {
+            Copy-Item $launcherExe.FullName "dist\data-ops-workbench\数据运维工作台.exe"
           }
           
           # Copy plugin manifests

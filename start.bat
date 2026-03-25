@@ -12,7 +12,7 @@ set "SCRIPT_DIR=%~dp0"
 set "PORT=8580"
 
 :: --- Detect packaged binary ---
-set "SERVER_BIN=%SCRIPT_DIR%server\app\app.exe"
+set "SERVER_BIN=%SCRIPT_DIR%server\app\dataops-server.exe"
 if exist "%SERVER_BIN%" (
     echo [MODE] Packaged mode - no Python required
     echo.
