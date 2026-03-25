@@ -338,6 +338,20 @@ jobs:
             launcher.py
         continue-on-error: true
 
+      - name: Nuitka compile launcher (Windows)
+        shell: pwsh
+        run: |
+          python -m nuitka `
+            --standalone `
+            --onefile `
+            --windows-disable-console `
+            --mingw64 `
+            --output-filename="数据运维工作台.exe" `
+            --include-package=pystray `
+            --include-package=PIL `
+            --assume-yes-for-downloads `
+            launcher.py
+
       - name: Assemble & package (Windows)
         shell: pwsh
         run: |
@@ -349,6 +363,8 @@ jobs:
           Copy-Item start.bat dist\data-ops-workbench\start.bat -ErrorAction SilentlyContinue
           Copy-Item start.sh dist\data-ops-workbench\start.sh -ErrorAction SilentlyContinue
           Copy-Item README.md dist\data-ops-workbench\README.md
+          # 复制图形启动器到发布包根目录
+          Copy-Item "数据运维工作台.exe" "dist\data-ops-workbench\数据运维工作台.exe" -ErrorAction SilentlyContinue
           
           foreach ($d in @("data","backups","logs")) {
             New-Item -ItemType Directory -Force -Path "dist\data-ops-workbench\$d" | Out-Null

@@ -1,67 +1,158 @@
+#!/usr/bin/env python3
 """
-数据运维工作台 - Windows 桌面启动器
-Data Ops Workbench - Windows Desktop Launcher
-
-Features:
-- System tray icon (pystray)
-- Status window with version, service status, address
-- Start/Stop service button
-- Open console button (webbrowser)
-- Close window minimizes to tray
-- Right-click tray to exit (stops service)
+数据运维工作台 - Windows 图形启动器
+tkinter 主窗口 + pystray 系统托盘
 """
 
 import os
 import sys
+import signal
 import subprocess
 import threading
 import webbrowser
-import time
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-VERSION = "v3.4.1"
-SERVICE_PORT = 8580
-SERVICE_URL = f"http://localhost:{SERVICE_PORT}"
+VERSION = "3.4.1"
+PORT = 8580
+URL = f"http://localhost:{PORT}"
 
-# Resolve paths relative to the exe/script location
-if getattr(sys, 'frozen', False):
-    BASE_DIR = os.path.dirname(sys.executable)
-else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# ── 定位可执行文件 ──────────────────────────────────────────────
+def _find_server_bin():
+    """自动检测 dataops-server 可执行文件路径"""
+    if getattr(sys, "frozen", False):
+        base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
 
-SERVER_EXE = os.path.join(BASE_DIR, "server", "app", "dataops-server.exe")
+    candidates = [
+        os.path.join(base, "server", "app", "dataops-server.exe"),
+        os.path.join(base, "server", "app", "dataops-server"),
+        os.path.join(base, "dataops-server.exe"),
+        os.path.join(base, "dataops-server"),
+    ]
+    for p in candidates:
+        if os.path.isfile(p):
+            return p
+    return None
 
 
-class DataOpsLauncher:
+# ── 托盘图标（纯代码生成，不依赖外部图片）──────────────────────
+def _create_icon_image(size=64):
+    """用 Pillow 生成一个简单的蓝色圆形图标"""
+    from PIL import Image, ImageDraw
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    draw.ellipse([2, 2, size - 2, size - 2], fill=(52, 120, 246), outline=(30, 80, 200), width=2)
+    # 中间白色 "D" 字
+    try:
+        from PIL import ImageFont
+        font = ImageFont.truetype("arial.ttf", size // 2)
+    except Exception:
+        font = ImageFont.load_default()
+    bbox = draw.textbbox((0, 0), "D", font=font)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    draw.text(((size - tw) / 2 - bbox[0], (size - th) / 2 - bbox[1]), "D", fill="white", font=font)
+    return img
+
+
+# ══════════════════════════════════════════════════════════════════
+class LauncherApp:
     def __init__(self):
         self.process = None
-        self.running = False
         self.tray_icon = None
-        self.root = None
-        self._stop_event = threading.Event()
+        self.running = False
 
-    # ── Service management ──
+        self.server_bin = _find_server_bin()
 
-    def start_service(self):
-        if self.running and self.process and self.process.poll() is None:
+        # ── tkinter 主窗口 ──
+        self.root = tk.Tk()
+        self.root.title("数据运维工作台")
+        self.root.geometry("420x320")
+        self.root.resizable(False, False)
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        self._build_ui()
+        self._start_tray()
+
+    # ── UI 布局 ──────────────────────────────────────────────────
+    def _build_ui(self):
+        root = self.root
+        root.configure(bg="#f5f7fa")
+
+        # 标题
+        title_frame = tk.Frame(root, bg="#3478f6", height=60)
+        title_frame.pack(fill=tk.X)
+        title_frame.pack_propagate(False)
+        tk.Label(title_frame, text="数据运维工作台", font=("Microsoft YaHei", 16, "bold"),
+                 fg="white", bg="#3478f6").pack(pady=14)
+
+        # 信息区
+        info_frame = tk.Frame(root, bg="#f5f7fa", padx=24, pady=16)
+        info_frame.pack(fill=tk.X)
+
+        tk.Label(info_frame, text=f"版本：v{VERSION}", font=("Microsoft YaHei", 10),
+                 bg="#f5f7fa", fg="#555").grid(row=0, column=0, sticky="w", pady=2)
+
+        tk.Label(info_frame, text="服务状态：", font=("Microsoft YaHei", 10),
+                 bg="#f5f7fa", fg="#555").grid(row=1, column=0, sticky="w", pady=2)
+        self.status_label = tk.Label(info_frame, text="已停止", font=("Microsoft YaHei", 10, "bold"),
+                                     bg="#f5f7fa", fg="#e74c3c")
+        self.status_label.grid(row=1, column=1, sticky="w", pady=2)
+
+        tk.Label(info_frame, text=f"地址：{URL}", font=("Microsoft YaHei", 10),
+                 bg="#f5f7fa", fg="#555").grid(row=2, column=0, columnspan=2, sticky="w", pady=2)
+
+        if not self.server_bin:
+            tk.Label(info_frame, text="⚠ 未找到 dataops-server，请检查目录结构",
+                     font=("Microsoft YaHei", 9), bg="#f5f7fa", fg="#e67e22").grid(
+                row=3, column=0, columnspan=2, sticky="w", pady=4)
+
+        # 按钮区
+        btn_frame = tk.Frame(root, bg="#f5f7fa", padx=24, pady=8)
+        btn_frame.pack(fill=tk.X)
+
+        style = ttk.Style()
+        style.configure("Action.TButton", font=("Microsoft YaHei", 10), padding=8)
+
+        self.toggle_btn = ttk.Button(btn_frame, text="启动服务", style="Action.TButton",
+                                     command=self._toggle_service)
+        self.toggle_btn.pack(fill=tk.X, pady=4)
+
+        ttk.Button(btn_frame, text="打开控制台", style="Action.TButton",
+                   command=lambda: webbrowser.open(URL)).pack(fill=tk.X, pady=4)
+
+        # 底部状态栏
+        footer = tk.Frame(root, bg="#eee", height=28)
+        footer.pack(fill=tk.X, side=tk.BOTTOM)
+        footer.pack_propagate(False)
+        tk.Label(footer, text="关闭窗口 → 最小化到托盘  |  托盘右键 → 完全退出",
+                 font=("Microsoft YaHei", 8), bg="#eee", fg="#999").pack(pady=4)
+
+    # ── 服务控制 ─────────────────────────────────────────────────
+    def _toggle_service(self):
+        if self.running:
+            self._stop_service()
+        else:
+            self._start_service()
+
+    def _start_service(self):
+        if not self.server_bin:
+            messagebox.showerror("错误", "未找到 dataops-server 可执行文件。\n请确认目录结构正确。")
+            return
+        if self.running:
             return
 
-        if not os.path.isfile(SERVER_EXE):
-            if self.root:
-                messagebox.showerror(
-                    "错误",
-                    f"找不到服务程序:\n{SERVER_EXE}"
-                )
-            return
-
+        base_dir = os.path.dirname(self.server_bin)
+        # 往上两级到发布包根目录
+        release_root = os.path.abspath(os.path.join(base_dir, "..", ".."))
         env = os.environ.copy()
-        env["DATA_OPS_BASE_DIR"] = BASE_DIR
-        env["DATA_OPS_DATA_DIR"] = os.path.join(BASE_DIR, "data")
+        env["DATA_OPS_BASE_DIR"] = release_root
+        env["DATA_OPS_DATA_DIR"] = os.path.join(release_root, "data")
 
-        # Ensure directories exist
+        # 确保目录存在
         for d in ("data", "backups", "logs"):
-            os.makedirs(os.path.join(BASE_DIR, d), exist_ok=True)
+            os.makedirs(os.path.join(release_root, d), exist_ok=True)
 
         creation_flags = 0
         if sys.platform == "win32":
@@ -69,196 +160,84 @@ class DataOpsLauncher:
 
         try:
             self.process = subprocess.Popen(
-                [SERVER_EXE, "--port", str(SERVICE_PORT)],
+                [self.server_bin, "--port", str(PORT)],
                 env=env,
                 creationflags=creation_flags,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
             self.running = True
-            self._update_ui()
+            self._update_status()
         except Exception as e:
-            if self.root:
-                messagebox.showerror("启动失败", str(e))
+            messagebox.showerror("启动失败", str(e))
 
-    def stop_service(self):
-        if self.process and self.process.poll() is None:
-            self.process.terminate()
+    def _stop_service(self):
+        if self.process:
             try:
-                self.process.wait(timeout=10)
+                self.process.terminate()
+                self.process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 self.process.kill()
-        self.process = None
-        self.running = False
-        self._update_ui()
-
-    def _check_status(self):
-        """Background thread: poll service process status."""
-        while not self._stop_event.is_set():
-            if self.process is not None:
-                if self.process.poll() is not None:
-                    # Process exited unexpectedly
-                    self.running = False
-                    self.process = None
-                    if self.root:
-                        self.root.after(0, self._update_ui)
-            self._stop_event.wait(2)
-
-    # ── UI ──
-
-    def _update_ui(self):
-        if not self.root:
-            return
-        if self.running:
-            self.status_var.set("● 运行中")
-            self.status_label.config(foreground="#2ecc71")
-            self.toggle_btn.config(text="停止服务")
-        else:
-            self.status_var.set("○ 已停止")
-            self.status_label.config(foreground="#e74c3c")
-            self.toggle_btn.config(text="启动服务")
-
-    def _toggle_service(self):
-        if self.running:
-            self.stop_service()
-        else:
-            self.start_service()
-
-    def _open_console(self):
-        webbrowser.open(SERVICE_URL)
-
-    def _on_close(self):
-        """Minimize to tray instead of closing."""
-        if self.root:
-            self.root.withdraw()
-
-    def _show_window(self):
-        if self.root:
-            self.root.deiconify()
-            self.root.lift()
-            self.root.focus_force()
-
-    def _quit(self):
-        self.stop_service()
-        self._stop_event.set()
-        if self.tray_icon:
-            self.tray_icon.stop()
-        if self.root:
-            self.root.quit()
-            self.root.destroy()
-
-    def _build_window(self):
-        self.root = tk.Tk()
-        self.root.title(f"数据运维工作台 {VERSION}")
-        self.root.geometry("400x320")
-        self.root.resizable(False, False)
-        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
-
-        # Try to set icon
-        ico_path = os.path.join(BASE_DIR, "icon.ico")
-        if os.path.isfile(ico_path):
-            try:
-                self.root.iconbitmap(ico_path)
             except Exception:
                 pass
+            self.process = None
+        self.running = False
+        self._update_status()
 
-        style = ttk.Style()
-        style.configure("Title.TLabel", font=("Microsoft YaHei UI", 16, "bold"))
-        style.configure("Info.TLabel", font=("Microsoft YaHei UI", 11))
-        style.configure("Status.TLabel", font=("Microsoft YaHei UI", 12, "bold"))
-        style.configure("Action.TButton", font=("Microsoft YaHei UI", 11), padding=8)
+    def _update_status(self):
+        if self.running:
+            self.status_label.config(text="运行中", fg="#27ae60")
+            self.toggle_btn.config(text="停止服务")
+        else:
+            self.status_label.config(text="已停止", fg="#e74c3c")
+            self.toggle_btn.config(text="启动服务")
 
-        main_frame = ttk.Frame(self.root, padding=24)
-        main_frame.pack(fill=tk.BOTH, expand=True)
-
-        # Title
-        ttk.Label(main_frame, text="数据运维工作台", style="Title.TLabel").pack(pady=(0, 8))
-        ttk.Label(main_frame, text=f"版本: {VERSION}", style="Info.TLabel").pack()
-
-        # Separator
-        ttk.Separator(main_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=12)
-
-        # Status row
-        status_frame = ttk.Frame(main_frame)
-        status_frame.pack()
-        ttk.Label(status_frame, text="服务状态: ", style="Info.TLabel").pack(side=tk.LEFT)
-        self.status_var = tk.StringVar(value="○ 已停止")
-        self.status_label = ttk.Label(status_frame, textvariable=self.status_var,
-                                       style="Status.TLabel", foreground="#e74c3c")
-        self.status_label.pack(side=tk.LEFT)
-
-        # Address
-        ttk.Label(main_frame, text=f"地址: {SERVICE_URL}", style="Info.TLabel").pack(pady=(8, 0))
-
-        # Separator
-        ttk.Separator(main_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=12)
-
-        # Buttons
-        btn_frame = ttk.Frame(main_frame)
-        btn_frame.pack(fill=tk.X)
-
-        self.toggle_btn = ttk.Button(btn_frame, text="启动服务",
-                                      style="Action.TButton", command=self._toggle_service)
-        self.toggle_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 6))
-
-        open_btn = ttk.Button(btn_frame, text="打开控制台",
-                               style="Action.TButton", command=self._open_console)
-        open_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(6, 0))
-
-        # Footer
-        ttk.Label(main_frame, text="关闭窗口最小化到托盘，右键托盘图标退出",
-                   font=("Microsoft YaHei UI", 9), foreground="#999").pack(side=tk.BOTTOM, pady=(12, 0))
-
-    def _create_tray_image(self):
-        """Create a simple tray icon image."""
-        from PIL import Image, ImageDraw
-        img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-        # Simple gear-like icon
-        draw.ellipse([8, 8, 56, 56], fill="#2980b9", outline="#1a5276", width=2)
-        draw.text((20, 18), "DO", fill="white")
-        return img
-
+    # ── 系统托盘 ─────────────────────────────────────────────────
     def _start_tray(self):
-        """Start system tray icon in a background thread."""
         try:
             import pystray
-            from pystray import MenuItem, Menu
-
-            image = self._create_tray_image()
-
-            menu = Menu(
-                MenuItem("显示窗口", lambda: self.root.after(0, self._show_window), default=True),
-                MenuItem("打开控制台", lambda: self._open_console()),
-                Menu.SEPARATOR,
-                MenuItem("退出", lambda: self.root.after(0, self._quit)),
+            icon_image = _create_icon_image()
+            menu = pystray.Menu(
+                pystray.MenuItem("打开控制台", lambda: webbrowser.open(URL)),
+                pystray.MenuItem("显示窗口", self._show_window),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("退出", self._quit_app),
             )
-
-            self.tray_icon = pystray.Icon("dataops", image, "数据运维工作台", menu)
-            self.tray_icon.run()
+            self.tray_icon = pystray.Icon("dataops", icon_image, "数据运维工作台", menu)
+            tray_thread = threading.Thread(target=self.tray_icon.run, daemon=True)
+            tray_thread.start()
         except ImportError:
-            # pystray not available — skip tray
-            pass
+            # 没有 pystray 时退化：关闭窗口直接退出
+            self.root.protocol("WM_DELETE_WINDOW", self._quit_app)
+
+    def _on_close(self):
+        """关闭窗口 → 隐藏到托盘"""
+        if self.tray_icon:
+            self.root.withdraw()
+        else:
+            self._quit_app()
+
+    def _show_window(self, *_args):
+        self.root.after(0, self.root.deiconify)
+
+    def _quit_app(self, *_args):
+        self._stop_service()
+        if self.tray_icon:
+            try:
+                self.tray_icon.stop()
+            except Exception:
+                pass
+        try:
+            self.root.destroy()
         except Exception:
             pass
+        os._exit(0)
 
+    # ── 启动主循环 ───────────────────────────────────────────────
     def run(self):
-        self._build_window()
-
-        # Status checker thread
-        checker = threading.Thread(target=self._check_status, daemon=True)
-        checker.start()
-
-        # System tray thread
-        tray_thread = threading.Thread(target=self._start_tray, daemon=True)
-        tray_thread.start()
-
-        # Auto-start service
-        self.root.after(500, self.start_service)
-
         self.root.mainloop()
 
 
 if __name__ == "__main__":
-    app = DataOpsLauncher()
+    app = LauncherApp()
     app.run()
