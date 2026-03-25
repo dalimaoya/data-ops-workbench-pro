@@ -119,11 +119,9 @@ jobs:
             --include-package=reportlab \
             --include-package=slowapi \
             --include-package=multipart \
-            --include-package=email_validator \
             --include-package=aiosqlite \
             --include-module=uvloop \
             --include-module=httptools \
-            --include-module=oracledb \
             --nofollow-import-to=tkinter \
             --nofollow-import-to=matplotlib \
             --nofollow-import-to=scipy \
@@ -222,6 +220,7 @@ jobs:
           version: 12.2.0
 
       - name: Nuitka compile (Windows)
+        shell: pwsh
         run: |
           cd backend
           python -m nuitka `
@@ -293,10 +292,8 @@ jobs:
             --include-package=reportlab `
             --include-package=slowapi `
             --include-package=multipart `
-            --include-package=email_validator `
             --include-package=aiosqlite `
             --include-module=httptools `
-            --include-module=oracledb `
             --nofollow-import-to=tkinter `
             --nofollow-import-to=matplotlib `
             --nofollow-import-to=scipy `
@@ -317,7 +314,7 @@ jobs:
             --include-package-data=pdfminer `
             --include-package-data=certifi `
             --include-data-dir=web=web `
-            --include-data-dir=app\i18n\locales=app/i18n/locales `
+            --include-data-dir=app/i18n/locales=app/i18n/locales `
             --jobs=4 `
             --assume-yes-for-downloads `
             app_entry.py
