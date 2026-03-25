@@ -1,4 +1,4 @@
-"""v3.0-P2: AI Log Analysis — summary / anomaly / trace."""
+"""v4.3: AI Log Analysis — summary / anomaly detection with risk assessment / trace."""
 
 from __future__ import annotations
 import json

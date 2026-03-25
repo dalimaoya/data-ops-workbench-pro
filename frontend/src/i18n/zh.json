@@ -868,7 +868,8 @@
     "anomalyType_off_hours": "非工作时间",
     "anomalyType_high_frequency": "高频回写",
     "anomalyType_bulk_modification": "大批量修改",
-    "anomalyType_consecutive_rollback": "连续回退"
+    "anomalyType_consecutive_rollback": "连续回退",
+    "anomalyType_failed_import": "导入失败"
   },
   "healthCheck": {
     "title": "健康巡检",
