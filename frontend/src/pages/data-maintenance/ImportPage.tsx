@@ -97,6 +97,12 @@ export default function ImportPage() {
                 </div>
               </Card>
             )}
+            {(result.new_count ?? 0) > 0 && (
+              <Card size="small" style={{ flex: 1, minWidth: 120, textAlign: 'center', borderColor: '#52c41a' }}>
+                <div style={{ fontSize: 28, fontWeight: 'bold', color: '#52c41a' }}>{result.new_count}</div>
+                <div style={{ color: '#666' }}>{isZh ? '新增行' : 'New Rows'}</div>
+              </Card>
+            )}
             <Card size="small" style={{ flex: 1, minWidth: 120, textAlign: 'center' }}>
               <div style={{ fontSize: 28, fontWeight: 'bold', color: '#1890ff' }}>{result.diff_count}</div>
               <div style={{ color: '#666' }}>{t('importPage.diffCount')}</div>
