@@ -1,12 +1,15 @@
 import { useState, useCallback } from 'react';
-import { Input, Button, Space, Tag, Tooltip, message, Spin, Alert } from 'antd';
+import { Input, Button, Space, Tag, Tooltip, message, Spin, Alert, Table, Typography } from 'antd';
 import {
   RobotOutlined, SearchOutlined, CheckOutlined, EditOutlined,
   ReloadOutlined, CloseOutlined, PlusOutlined, DeleteOutlined,
+  CodeOutlined, PlayCircleOutlined,
 } from '@ant-design/icons';
-import { nlQuery } from '../../api/aiNlQuery';
-import type { NLQueryFilter, NLQueryResult } from '../../api/aiNlQuery';
+import { nlQuery, nlQueryExecute } from '../../api/aiNlQuery';
+import type { NLQueryFilter, NLQueryResult, NLQueryExecuteResult } from '../../api/aiNlQuery';
 import type { ColumnMeta } from '../../api/dataMaintenance';
+
+const { Text } = Typography;
 
 interface AIQueryPanelProps {
   tableConfigId: number;
@@ -47,9 +50,13 @@ const OPERATOR_COLORS: Record<string, string> = {
 export default function AIQueryPanel({ tableConfigId, columns, onApplyFilters, onClose }: AIQueryPanelProps) {
   const [queryText, setQueryText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [executing, setExecuting] = useState(false);
   const [result, setResult] = useState<NLQueryResult | null>(null);
+  const [execResult, setExecResult] = useState<NLQueryExecuteResult | null>(null);
+  const [execPage, setExecPage] = useState(1);
   const [editingFilters, setEditingFilters] = useState<NLQueryFilter[] | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showSql, setShowSql] = useState(false);
 
   // Build field context from columns
   const buildFieldContext = useCallback(() => {
@@ -57,7 +64,6 @@ export default function AIQueryPanel({ tableConfigId, columns, onApplyFilters, o
       name: col.field_name,
       display_name: col.field_alias || col.field_name,
       type: col.db_data_type || 'VARCHAR',
-      // enum_values would need to be passed if available
     }));
   }, [columns]);
 
@@ -69,6 +75,7 @@ export default function AIQueryPanel({ tableConfigId, columns, onApplyFilters, o
     }
     setLoading(true);
     setIsEditing(false);
+    setExecResult(null);
     try {
       const previousFilters = result?.filters || [];
       const res = await nlQuery({
@@ -95,6 +102,35 @@ export default function AIQueryPanel({ tableConfigId, columns, onApplyFilters, o
     }
   };
 
+  const handleExecute = async (page = 1) => {
+    const filters = isEditing && editingFilters ? editingFilters : result?.filters;
+    if (!filters || filters.length === 0) {
+      message.warning('没有可执行的筛选条件');
+      return;
+    }
+    setExecuting(true);
+    try {
+      const res = await nlQueryExecute({
+        table_id: tableConfigId,
+        filters,
+        sql_preview: result?.sql_preview,
+        page,
+        page_size: 50,
+      });
+      if (res.data.success && res.data.data) {
+        setExecResult(res.data.data);
+        setExecPage(page);
+        message.success(`查询完成，共 ${res.data.data.total} 条结果`);
+      } else {
+        message.error('查询执行失败');
+      }
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || '查询执行失败');
+    } finally {
+      setExecuting(false);
+    }
+  };
+
   const handleConfirm = () => {
     const filters = isEditing && editingFilters ? editingFilters : result?.filters;
     if (filters && filters.length > 0) {
@@ -110,11 +146,13 @@ export default function AIQueryPanel({ tableConfigId, columns, onApplyFilters, o
     setResult(null);
     setEditingFilters(null);
     setIsEditing(false);
+    setExecResult(null);
+    setShowSql(false);
   };
 
   const handleFollowUp = () => {
-    // Keep current result for context, clear input for new query
     setQueryText('');
+    setExecResult(null);
   };
 
   const handleEditMode = () => {
@@ -132,6 +170,15 @@ export default function AIQueryPanel({ tableConfigId, columns, onApplyFilters, o
   };
 
   const displayFilters = isEditing && editingFilters ? editingFilters : result?.filters;
+
+  // Build table columns for execute result
+  const execColumns = execResult?.columns?.map(c => ({
+    title: c.field_alias || c.field_name,
+    dataIndex: c.field_name,
+    key: c.field_name,
+    ellipsis: true,
+    width: 150,
+  })) || [];
 
   return (
     <div style={{
@@ -178,7 +225,7 @@ export default function AIQueryPanel({ tableConfigId, columns, onApplyFilters, o
           onClick={handleQuery}
           style={{ alignSelf: 'flex-end' }}
         >
-          查询
+          解析
         </Button>
       </div>
 
@@ -244,6 +291,38 @@ export default function AIQueryPanel({ tableConfigId, columns, onApplyFilters, o
             </div>
           )}
 
+          {/* SQL Preview */}
+          {result.sql_preview && displayFilters && displayFilters.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <Button
+                type="link"
+                size="small"
+                icon={<CodeOutlined />}
+                onClick={() => setShowSql(!showSql)}
+                style={{ padding: 0, fontSize: 12 }}
+              >
+                {showSql ? '隐藏 SQL 预览' : '查看 SQL 预览'}
+              </Button>
+              {showSql && (
+                <div style={{
+                  background: '#1e1e1e',
+                  color: '#d4d4d4',
+                  borderRadius: 6,
+                  padding: '10px 14px',
+                  marginTop: 6,
+                  fontFamily: "'Fira Code', 'Consolas', monospace",
+                  fontSize: 12,
+                  lineHeight: 1.6,
+                  overflowX: 'auto',
+                }}>
+                  <Text copyable={{ text: result.sql_preview }} style={{ color: '#d4d4d4' }}>
+                    {result.sql_preview}
+                  </Text>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* No filters */}
           {(!displayFilters || displayFilters.length === 0) && (
             <Alert
@@ -257,13 +336,17 @@ export default function AIQueryPanel({ tableConfigId, columns, onApplyFilters, o
 
           {/* Action buttons */}
           {displayFilters && displayFilters.length > 0 && (
-            <Space wrap>
+            <Space wrap style={{ marginBottom: execResult ? 12 : 0 }}>
               <Button
                 type="primary"
-                icon={<CheckOutlined />}
-                onClick={handleConfirm}
+                icon={<PlayCircleOutlined />}
+                loading={executing}
+                onClick={() => handleExecute(1)}
               >
-                ✅ 确认查询
+                ✅ 确认执行查询
+              </Button>
+              <Button onClick={handleConfirm}>
+                📋 应用为筛选条件
               </Button>
               {!isEditing ? (
                 <Button icon={<EditOutlined />} onClick={handleEditMode}>
@@ -284,13 +367,45 @@ export default function AIQueryPanel({ tableConfigId, columns, onApplyFilters, o
               </Tooltip>
             </Space>
           )}
+
+          {/* Execute Result Table */}
+          {execResult && (
+            <div style={{
+              background: '#fff',
+              borderRadius: 6,
+              border: '1px solid #e8e8e8',
+              marginTop: 8,
+            }}>
+              <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text strong style={{ fontSize: 13 }}>
+                  🔍 查询结果（共 {execResult.total} 条）
+                </Text>
+              </div>
+              <Table
+                dataSource={execResult.rows}
+                columns={execColumns}
+                rowKey={(_, i) => String(i)}
+                size="small"
+                scroll={{ x: 'max-content' }}
+                pagination={{
+                  current: execPage,
+                  pageSize: execResult.page_size,
+                  total: execResult.total,
+                  showTotal: (t) => `共 ${t} 条`,
+                  showSizeChanger: false,
+                  onChange: (p) => handleExecute(p),
+                }}
+              />
+            </div>
+          )}
         </>
       )}
 
       {/* Hints when no result yet */}
       {!loading && !result && (
         <div style={{ color: '#999', fontSize: 12 }}>
-          💡 提示：支持时间范围（最近7天/本月/今年）、状态筛选（不是正常/停用的）、数值比较（大于100）等查询方式
+          💡 提示：支持时间范围（最近7天/本月/今年）、状态筛选（不是正常/停用的）、数值比较（大于100）、空值检查（为空/不为空）等查询方式。
+          AI 会先解析您的意图并展示 SQL 预览，确认后再执行查询。
         </div>
       )}
     </div>

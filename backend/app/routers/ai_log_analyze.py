@@ -204,6 +204,20 @@ def _detect_anomalies(db: Session, start: datetime, end: datetime, table_id: Opt
                 "detail": {"table_id": tid_, "rollback_count": count},
             })
 
+    # 5. Failed imports (error status)
+    failed_imports = db.query(ImportTaskLog).filter(
+        ImportTaskLog.created_at >= start,
+        ImportTaskLog.created_at <= end,
+        ImportTaskLog.status == "error",
+    ).all()
+    for fi in failed_imports:
+        anomalies.append({
+            "type": "failed_import",
+            "level": "warning",
+            "message": f"导入失败：用户 {fi.operator_user or '未知'} 对「{tmap.get(fi.table_config_id, '')}」导入失败",
+            "detail": {"import_id": fi.id, "user": fi.operator_user},
+        })
+
     # Deduplicate by type+detail key
     seen = set()
     unique = []
@@ -213,7 +227,32 @@ def _detect_anomalies(db: Session, start: datetime, end: datetime, table_id: Opt
             seen.add(key)
             unique.append(a)
 
+    # Sort by severity: error > warning > info
+    level_order = {"error": 0, "warning": 1, "info": 2}
+    unique.sort(key=lambda x: level_order.get(x.get("level", "info"), 99))
+
+    # Generate suggestions for each anomaly
+    for a in unique:
+        a["suggestion"] = _get_suggestion(a["type"], a.get("detail", {}))
+
     return unique
+
+
+_SUGGESTION_MAP = {
+    "off_hours": "建议检查是否为授权操作，可考虑设置非工作时间操作审批流程",
+    "high_frequency": "频繁回写可能导致数据不一致，建议合并操作或开启审批流",
+    "bulk_modification": "大批量修改风险较高，建议先备份数据并在测试环境验证",
+    "consecutive_rollback": "连续回退说明数据质量可能有问题，建议排查回写模板和校验规则",
+    "failed_import": "导入失败可能由模板格式或数据校验引起，建议检查导入文件和字段映射",
+}
+
+
+def _get_suggestion(anomaly_type: str, detail: dict) -> str:
+    """Generate a suggestion based on anomaly type."""
+    base = _SUGGESTION_MAP.get(anomaly_type, "建议关注并人工确认操作合理性")
+    if anomaly_type == "bulk_modification" and detail.get("ratio", 0) >= 0.5:
+        base += "。修改超过50%数据，强烈建议审批后操作"
+    return base
 
 
 # ── Trace ──
@@ -275,7 +314,32 @@ def log_analyze(
 
     elif req.action == "anomaly":
         anomalies = _detect_anomalies(db, start, end, req.table_id)
-        return {"action": "anomaly", "data": {"anomalies": anomalies, "total": len(anomalies)}}
+        # Overall risk assessment
+        error_count = sum(1 for a in anomalies if a.get("level") == "error")
+        warning_count = sum(1 for a in anomalies if a.get("level") == "warning")
+        if error_count >= 2:
+            overall_risk = "high"
+            overall_desc = f"发现 {error_count} 个高风险项，建议立即排查"
+        elif error_count >= 1 or warning_count >= 3:
+            overall_risk = "medium"
+            overall_desc = f"发现 {error_count} 个高风险 + {warning_count} 个中风险项，建议关注"
+        elif warning_count >= 1:
+            overall_risk = "low"
+            overall_desc = f"发现 {warning_count} 个中风险项，整体可控"
+        else:
+            overall_risk = "safe"
+            overall_desc = "未发现异常，运维状态良好"
+        return {
+            "action": "anomaly",
+            "data": {
+                "anomalies": anomalies,
+                "total": len(anomalies),
+                "overall_risk": overall_risk,
+                "overall_description": overall_desc,
+                "error_count": error_count,
+                "warning_count": warning_count,
+            },
+        }
 
     elif req.action == "trace":
         traces = _trace_field(db, start, end, req.table_id, req.field_name, req.row_pk)

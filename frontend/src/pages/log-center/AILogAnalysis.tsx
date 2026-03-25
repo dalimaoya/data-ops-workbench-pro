@@ -1,12 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Card, Tabs, DatePicker, Select, Button, Space, Descriptions, Tag, Table, Alert, Spin, Input, Empty } from 'antd';
-import { RobotOutlined, SearchOutlined, WarningOutlined, FileSearchOutlined } from '@ant-design/icons';
+import { RobotOutlined, SearchOutlined, WarningOutlined, FileSearchOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { logAnalyze } from '../../api/aiLogAnalyze';
 import { api } from '../../api/request';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
+
+const RISK_CONFIG: Record<string, { color: string; icon: string; label: string }> = {
+  high: { color: '#ff4d4f', icon: '🔴', label: '高风险' },
+  medium: { color: '#faad14', icon: '🟡', label: '中风险' },
+  low: { color: '#52c41a', icon: '🟢', label: '低风险' },
+  safe: { color: '#52c41a', icon: '✅', label: '安全' },
+};
 
 export default function AILogAnalysis() {
   const { t } = useTranslation();
@@ -84,20 +91,94 @@ export default function AILogAnalysis() {
   // Render anomalies
   const renderAnomalies = () => {
     if (!result?.data) return null;
-    const { anomalies } = result.data;
-    if (!anomalies?.length) return <Empty description={t('aiLog.noAnomalies')} />;
-    const levelColor: Record<string, string> = { error: 'red', warning: 'orange', info: 'blue' };
-    const columns = [
-      {
-        title: t('aiLog.riskLevel'),
-        dataIndex: 'level',
-        width: 100,
-        render: (v: string) => <Tag color={levelColor[v] || 'default'}>{v === 'error' ? '🔴 ' + t('aiLog.high') : v === 'warning' ? '🟡 ' + t('aiLog.medium') : '🔵 ' + t('aiLog.low')}</Tag>,
-      },
-      { title: t('aiLog.anomalyType'), dataIndex: 'type', width: 150, render: (v: string) => t(`aiLog.anomalyType_${v}`, v) },
-      { title: t('aiLog.description'), dataIndex: 'message' },
-    ];
-    return <Table dataSource={anomalies} columns={columns} rowKey={(_, i) => String(i)} size="small" pagination={false} />;
+    const { anomalies, overall_risk, overall_description, error_count, warning_count } = result.data;
+
+    const riskCfg = RISK_CONFIG[overall_risk] || RISK_CONFIG.safe;
+
+    return (
+      <div>
+        {/* Overall Risk Assessment Card */}
+        <Card
+          size="small"
+          style={{
+            marginBottom: 16,
+            borderLeft: `4px solid ${riskCfg.color}`,
+            background: overall_risk === 'safe' ? '#f6ffed' : overall_risk === 'high' ? '#fff2f0' : '#fffbe6',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <SafetyCertificateOutlined style={{ fontSize: 28, color: riskCfg.color }} />
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>
+                {riskCfg.icon} 整体风险评估：
+                <Tag color={overall_risk === 'safe' ? 'green' : overall_risk === 'high' ? 'red' : overall_risk === 'medium' ? 'orange' : 'green'} style={{ marginLeft: 8 }}>
+                  {riskCfg.label}
+                </Tag>
+              </div>
+              <div style={{ color: '#666', fontSize: 13, marginTop: 4 }}>
+                {overall_description}
+                {(error_count > 0 || warning_count > 0) && (
+                  <span style={{ marginLeft: 8 }}>
+                    （🔴 高风险 {error_count} · 🟡 中风险 {warning_count}）
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {!anomalies?.length ? (
+          <Empty description={t('aiLog.noAnomalies')} />
+        ) : (
+          <Table
+            dataSource={anomalies}
+            columns={[
+              {
+                title: t('aiLog.riskLevel'),
+                dataIndex: 'level',
+                width: 100,
+                render: (v: string) => (
+                  <Tag color={v === 'error' ? 'red' : v === 'warning' ? 'orange' : 'blue'}>
+                    {v === 'error' ? '🔴 ' + t('aiLog.high') : v === 'warning' ? '🟡 ' + t('aiLog.medium') : '🔵 ' + t('aiLog.low')}
+                  </Tag>
+                ),
+              },
+              {
+                title: t('aiLog.anomalyType'),
+                dataIndex: 'type',
+                width: 150,
+                render: (v: string) => t(`aiLog.anomalyType_${v}`, v),
+              },
+              {
+                title: t('aiLog.description'),
+                dataIndex: 'message',
+              },
+              {
+                title: '建议',
+                dataIndex: 'suggestion',
+                width: 280,
+                render: (v: string) => (
+                  <span style={{ color: '#1677ff', fontSize: 12 }}>💡 {v}</span>
+                ),
+              },
+            ]}
+            rowKey={(_, i) => String(i)}
+            size="small"
+            pagination={false}
+            expandable={{
+              expandedRowRender: (record: any) => (
+                <div style={{ padding: '8px 0' }}>
+                  <strong>详细信息：</strong>
+                  <pre style={{ margin: '4px 0', fontSize: 12, color: '#666' }}>
+                    {JSON.stringify(record.detail, null, 2)}
+                  </pre>
+                </div>
+              ),
+            }}
+          />
+        )}
+      </div>
+    );
   };
 
   // Render trace
