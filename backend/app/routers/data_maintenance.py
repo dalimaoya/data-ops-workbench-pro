@@ -474,6 +474,7 @@ def browse_table_data(
             "total": total,
             "page": page,
             "page_size": page_size,
+            "allow_insert_rows": tc.allow_insert_rows if user.role in ("admin", "operator") else 0,
             "allow_delete_rows": tc.allow_delete_rows if user.role in ("admin", "operator") else 0,
         }
     except Exception as e:
