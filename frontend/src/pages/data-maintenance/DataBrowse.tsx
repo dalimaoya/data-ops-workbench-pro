@@ -13,6 +13,7 @@ import AIQueryPanel from './AIQueryPanel';
 import AIBatchFillPanel from './AIBatchFillPanel';
 import AISmartFillModal from './AISmartFillModal';
 import type { NLQueryFilter } from '../../api/aiNlQuery';
+import { checkAIAvailable } from '../../utils/aiGuard';
 import type { ColumnMeta, InlineChange } from '../../api/dataMaintenance';
 import { getTableConfig } from '../../api/tableConfig';
 import { useAuth } from '../../context/AuthContext';
@@ -581,7 +582,7 @@ export default function DataBrowse() {
                 <Button
                   icon={<RobotOutlined />}
                   type={aiQueryOpen ? 'primary' : 'default'}
-                  onClick={() => setAiQueryOpen(!aiQueryOpen)}
+                  onClick={async () => { if (!aiQueryOpen && !(await checkAIAvailable())) return; setAiQueryOpen(!aiQueryOpen); }}
                   style={aiQueryOpen ? {} : { borderColor: '#1677ff', color: '#1677ff' }}
                 >
                   🤖 AI 查询
@@ -636,7 +637,7 @@ export default function DataBrowse() {
                   {canOperate && (
                     <Button
                       icon={<RobotOutlined />}
-                      onClick={() => setBatchFillOpen(true)}
+                      onClick={async () => { if (!(await checkAIAvailable())) return; setBatchFillOpen(true); }}
                       style={{ borderColor: '#722ed1', color: '#722ed1' }}
                     >
                       🤖 AI 批量修改
@@ -645,7 +646,7 @@ export default function DataBrowse() {
                   {canOperate && (
                     <Button
                       icon={<BulbOutlined />}
-                      onClick={() => setSmartFillOpen(true)}
+                      onClick={async () => { if (!(await checkAIAvailable())) return; setSmartFillOpen(true); }}
                       style={{ borderColor: '#13c2c2', color: '#13c2c2' }}
                     >
                       🧠 AI 智能填充

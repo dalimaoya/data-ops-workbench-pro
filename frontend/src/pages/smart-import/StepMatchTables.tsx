@@ -4,6 +4,7 @@ import { RobotOutlined, CheckCircleOutlined, QuestionCircleOutlined, CloseCircle
 import { useTranslation } from 'react-i18next';
 import { matchTables } from '../../api/smartImport';
 import type { ParsedTable } from './SmartImportPage';
+import { checkAIAvailable } from '../../utils/aiGuard';
 
 const { Text } = Typography;
 
@@ -39,6 +40,7 @@ export default function StepMatchTables({ selectedTables, setSelectedTables }: P
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const doMatch = async (useAi: boolean) => {
+    if (useAi && !(await checkAIAvailable())) return;
     setLoading(true);
     try {
       const payload = selectedTables.map(t => ({

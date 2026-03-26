@@ -8,6 +8,7 @@ import {
 import { getFieldSuggestions, type FieldSuggestion, type FieldRecommendation } from '../../api/aiSuggest';
 import type { FieldConfig } from '../../api/tableConfig';
 import { useTranslation } from 'react-i18next';
+import { checkAIAvailable } from '../../utils/aiGuard';
 
 interface Props {
   tableConfigId: number;
@@ -54,7 +55,8 @@ export default function AIFieldSuggestModal({ tableConfigId, fields, onApply }: 
     }
   }, [tableConfigId, t]);
 
-  const handleOpen = () => {
+  const handleOpen = async () => {
+    if (!(await checkAIAvailable())) return;
     setOpen(true);
     fetchSuggestions();
   };

@@ -3,6 +3,7 @@ import { Button, Card, Tag, Table, Alert, Space, Descriptions } from 'antd';
 import { RobotOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { impactAssess } from '../../api/aiImpactAssess';
 import { useTranslation } from 'react-i18next';
+import { checkAIAvailable } from '../../utils/aiGuard';
 
 interface Props {
   tableId: number;
@@ -28,6 +29,7 @@ export default function ImpactAssessPanel({ tableId, changes }: Props) {
   const [expanded, setExpanded] = useState(false);
 
   const doAssess = async () => {
+    if (!(await checkAIAvailable())) return;
     setLoading(true);
     try {
       const res = await impactAssess({ table_id: tableId, changes });

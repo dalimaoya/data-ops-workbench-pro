@@ -4,6 +4,7 @@ import { RobotOutlined, SearchOutlined, WarningOutlined, FileSearchOutlined, Saf
 import { logAnalyze } from '../../api/aiLogAnalyze';
 import { api } from '../../api/request';
 import { useTranslation } from 'react-i18next';
+import { checkAIAvailable } from '../../utils/aiGuard';
 import dayjs from 'dayjs';
 
 const { RangePicker } = DatePicker;
@@ -39,6 +40,7 @@ export default function AILogAnalysis() {
   }, []);
 
   const doAnalyze = async (action?: string) => {
+    if (!(await checkAIAvailable())) return;
     const act = action || activeTab;
     setLoading(true);
     setResult(null);

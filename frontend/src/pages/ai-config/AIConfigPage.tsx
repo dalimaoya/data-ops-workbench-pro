@@ -14,6 +14,7 @@ import {
   getAIValidateConfig, updateAIValidateConfig,
   type AIConfigData, type AIConfigUpdateData, type AIValidateConfig,
 } from '../../api/aiConfig';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 
 const { Title, Text } = Typography;
 
@@ -99,6 +100,7 @@ export default function AIConfigPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  const { online: networkOnline, loading: networkLoading, refresh: refreshNetwork } = useNetworkStatus();
   const [config, setConfig] = useState<AIConfigData | null>(null);
   const [validateConfig, setValidateConfig] = useState<AIValidateConfig | null>(null);
   const [form] = Form.useForm();
@@ -286,6 +288,25 @@ export default function AIConfigPage() {
       style={{ margin: 0 }}
       styles={{ body: { padding: '16px 24px' } }}
     >
+      {/* ── Network Status ── */}
+      <div style={{ marginBottom: 16, padding: '8px 12px', background: '#fafafa', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontWeight: 500 }}>网络状态：</span>
+        {networkLoading ? (
+          <span><LoadingOutlined /> 检测中...</span>
+        ) : networkOnline ? (
+          <span>
+            <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#52c41a', marginRight: 6 }} />
+            网络正常
+          </span>
+        ) : (
+          <span style={{ color: '#ff4d4f' }}>
+            <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#ff4d4f', marginRight: 6 }} />
+            网络未连接，AI 功能不可用
+          </span>
+        )}
+        <Button type="link" size="small" onClick={refreshNetwork} style={{ marginLeft: 'auto' }}>刷新</Button>
+      </div>
+
       <Form form={form} layout="vertical" initialValues={{ ai_enabled: true, engine_mode: 'builtin' }}>
 
         {/* ── AI Master Switch ── */}

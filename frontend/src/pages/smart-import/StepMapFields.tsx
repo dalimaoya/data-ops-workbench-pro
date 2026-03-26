@@ -4,6 +4,7 @@ import { RobotOutlined, SaveOutlined, SwapOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { mapFields, createMappingTemplate } from '../../api/smartImport';
 import type { ParsedTable } from './SmartImportPage';
+import { checkAIAvailable } from '../../utils/aiGuard';
 
 const { Text } = Typography;
 
@@ -61,6 +62,7 @@ export default function StepMapFields({ selectedTables, setSelectedTables }: Pro
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const doMapAll = async (useAi: boolean) => {
+    if (useAi && !(await checkAIAvailable())) return;
     setLoading(true);
     const newMap: Record<number, FieldMapping[]> = {};
 
