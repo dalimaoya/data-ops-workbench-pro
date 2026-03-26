@@ -18,12 +18,18 @@ from app.utils.auth import init_default_admin
 from app.utils.security_middleware import SecurityHeadersMiddleware, check_rate_limit
 from app.i18n import parse_accept_language, set_lang
 from app.plugin_loader import load_plugins, get_loaded_plugins, get_all_plugin_status
+from app.startup_state import startup_state
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # ── Stage: initializing_db (0-20%) ──
+    startup_state.set_stage("initializing_db", 0)
+
     # Create all tables on startup
     Base.metadata.create_all(bind=engine)
+    startup_state.set_stage("initializing_db", 15)
+
     # Run v3.6 migration (idempotent) — add last_login_at, rename readonly→viewer
     try:
         import sqlite3 as _sqlite3
@@ -46,22 +52,35 @@ async def lifespan(app: FastAPI):
     except Exception as _e:
         import logging
         logging.getLogger("startup").warning("v3.6 migration: %s", _e)
+    startup_state.set_stage("initializing_db", 20)
+
     # Init default admin account
     db = SessionLocal()
     try:
         init_default_admin(db)
     finally:
         db.close()
+
+    # ── Stage: loading_plugins (20-50%) ──
+    startup_state.set_stage("loading_plugins", 20)
+
     # Load plugins
     _loaded = load_plugins(app)
     import logging
     logging.getLogger("startup").info("Loaded plugins: %s", _loaded)
+    startup_state.set_stage("loading_plugins", 50)
+
+    # ── Stage: starting_server (50-80%) ──
+    startup_state.set_stage("starting_server", 50)
+
     # Initialize scheduler (if scheduler plugin is loaded or built-in)
     try:
         from app.scheduler.engine import init_scheduler
         init_scheduler()
     except Exception as e:
         logging.getLogger("scheduler").error("Failed to start scheduler: %s", e)
+
+    startup_state.set_stage("starting_server", 80)
     
     # Register SPA catch-all AFTER all plugin routes to avoid intercepting plugin GET endpoints
     if os.path.isdir(STATIC_DIR):
@@ -76,7 +95,11 @@ async def lifespan(app: FastAPI):
             if os.path.isfile(index):
                 return FileResponse(index)
             return {"detail": "Frontend not built yet"}
-    
+
+    # ── Stage: ready (100%) ──
+    startup_state.set_stage("ready", 100)
+    logging.getLogger("startup").info("Server ready")
+
     yield
     # Shutdown scheduler
     try:
@@ -179,6 +202,13 @@ app.include_router(plugins_router.router)
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/startup-progress")
+def get_startup_progress():
+    """Return current startup stage and progress percentage.
+    This endpoint is registered outside lifespan so it responds during boot."""
+    return startup_state.to_dict()
 
 
 @app.get("/api/plugins/loaded")

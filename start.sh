@@ -6,7 +6,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PORT="${PORT:-8580}"
-URL="http://localhost:${PORT}"
+URL="http://localhost:${PORT}/loading"
 HEALTH_URL="${URL}/api/health"
 MAX_WAIT=60
 

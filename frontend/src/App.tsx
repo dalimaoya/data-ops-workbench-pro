@@ -5,6 +5,7 @@ import enUS from 'antd/locale/en_US';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from './context/AuthContext';
 import MainLayout from './layouts/MainLayout';
+import Loading from './pages/Loading';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import DatasourceList from './pages/datasource/DatasourceList';
@@ -65,6 +66,7 @@ function App() {
   return (
     <ConfigProvider locale={antdLocale}>
       <Routes>
+        <Route path="/loading" element={<Loading />} />
         <Route path="/login" element={<Login />} />
         <Route
           element={

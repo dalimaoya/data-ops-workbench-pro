@@ -12,7 +12,7 @@ echo.
 
 set "SCRIPT_DIR=%~dp0"
 set "PORT=8580"
-set "URL=http://localhost:%PORT%"
+set "URL=http://localhost:%PORT%/loading"
 set "HEALTH_URL=%URL%/api/health"
 set "MAX_WAIT=60"
 

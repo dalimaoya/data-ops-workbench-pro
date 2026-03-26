@@ -244,8 +244,8 @@ class LauncherApp:
                 req = Request(f"{URL}/api/health", headers={"User-Agent": "DataOpsLauncher"})
                 with urlopen(req, timeout=2) as resp:
                     if resp.status == 200:
-                        # 健康检查通过
-                        webbrowser.open(URL)
+                        # 健康检查通过 — 打开 loading 页
+                        webbrowser.open(f"{URL}/loading")
                         self.root.after(0, lambda: self.status_label.config(text="运行中 ✓", fg="#27ae60"))
                         return
             except Exception:
