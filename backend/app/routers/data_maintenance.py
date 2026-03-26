@@ -1765,13 +1765,15 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
 
     import_rows = diff_data.get("import_data", [])
     new_rows_data = diff_data.get("new_rows", [])
+    delete_rows_data = diff_data.get("delete_rows", [])
     diff_rows_data = diff_data.get("diff_rows", [])
-    if not import_rows and not new_rows_data:
+    if not import_rows and not new_rows_data and not delete_rows_data:
         raise HTTPException(400, t("data_maintenance.no_writeback_data"))
 
-    # 分离更新行和新增行
+    # 分离更新行、新增行和删除行
     new_pk_set = set(nr["pk_key"] for nr in new_rows_data)
-    update_rows = [r for r in import_rows if r["pk_key"] not in new_pk_set]
+    delete_pk_set = set(dr["pk_key"] for dr in delete_rows_data)
+    update_rows = [r for r in import_rows if r["pk_key"] not in new_pk_set and r["pk_key"] not in delete_pk_set]
 
     wb_batch = _gen_batch("WB")
     bk_batch = _gen_batch("BK")
@@ -1846,6 +1848,7 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
         fail_count = 0
         update_count = 0
         insert_count = 0
+        delete_count = 0
         failed_details: List[dict] = []
         change_logs: List[dict] = []
         editable_fields = [f for f in fields if f.is_editable and f.include_in_import]
@@ -1951,6 +1954,56 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
                         "error": str(e),
                     })
 
+        # ── Step 4: Execute DELETEs (v3.10) ──
+        if delete_rows_data:
+            all_export_fields = [f for f in fields if f.include_in_export]
+            all_field_names_del = [f.field_name for f in all_export_fields]
+            cols_sql_del = ", ".join(_quote_col(ds.db_type, c) for c in all_field_names_del)
+
+            for dr in delete_rows_data:
+                pk_key = dr["pk_key"]
+                pk_vals = pk_key.split("|")
+
+                # Build WHERE from PK
+                where_parts_del = []
+                where_params_del = []
+                for i, pkf in enumerate(pk_fields_list):
+                    pv = pk_vals[i] if i < len(pk_vals) else ""
+                    where_parts_del.append(f"{_cast_to_text(ds.db_type, _quote_col(ds.db_type, pkf))} = {ph}")
+                    where_params_del.append(pv)
+
+                where_sql_del = " AND ".join(where_parts_del)
+
+                try:
+                    # Read row before delete for change log
+                    _exec(cur, ds.db_type, f"SELECT {cols_sql_del} FROM {qt} WHERE {where_sql_del}", where_params_del)
+                    row_before = cur.fetchone()
+
+                    # Execute DELETE
+                    _exec(cur, ds.db_type, f"DELETE FROM {qt} WHERE {where_sql_del}", where_params_del)
+                    success_count += 1
+                    delete_count += 1
+
+                    # Record field-level change logs
+                    if row_before:
+                        for j, fn in enumerate(all_field_names_del):
+                            old_val = str(row_before[j]) if row_before[j] is not None else None
+                            if old_val is not None:
+                                change_logs.append({
+                                    "row_pk_value": pk_key,
+                                    "field_name": fn,
+                                    "old_value": old_val,
+                                    "new_value": None,
+                                    "change_type": "delete",
+                                })
+                except Exception as e:
+                    fail_count += 1
+                    failed_details.append({
+                        "row_num": dr.get("row_num", 0),
+                        "pk_key": pk_key,
+                        "error": str(e),
+                    })
+
         conn.commit()
 
         finished_at = _now_bjt()
@@ -1963,15 +2016,15 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
             table_config_id=tc.id,
             datasource_id=tc.datasource_id,
             backup_version_no=bk_batch,
-            total_row_count=len(update_rows) + len(new_rows_data),
+            total_row_count=len(update_rows) + len(new_rows_data) + len(delete_rows_data),
             success_row_count=success_count,
             failed_row_count=fail_count,
             skipped_row_count=0,
             inserted_row_count=insert_count,
             updated_row_count=update_count,
-            deleted_row_count=0,
+            deleted_row_count=delete_count,
             writeback_status=wb_status,
-            writeback_message=f"更新 {update_count}，新增 {insert_count}，失败 {fail_count}",
+            writeback_message=f"更新 {update_count}，新增 {insert_count}，删除 {delete_count}，失败 {fail_count}",
             failed_detail_json=json.dumps(failed_details, ensure_ascii=False) if failed_details else None,
             operator_user=_get_username(user),
             started_at=started_at,
@@ -1993,7 +2046,7 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
 
         log_operation(db, "数据维护", "执行回写", wb_status,
                       target_id=tc.id, target_name=tc.table_name,
-                      message=f"回写 {wb_batch}，更新 {update_count}，新增 {insert_count}，失败 {fail_count}，备份 {bk_batch}",
+                      message=f"回写 {wb_batch}，更新 {update_count}，新增 {insert_count}，删除 {delete_count}，失败 {fail_count}，备份 {bk_batch}",
                       operator=_get_username(user))
 
         # v2.3: Notification
@@ -2002,8 +2055,8 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
         notify_user_by_username(
             db, _get_username(user),
             "回写%s" % ("成功" if wb_status == "success" else "完成"),
-            "表「%s」回写 %s，更新 %d，新增 %d，失败 %d" % (
-                tc.table_alias or tc.table_name, wb_batch, update_count, insert_count, fail_count),
+            "表「%s」回写 %s，更新 %d，新增 %d，删除 %d，失败 %d" % (
+                tc.table_alias or tc.table_name, wb_batch, update_count, insert_count, delete_count, fail_count),
             ntype=ntype,
             related_url="/log-center",
         )
@@ -2018,11 +2071,12 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
             "writeback_batch_no": wb_batch,
             "backup_version_no": bk_batch,
             "status": wb_status,
-            "total": len(update_rows) + len(new_rows_data),
+            "total": len(update_rows) + len(new_rows_data) + len(delete_rows_data),
             "success": success_count,
             "failed": fail_count,
             "updated": update_count,
             "inserted": insert_count,
+            "deleted": delete_count,
             "backup_table": backup_table_name,
             "backup_record_count": backup_count,
             "operator_user": _get_username(user),
