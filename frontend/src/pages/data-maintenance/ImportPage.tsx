@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, Upload, Button, Space, message, Descriptions, Alert, Tabs, Tag, Tooltip, Collapse } from 'antd';
 import { InboxOutlined, ArrowLeftOutlined, ExclamationCircleOutlined, InfoCircleOutlined, RobotOutlined } from '@ant-design/icons';
 import { importTemplate } from '../../api/dataMaintenance';
@@ -22,7 +22,13 @@ export default function ImportPage() {
   const isZh = i18n.language === 'zh';
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const tableConfigId = Number(id);
+  const fromPage = searchParams.get('from');
+  const dsParam = searchParams.get('ds');
+  const backUrl = fromPage === 'db-maintenance' && dsParam
+    ? `/db-maintenance?ds=${dsParam}`
+    : `/data-maintenance/browse/${tableConfigId}`;
 
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -299,7 +305,7 @@ export default function ImportPage() {
               </Button>
             )}
             <Button onClick={() => { setResult(null); setFile(null); setActiveTab('all'); }}>{t('importPage.reUpload')}</Button>
-            <Button onClick={() => navigate(`/data-maintenance/browse/${tableConfigId}`)}>{t('importPage.backToBrowse')}</Button>
+            <Button onClick={() => navigate(backUrl)}>{t('importPage.backToBrowse')}</Button>
           </Space>
         </Card>
       </div>
@@ -310,7 +316,7 @@ export default function ImportPage() {
     <Card
       title={
         <Space>
-          <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate(`/data-maintenance/browse/${tableConfigId}`)} />
+          <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate(backUrl)} />
           <span>{t('importPage.title')}</span>
         </Space>
       }
@@ -339,7 +345,7 @@ export default function ImportPage() {
 
       <div style={{ marginTop: 16, textAlign: 'right' }}>
         <Space>
-          <Button onClick={() => navigate(`/data-maintenance/browse/${tableConfigId}`)}>{t('common.back')}</Button>
+          <Button onClick={() => navigate(backUrl)}>{t('common.back')}</Button>
           <Button type="primary" onClick={handleUpload} loading={uploading} disabled={!file}>
             {t('importPage.startValidation')}
           </Button>

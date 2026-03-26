@@ -14,7 +14,14 @@ export default function SqlConsolePage() {
   const [exportLoading, setExportLoading] = useState(false);
 
   useEffect(() => {
-    api.get('/datasource').then(res => setDatasources(res.data.items || [])).catch(() => {});
+    api.get('/datasource').then(res => {
+      const items = res.data.items || [];
+      setDatasources(items);
+      // 默认选中第1个数据源
+      if (items.length > 0 && !selectedDs) {
+        setSelectedDs(items[0].id);
+      }
+    }).catch(() => {});
   }, []);
 
   const handleExecute = async () => {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Card, Select, Table, Input, Button, Checkbox, Space, Progress, Tag, message,
   Typography, Tooltip, Steps, Divider, Radio, Result, Spin,
@@ -58,6 +58,7 @@ interface EditableFieldConfig {
 export default function DatabaseMaintenance() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Step management
   const [currentStep, setCurrentStep] = useState(0);
@@ -95,10 +96,14 @@ export default function DatabaseMaintenance() {
   const [exportFormat, setExportFormat] = useState<string>('zip');
   const [exporting, setExporting] = useState(false);
 
-  // Load datasources
+  // Load datasources and restore from URL params
   useEffect(() => {
     listDatasources({ status: 'enabled' }).then(res => {
       setDatasources(res.data);
+      const dsParam = searchParams.get('ds');
+      if (dsParam && !selectedDsId) {
+        setSelectedDsId(Number(dsParam));
+      }
     }).catch(() => {});
   }, []);
 
@@ -464,7 +469,7 @@ export default function DatabaseMaintenance() {
               type="link"
               size="small"
               icon={<ImportOutlined />}
-              onClick={() => navigate(`/data-maintenance/import/${record.table_config_id}`)}
+              onClick={() => navigate(`/data-maintenance/import/${record.table_config_id}?from=db-maintenance&ds=${selectedDsId}`)}
             />
           </Tooltip>
         </Space>
@@ -629,7 +634,7 @@ export default function DatabaseMaintenance() {
               type="link"
               size="small"
               icon={<ImportOutlined />}
-              onClick={() => navigate(`/data-maintenance/import/${record.id}`)}
+              onClick={() => navigate(`/data-maintenance/import/${record.id}?from=db-maintenance&ds=${selectedDsId}`)}
             />
           </Tooltip>
           <Tooltip title={t('tableConfig.fieldConfig')}>
@@ -745,9 +750,13 @@ export default function DatabaseMaintenance() {
                     columns={tableSelectColumns}
                     rowKey="table_name"
                     size="small"
-                    pagination={{ pageSize: 20, showSizeChanger: true, showTotal: total => `共 ${total} 张表` }}
+                    pagination={{
+                      defaultPageSize: 20,
+                      showSizeChanger: true,
+                      pageSizeOptions: ['10', '20', '50', '100'],
+                      showTotal: total => `共 ${total} 张表`,
+                    }}
                     loading={loadingTables}
-                    scroll={{ y: 400 }}
                   />
 
                   <div style={{ marginTop: 16, textAlign: 'right' }}>
@@ -994,7 +1003,11 @@ export default function DatabaseMaintenance() {
                 columns={managedColumns}
                 rowKey="id"
                 size="small"
-                pagination={{ pageSize: 20, showSizeChanger: true }}
+                pagination={{
+                  defaultPageSize: 20,
+                  showSizeChanger: true,
+                  pageSizeOptions: ['10', '20', '50', '100'],
+                }}
               />
             </>
           )}

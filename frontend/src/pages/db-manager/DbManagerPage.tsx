@@ -72,11 +72,16 @@ export default function DbManagerPage() {
   useEffect(() => {
     api.get('/datasource/list').then((res: any) => {
       const items = res.data?.items || res.data || [];
-      setDatasources(items.map((d: any) => ({
+      const mapped = items.map((d: any) => ({
         id: d.id,
         datasource_name: d.datasource_name,
         db_type: d.db_type,
-      })));
+      }));
+      setDatasources(mapped);
+      // 默认选中第1个数据源
+      if (mapped.length > 0 && !selectedDs) {
+        setSelectedDs(mapped[0].id);
+      }
     }).catch(() => {});
   }, []);
 

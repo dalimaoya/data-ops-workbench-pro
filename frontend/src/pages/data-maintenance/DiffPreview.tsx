@@ -152,7 +152,7 @@ export default function DiffPreview() {
       <Card
         title={
           <Space>
-            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate(-1)} />
+            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate(`/data-maintenance/import/${diffData?.table_config_id}`, { replace: true })} />
             <span>{t('diffPreview.title')}</span>
           </Space>
         }
@@ -262,7 +262,7 @@ export default function DiffPreview() {
                 </Button>
               </Dropdown>
             )}
-            <Button onClick={() => navigate(-1)}>{t('diffPreview.backToValidation')}</Button>
+            <Button onClick={() => navigate(`/data-maintenance/import/${diffData?.table_config_id}`, { replace: true })}>{t('diffPreview.backToValidation')}</Button>
             <Button onClick={() => navigate(`/data-maintenance/browse/${diffData?.table_config_id}`)}>{t('diffPreview.cancelOperation')}</Button>
             {canWriteback && (
               <Button

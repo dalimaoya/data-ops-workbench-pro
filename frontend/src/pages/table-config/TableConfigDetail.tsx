@@ -8,6 +8,7 @@ import {
   type TableConfig as TC, type SampleDataResponse,
 } from '../../api/tableConfig';
 import { useTranslation } from 'react-i18next';
+import { formatBeijingTime } from '../../utils/formatTime';
 
 export default function TableConfigDetail() {
   const { t } = useTranslation();
@@ -127,7 +128,7 @@ export default function TableConfigDetail() {
               {structTextKey[tc.structure_check_status || ''] ? t(structTextKey[tc.structure_check_status || '']) : t('tableConfig.structureUnchecked')}
             </Tag>
           </Descriptions.Item>
-          <Descriptions.Item label={t('tableDetail.lastSync')}>{tc.last_sync_at || '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('tableDetail.lastSync')}>{formatBeijingTime(tc.last_sync_at)}</Descriptions.Item>
         </Descriptions>
       </Card>
 

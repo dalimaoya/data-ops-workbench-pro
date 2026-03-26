@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Card, Switch, Tag, Input, message, Tooltip, Row, Col, Typography, Space, Badge } from 'antd';
+import { Card, Switch, Tag, Input, message, Tooltip, Row, Col, Typography, Space, Badge, Modal, Descriptions } from 'antd';
 import {
   RobotOutlined,
   BarChartOutlined,
@@ -41,6 +41,7 @@ export default function PluginCenterPage() {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [toggling, setToggling] = useState<string | null>(null);
+  const [detailPlugin, setDetailPlugin] = useState<PluginInfo | null>(null);
 
   const loadPlugins = async () => {
     try {
@@ -172,11 +173,13 @@ export default function PluginCenterPage() {
             <Col key={plugin.name} xs={24} sm={12} md={8} lg={6}>
               <Card
                 hoverable
+                onClick={() => setDetailPlugin(plugin)}
                 style={{
                   borderRadius: 12,
                   border: plugin.enabled ? `1px solid ${catInfo.color}33` : '1px solid #f0f0f0',
                   background: plugin.enabled ? `${catInfo.color}05` : '#fff',
                   height: '100%',
+                  cursor: 'pointer',
                 }}
                 bodyStyle={{ padding: 16, display: 'flex', flexDirection: 'column', height: '100%' }}
               >
@@ -257,6 +260,63 @@ export default function PluginCenterPage() {
           <div>{isZh ? '没有找到匹配的插件' : 'No plugins found'}</div>
         </div>
       )}
+
+      {/* Plugin Detail Modal */}
+      <Modal
+        title={
+          <Space>
+            <span style={{ fontSize: 20 }}>{detailPlugin ? getCategoryInfo(detailPlugin.category).icon : ''}</span>
+            {detailPlugin ? (isZh ? detailPlugin.display_name : detailPlugin.display_name_en) : ''}
+          </Space>
+        }
+        open={!!detailPlugin}
+        onCancel={() => setDetailPlugin(null)}
+        footer={null}
+        width={520}
+      >
+        {detailPlugin && (() => {
+          const catInfo = getCategoryInfo(detailPlugin.category);
+          return (
+            <>
+              <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }}>
+                <Descriptions.Item label={isZh ? '插件标识' : 'Plugin ID'}>{detailPlugin.name}</Descriptions.Item>
+                <Descriptions.Item label={isZh ? '分类' : 'Category'}>
+                  <Tag style={{ color: catInfo.color, background: `${catInfo.color}10`, border: `1px solid ${catInfo.color}30` }}>
+                    {catInfo.icon} {isZh ? catInfo.label : catInfo.labelEn}
+                  </Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label={isZh ? '版本' : 'Version'}>{detailPlugin.version || '-'}</Descriptions.Item>
+                <Descriptions.Item label={isZh ? '状态' : 'Status'}>
+                  <Badge status={detailPlugin.enabled ? 'success' : 'default'} text={detailPlugin.enabled ? (isZh ? '已启用' : 'Enabled') : (isZh ? '已停用' : 'Disabled')} />
+                </Descriptions.Item>
+                {detailPlugin.license && (
+                  <Descriptions.Item label={isZh ? '授权' : 'License'}>{detailPlugin.license}</Descriptions.Item>
+                )}
+              </Descriptions>
+              <div style={{ marginBottom: 16 }}>
+                <Text strong>{isZh ? '描述' : 'Description'}</Text>
+                <div style={{ marginTop: 8, color: '#666', lineHeight: 1.8 }}>
+                  {detailPlugin.description || (isZh ? '暂无描述' : 'No description')}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <Space>
+                  <Text type="secondary" style={{ fontSize: 12 }}>{isZh ? '启用/停用：' : 'Enable/Disable:'}</Text>
+                  <Switch
+                    checked={detailPlugin.enabled}
+                    loading={toggling === detailPlugin.name}
+                    disabled={!isAdmin}
+                    onChange={checked => {
+                      handleToggle(detailPlugin, checked);
+                      setDetailPlugin({ ...detailPlugin, enabled: checked });
+                    }}
+                  />
+                </Space>
+              </div>
+            </>
+          );
+        })()}
+      </Modal>
     </div>
   );
 }
