@@ -1103,6 +1103,12 @@ async def import_template(
         # v3.5: 主键不可变校验 — 原数据行的主键不允许修改
         # 通过 meta 中的 data_row_count 和 blank_row_start 判断哪些是原数据行
         meta_blank_start = meta.get("blank_row_start", 2 + meta_data_row_count)
+
+        # v3.5 fix: Build a set of all imported PKs for cross-reference
+        imported_pk_set = set(r["pk_key"] for r in data_rows if not r["errors"])
+        # PKs that exist in DB but not in the imported data may have been renamed
+        missing_from_import = db_all_pk_set - imported_pk_set
+
         for row in data_rows:
             if row["errors"]:
                 continue
@@ -1110,10 +1116,19 @@ async def import_template(
             row_num = row["row_num"]
             # 如果是原数据区域的行（非空白区新增行），但 PK 在 DB 中找不到，说明 PK 被修改了
             if row_num < meta_blank_start and pk_key not in db_all_pk_set:
+                # v3.5 fix: 尝试推断原始主键值（基于行位置）
+                original_pk_hint = "未知"
+                # 原数据行的行号对应导出时的顺序，尝试从 db_rows 中定位
+                data_row_index = row_num - 2  # Excel 第 2 行 = db_rows[0]
+                if 0 <= data_row_index < len(db_rows):
+                    original_pk_hint = "|".join(
+                        str(db_rows[data_row_index][i]) if db_rows[data_row_index][i] is not None else ""
+                        for i in pk_field_indices
+                    )
                 row["errors"].append({
                     "row": row_num, "field": ",".join(pk_fields),
                     "type": "pk_modified", "value": pk_key,
-                    "message": t("data_maintenance.row_pk_modified", row=row_num, old_val="(原始值)", new_val=pk_key),
+                    "message": t("data_maintenance.row_pk_modified", row=row_num, old_val=original_pk_hint, new_val=pk_key),
                 })
                 errors.append(row["errors"][-1])
 
