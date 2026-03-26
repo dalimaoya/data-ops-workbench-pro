@@ -68,8 +68,19 @@ GITHUB_RELEASES_API = "https://api.github.com/repos/dalimaoya/data-ops-workbench
 GITHUB_RELEASES_PAGE = "https://github.com/dalimaoya/data-ops-workbench-pro/releases/latest"
 
 
+def _parse_version(v: str):
+    """Parse version string into a tuple of ints for comparison."""
+    parts = []
+    for p in v.split("."):
+        try:
+            parts.append(int(p))
+        except ValueError:
+            parts.append(0)
+    return tuple(parts)
+
+
 def _check_update(current_version, callback):
-    """后台线程检查 GitHub Releases 最新版本，检测失败静默跳过"""
+    """后台线程检查 GitHub Releases 最新版本，仅当远程版本大于本地版本时提示"""
     def _worker():
         try:
             req = Request(GITHUB_RELEASES_API, headers={"Accept": "application/vnd.github.v3+json",
@@ -78,7 +89,7 @@ def _check_update(current_version, callback):
                 data = json.loads(resp.read().decode("utf-8"))
             tag = data.get("tag_name", "")
             latest = tag.lstrip("vV")
-            if latest and latest != current_version:
+            if latest and _parse_version(latest) > _parse_version(current_version):
                 callback(latest)
         except Exception:
             pass  # 无网络 / API 不可达 → 静默跳过
