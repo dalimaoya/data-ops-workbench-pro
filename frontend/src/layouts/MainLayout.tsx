@@ -113,7 +113,6 @@ const builtinPluginMenuDefs: BuiltinPluginMenu[] = [
   { pluginName: 'plugin-db-manager', menuItem: { key: '/db-manager', icon: <ConsoleSqlOutlined />, labelKey: 'menu.dbManager', roles: ['admin'] }, parentGroup: '/data-maintenance-group' },
   { pluginName: 'plugin-sql-console', menuItem: { key: '/sql-console', icon: <CodeOutlined />, labelKey: 'menu.sqlConsole', roles: ['admin'] }, parentGroup: '/data-maintenance-group' },
   { pluginName: 'plugin-batch-ops', menuItem: { key: '/db-maintenance', icon: <DatabaseOutlined />, labelKey: 'menu.dbMaintenance' }, parentGroup: '/data-maintenance-group' },
-  { pluginName: 'plugin-smart-import', menuItem: { key: '/smart-import', icon: <ImportOutlined />, labelKey: 'menu.smartImport' }, parentGroup: '/data-maintenance-group' },
   { pluginName: 'plugin-scheduler', menuItem: { key: '/scheduler', icon: <ScheduleOutlined />, labelKey: 'menu.scheduler', roles: ['admin'] } },
   { pluginName: 'plugin-health-check', menuItem: { key: '/health-check', icon: <MedicineBoxOutlined />, labelKey: 'menu.healthCheck', roles: ['admin'] } },
   { pluginName: 'plugin-backup', menuItem: { key: '/platform-backup', icon: <CloudServerOutlined />, labelKey: 'menu.platformBackup', roles: ['admin'] } },
@@ -126,6 +125,7 @@ interface ExtensionPluginMenu {
 }
 
 const extensionPluginMenuDefs: ExtensionPluginMenu[] = [
+  { pluginName: 'plugin-smart-import', menuItem: { key: '/smart-import', icon: <ImportOutlined />, labelKey: 'menu.smartImport' } },
   { pluginName: 'plugin-ai-assistant', menuItem: { key: '/ai-config', icon: <RobotOutlined />, labelKey: 'menu.aiConfig', roles: ['admin'] } },
   { pluginName: 'plugin-approval', menuItem: { key: '/approval-center', icon: <AuditOutlined />, labelKey: 'menu.approvalCenter', roles: ['admin'] } },
   { pluginName: 'plugin-data-trend', menuItem: { key: '/data-trend', icon: <LineChartOutlined />, labelKey: 'menu.dataTrend', roles: ['admin', 'operator'] } },
