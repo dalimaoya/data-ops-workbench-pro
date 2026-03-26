@@ -84,11 +84,11 @@ export default function PluginCenterPage() {
     try {
       const res = await togglePlugin(plugin.name, checked);
       message.success(res.message || (checked ? '插件已启用' : '插件已停用'));
-      // Update local state then auto-reload so nav reflects the change
+      // Update local state and notify nav to refresh (no page reload needed)
       setPlugins(prev => prev.map(p =>
         p.name === plugin.name ? { ...p, enabled: checked } : p
       ));
-      setTimeout(() => window.location.reload(), 500);
+      window.dispatchEvent(new CustomEvent('plugin-status-changed'));
     } catch (err: any) {
       message.error(err?.response?.data?.detail || '操作失败');
     } finally {

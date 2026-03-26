@@ -261,7 +261,7 @@ export default function MainLayout() {
   const [pluginStatuses, setPluginStatuses] = useState<PluginStatus[]>([]);
   const menuGroups = buildMenuGroups(pluginStatuses, t);
 
-  useEffect(() => {
+  const refreshPluginStatus = useCallback(() => {
     fetch('/api/plugins/loaded')
       .then(r => r.json())
       .then(data => {
@@ -269,6 +269,17 @@ export default function MainLayout() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    refreshPluginStatus();
+  }, [refreshPluginStatus]);
+
+  // Listen for plugin toggle events from PluginCenterPage
+  useEffect(() => {
+    const handler = () => refreshPluginStatus();
+    window.addEventListener('plugin-status-changed', handler);
+    return () => window.removeEventListener('plugin-status-changed', handler);
+  }, [refreshPluginStatus]);
 
   // v2.3: Notifications
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);

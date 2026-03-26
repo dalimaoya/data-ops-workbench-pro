@@ -37,6 +37,7 @@ import TemplateMarketPage from './pages/template-market/TemplateMarketPage';
 import WebhookConfigPage from './pages/webhook-config/WebhookConfigPage';
 import SqlConsolePage from './pages/sql-console/SqlConsolePage';
 import PluginCenterPage from './pages/plugin-center/PluginCenterPage';
+import PluginGuard from './components/PluginGuard';
 
 function RequireAuth({ children }: { children: React.JSX.Element }) {
   const { isAuthenticated } = useAuth();
@@ -88,21 +89,21 @@ function App() {
           <Route path="/data-maintenance/browse/:id" element={<DataBrowse />} />
           <Route path="/data-maintenance/import/:id" element={<RequireRole roles={['admin', 'operator']}><ImportPage /></RequireRole>} />
           <Route path="/data-maintenance/diff/:taskId" element={<RequireRole roles={['admin', 'operator']}><DiffPreview /></RequireRole>} />
-          <Route path="/smart-import" element={<RequireRole roles={['admin', 'operator']}><SmartImportPage /></RequireRole>} />
+          <Route path="/smart-import" element={<RequireRole roles={['admin', 'operator']}><PluginGuard pluginId="plugin-smart-import"><SmartImportPage /></PluginGuard></RequireRole>} />
           <Route path="/log-center" element={<LogCenter />} />
           <Route path="/version-rollback" element={<RequireRole roles={['admin']}><VersionRollback /></RequireRole>} />
-          <Route path="/approval-center" element={<RequireRole roles={['admin']}><ApprovalCenter /></RequireRole>} />
+          <Route path="/approval-center" element={<RequireRole roles={['admin']}><PluginGuard pluginId="plugin-approval"><ApprovalCenter /></PluginGuard></RequireRole>} />
           <Route path="/user-management" element={<RequireRole roles={['admin']}><UserManagement /></RequireRole>} />
-          <Route path="/ai-config" element={<RequireRole roles={['admin']}><AIConfigPage /></RequireRole>} />
+          <Route path="/ai-config" element={<RequireRole roles={['admin']}><PluginGuard pluginId="plugin-ai-assistant"><AIConfigPage /></PluginGuard></RequireRole>} />
           <Route path="/health-check" element={<RequireRole roles={['admin']}><HealthCheckPage /></RequireRole>} />
           <Route path="/platform-backup" element={<RequireRole roles={['admin']}><PlatformBackup /></RequireRole>} />
           <Route path="/scheduler" element={<RequireRole roles={['admin']}><SchedulerPage /></RequireRole>} />
           <Route path="/db-manager" element={<RequireRole roles={['admin']}><DbManagerPage /></RequireRole>} />
-          <Route path="/notify-push-config" element={<RequireRole roles={['admin']}><NotifyPushConfig /></RequireRole>} />
-          <Route path="/data-trend" element={<DataTrendPage />} />
-          <Route path="/data-compare" element={<DataComparePage />} />
-          <Route path="/template-market" element={<RequireRole roles={['admin']}><TemplateMarketPage /></RequireRole>} />
-          <Route path="/webhook-config" element={<RequireRole roles={['admin']}><WebhookConfigPage /></RequireRole>} />
+          <Route path="/notify-push-config" element={<RequireRole roles={['admin']}><PluginGuard pluginId="plugin-notify-push"><NotifyPushConfig /></PluginGuard></RequireRole>} />
+          <Route path="/data-trend" element={<PluginGuard pluginId="plugin-data-trend"><DataTrendPage /></PluginGuard>} />
+          <Route path="/data-compare" element={<PluginGuard pluginId="plugin-data-compare"><DataComparePage /></PluginGuard>} />
+          <Route path="/template-market" element={<RequireRole roles={['admin']}><PluginGuard pluginId="plugin-template-market"><TemplateMarketPage /></PluginGuard></RequireRole>} />
+          <Route path="/webhook-config" element={<RequireRole roles={['admin']}><PluginGuard pluginId="plugin-webhook"><WebhookConfigPage /></PluginGuard></RequireRole>} />
           <Route path="/sql-console" element={<RequireRole roles={['admin']}><SqlConsolePage /></RequireRole>} />
           <Route path="/plugin-center" element={<RequireRole roles={['admin']}><PluginCenterPage /></RequireRole>} />
           <Route path="/about" element={<About />} />
