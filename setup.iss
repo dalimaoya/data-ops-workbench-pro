@@ -2,7 +2,7 @@
 ; Compile with: iscc /DMyAppVersion=v3.7.0 setup.iss
 
 #ifndef MyAppVersion
-  #define MyAppVersion "v3.7.0"
+  #define MyAppVersion "v4.9.0"
 #endif
 
 [Setup]
@@ -47,7 +47,8 @@ Name: "{autodesktop}\数据运维工作台"; Filename: "{app}\数据运维工作
 Name: "{autodesktop}\数据运维工作台"; Filename: "{app}\start.bat"; Tasks: desktopicon; Check: not FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "DataOpsWorkbench"; ValueData: """{app}\start.bat"""; Flags: uninsdeletevalue; Tasks: startupicon
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "DataOpsWorkbench"; ValueData: """{app}\数据运维工作台.exe"""; Flags: uninsdeletevalue; Tasks: startupicon; Check: FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "DataOpsWorkbench"; ValueData: """{app}\start.bat"""; Flags: uninsdeletevalue; Tasks: startupicon; Check: not FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
 
 [Run]
 Filename: "{app}\数据运维工作台.exe"; Description: "立即启动数据运维工作台"; Flags: nowait postinstall skipifsilent; Check: FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
