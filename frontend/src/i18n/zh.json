@@ -69,7 +69,12 @@
     "dataCompare": "数据对比",
     "templateMarket": "模板市场",
     "webhookConfig": "Webhook 配置",
-    "sqlConsole": "SQL 控制台"
+    "sqlConsole": "SQL 控制台",
+    "pluginCenter": "插件中心",
+    "systemGroup": "系统",
+    "toolGroup": "基础工具",
+    "extensionGroup": "扩展功能",
+    "baseGroup": "底座"
   },
   "aiConfig": {
     "title": "AI智能助手",

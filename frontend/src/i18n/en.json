@@ -69,7 +69,12 @@
     "dataCompare": "Data Compare",
     "templateMarket": "Template Market",
     "webhookConfig": "Webhook Config",
-    "sqlConsole": "SQL Console"
+    "sqlConsole": "SQL Console",
+    "pluginCenter": "Plugin Center",
+    "systemGroup": "System",
+    "toolGroup": "Basic Tools",
+    "extensionGroup": "Extensions",
+    "baseGroup": "Base"
   },
   "aiConfig": {
     "title": "AI Smart Assistant",

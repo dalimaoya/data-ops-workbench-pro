@@ -35,6 +35,7 @@ import DataComparePage from './pages/data-compare/DataComparePage';
 import TemplateMarketPage from './pages/template-market/TemplateMarketPage';
 import WebhookConfigPage from './pages/webhook-config/WebhookConfigPage';
 import SqlConsolePage from './pages/sql-console/SqlConsolePage';
+import PluginCenterPage from './pages/plugin-center/PluginCenterPage';
 
 function RequireAuth({ children }: { children: React.JSX.Element }) {
   const { isAuthenticated } = useAuth();
@@ -101,6 +102,7 @@ function App() {
           <Route path="/template-market" element={<RequireRole roles={['admin']}><TemplateMarketPage /></RequireRole>} />
           <Route path="/webhook-config" element={<RequireRole roles={['admin']}><WebhookConfigPage /></RequireRole>} />
           <Route path="/sql-console" element={<RequireRole roles={['admin']}><SqlConsolePage /></RequireRole>} />
+          <Route path="/plugin-center" element={<RequireRole roles={['admin']}><PluginCenterPage /></RequireRole>} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
