@@ -46,6 +46,7 @@ class TableConfigCreate(BaseModel):
     allow_import_writeback: int = 1
     allow_insert_rows: int = 0
     allow_delete_rows: int = 0
+    template_reserved_blank_rows: int = 200
     backup_keep_count: int = 3
     strict_template_version: int = 1
     strict_field_order: int = 1
@@ -62,6 +63,7 @@ class TableConfigUpdate(BaseModel):
     allow_import_writeback: Optional[int] = None
     allow_insert_rows: Optional[int] = None
     allow_delete_rows: Optional[int] = None
+    template_reserved_blank_rows: Optional[int] = None
     backup_keep_count: Optional[int] = None
     strict_template_version: Optional[int] = None
     strict_field_order: Optional[int] = None
@@ -87,6 +89,7 @@ class TableConfigOut(BaseModel):
     allow_import_writeback: int
     allow_insert_rows: int
     allow_delete_rows: int
+    template_reserved_blank_rows: int = 200
     backup_keep_count: int
     strict_template_version: int
     strict_field_order: int

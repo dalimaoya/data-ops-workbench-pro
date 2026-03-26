@@ -67,6 +67,7 @@ class TableConfig(AuditMixin, Base):
     allow_import_writeback = Column(SmallInteger, nullable=False, default=1)
     allow_insert_rows = Column(SmallInteger, nullable=False, default=0)
     allow_delete_rows = Column(SmallInteger, nullable=False, default=0)
+    template_reserved_blank_rows = Column(Integer, nullable=False, default=200)
     backup_keep_count = Column(Integer, nullable=False, default=3)
     strict_template_version = Column(SmallInteger, nullable=False, default=1)
     strict_field_order = Column(SmallInteger, nullable=False, default=1)

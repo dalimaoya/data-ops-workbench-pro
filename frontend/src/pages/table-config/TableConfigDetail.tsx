@@ -36,6 +36,7 @@ export default function TableConfigDetail() {
         allow_import_writeback: tcRes.data.allow_import_writeback === 1,
         allow_insert_rows: tcRes.data.allow_insert_rows === 1,
         allow_delete_rows: tcRes.data.allow_delete_rows === 1,
+        template_reserved_blank_rows: tcRes.data.template_reserved_blank_rows ?? 200,
         backup_keep_count: tcRes.data.backup_keep_count,
         strict_template_version: tcRes.data.strict_template_version === 1,
         strict_field_order: tcRes.data.strict_field_order === 1,
@@ -57,6 +58,7 @@ export default function TableConfigDetail() {
         allow_import_writeback: v.allow_import_writeback ? 1 : 0,
         allow_insert_rows: v.allow_insert_rows ? 1 : 0,
         allow_delete_rows: v.allow_delete_rows ? 1 : 0,
+        template_reserved_blank_rows: v.template_reserved_blank_rows ?? 200,
         backup_keep_count: v.backup_keep_count,
         strict_template_version: v.strict_template_version ? 1 : 0,
         strict_field_order: v.strict_field_order ? 1 : 0,
@@ -136,6 +138,7 @@ export default function TableConfigDetail() {
           <Form.Item name="allow_import_writeback" label={t('tableDetail.allowImportWriteback')} valuePropName="checked"><Switch /></Form.Item>
           <Form.Item name="allow_insert_rows" label={t('tableDetail.allowInsertRows')} valuePropName="checked"><Switch /></Form.Item>
           <Form.Item name="allow_delete_rows" label={t('tableDetail.allowDeleteRows')} valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item name="template_reserved_blank_rows" label={t('tableDetail.templateReservedBlankRows', '模板预留空白行数')} tooltip={t('tableDetail.templateReservedBlankRowsTip', '导出模板底部预留的空白行数，用于新增数据，范围50-10000')}><InputNumber min={50} max={10000} /></Form.Item>
           <Form.Item name="backup_keep_count" label={t('tableDetail.backupKeepCount')}><InputNumber min={1} max={10} /></Form.Item>
           <Form.Item name="strict_template_version" label={t('tableDetail.strictTemplateVersion')} valuePropName="checked"><Switch /></Form.Item>
           <Form.Item name="strict_field_order" label={t('tableDetail.strictFieldOrder')} valuePropName="checked"><Switch /></Form.Item>

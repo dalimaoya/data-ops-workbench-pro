@@ -565,7 +565,7 @@ def export_template(
     ws = wb.active
     ws.title = "数据"
 
-    RESERVED_BLANK_ROWS = 50  # 预留空白行数
+    RESERVED_BLANK_ROWS = getattr(tc, 'template_reserved_blank_rows', 200) or 200  # 从纳管表配置读取，默认200
     locked_cell = CellProtection(locked=True)
     unlocked_cell = CellProtection(locked=False)
 
@@ -645,13 +645,14 @@ def export_template(
         cell.fill = blank_zone_fill
 
     # Enable worksheet protection — v3.5: with password, stricter settings
+    # v3.9 fix: insertRows=True 允许用户在空白区域以外追加行
     ws.protection = SheetProtection(
         sheet=True,
         password=_SHEET_PROTECTION_PASSWORD,
         formatColumns=False,
         formatRows=False,
         formatCells=False,
-        insertRows=False,
+        insertRows=True,
         deleteRows=True,
         deleteColumns=True,
         insertColumns=True,
@@ -3047,7 +3048,7 @@ def _run_async_export(task_id: str, table_config_id: int, export_type: str,
         unlocked_cell = CellProtection(locked=False)
         editable_field_names = set(f.field_name for f in export_fields if f.is_editable)
         data_row_count = len(raw_rows)
-        RESERVED_BLANK_ROWS = 50
+        RESERVED_BLANK_ROWS = getattr(tc, 'template_reserved_blank_rows', 200) or 200
 
         # v3.5: Visual style fills
         header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
