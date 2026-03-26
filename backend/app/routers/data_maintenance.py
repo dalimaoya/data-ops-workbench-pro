@@ -929,10 +929,31 @@ async def import_template(
     # v2.0: meta 中的 data_row_count 用于区分已有行和新增行范围（仅辅助）
     meta_data_row_count = meta.get("data_row_count", 0)
 
+    # v3.10 fix: resolve the real Excel column index for the operation column
+    _real_op_col_idx = None
+    if has_operation_col:
+        _all_headers = [cell.value for cell in data_ws[1]]
+        for _hi, _hv in enumerate(_all_headers):
+            if _hv == _OPERATION_COL_NAME:
+                _real_op_col_idx = _hi  # 0-based index in Excel row
+                break
+
     for row_idx in range(2, data_ws.max_row + 1):
-        row_cells = [data_ws.cell(row=row_idx, column=i + 1).value for i in range(len(header_row))]
-        # Skip entirely empty rows
-        if all(c is None or str(c).strip() == "" for c in row_cells):
+        # Read all columns from the real header (including _操作)
+        _all_cells_count = len(_real_header)
+        row_cells_all = [data_ws.cell(row=row_idx, column=i + 1).value for i in range(_all_cells_count)]
+        # Build row_cells excluding the operation column for field mapping
+        row_cells = [row_cells_all[i] for i in range(len(row_cells_all)) if i != _real_op_col_idx]
+
+        # v3.10 fix: Read the operation column value for DELETE detection
+        _row_operation = None
+        if _real_op_col_idx is not None and _real_op_col_idx < len(row_cells_all):
+            _op_val = row_cells_all[_real_op_col_idx]
+            if _op_val is not None:
+                _row_operation = str(_op_val).strip()
+
+        # Skip entirely empty rows (check all cells including operation)
+        if all(c is None or str(c).strip() == "" for c in row_cells) and not _row_operation:
             continue
 
         row_data: Dict[str, Optional[str]] = {}
@@ -1027,19 +1048,24 @@ async def import_template(
         else:
             seen_pks[pk_key] = row_idx
 
+        # v3.10 fix: detect DELETE-marked rows
+        is_delete_row = _row_operation in _DELETE_MARKERS if _row_operation else False
+
         data_rows.append({
             "row_num": row_idx,
             "data": row_data,
             "errors": row_errors,
             "warnings": row_warnings,
             "pk_key": pk_key,
+            "is_delete": is_delete_row,
         })
         errors.extend(row_errors)
         warnings.extend(row_warnings)
 
-    # ── 7. Generate diff (original vs new) — v2.0 支持新增行 ──
+    # ── 7. Generate diff (original vs new) — v2.0 支持新增行, v3.10 支持删除行 ──
     diff_rows: List[dict] = []
     new_rows: List[dict] = []
+    delete_rows: List[dict] = []
     passed_count = 0
 
     if not all(r["errors"] for r in data_rows):
@@ -1090,13 +1116,56 @@ async def import_template(
                 })
                 errors.append(row["errors"][-1])
 
-        # v2.0: 区分已有行和新增行
+        # v2.0: 区分已有行和新增行; v3.10: 支持删除行
         editable_fields = [f for f in fields if f.is_editable and f.include_in_import]
 
         for row in data_rows:
             if row["errors"]:
                 continue
             pk_key = row["pk_key"]
+
+            # v3.10 fix: handle DELETE-marked rows
+            if row.get("is_delete"):
+                if pk_key in db_all_pk_set:
+                    if tc.allow_delete_rows:
+                        original = db_pk_map[pk_key]
+                        delete_rows.append({
+                            "row_num": row["row_num"],
+                            "data": row["data"],
+                            "pk_key": pk_key,
+                            "change_type": "delete",
+                        })
+                        # Record all fields as delete diff
+                        for ef in export_fields:
+                            fn = ef.field_name
+                            old_val = original.get(fn)
+                            if old_val is not None:
+                                diff_rows.append({
+                                    "row_num": row["row_num"],
+                                    "pk_key": pk_key,
+                                    "field_name": fn,
+                                    "field_alias": ef.field_alias or fn,
+                                    "old_value": old_val,
+                                    "new_value": None,
+                                    "status": "deleted",
+                                    "change_type": "delete",
+                                })
+                        passed_count += 1
+                    else:
+                        row["errors"].append({
+                            "row": row["row_num"], "field": "_操作",
+                            "type": "delete_not_allowed", "value": pk_key,
+                            "message": f"第 {row['row_num']} 行标记删除，但该表未启用删除功能",
+                        })
+                        errors.append(row["errors"][-1])
+                else:
+                    row["errors"].append({
+                        "row": row["row_num"], "field": ",".join(pk_fields),
+                        "type": "pk_not_found", "value": pk_key,
+                        "message": f"第 {row['row_num']} 行标记删除，但主键 {pk_key} 在数据库中不存在",
+                    })
+                    errors.append(row["errors"][-1])
+                continue
 
             if pk_key not in db_all_pk_set:
                 # v2.0: 新增行 — 如果允许新增则标记为 insert，否则报错
@@ -1210,7 +1279,7 @@ async def import_template(
         diff_row_count=len(diff_rows),
         new_row_count=len(new_rows),
         validation_status=validation_status,
-        validation_message=f"总计 {total_rows} 行，通过 {actual_passed}（含新增 {len(new_rows)}），失败 {actual_failed}，差异 {len(diff_rows)} 处",
+        validation_message=f"总计 {total_rows} 行，通过 {actual_passed}（含新增 {len(new_rows)}，删除 {len(delete_rows)}），失败 {actual_failed}，差异 {len(diff_rows)} 处",
         error_detail_json=json.dumps(errors, ensure_ascii=False) if errors else None,
         import_status="validated",
         operator_user=_get_username(user),
@@ -1222,11 +1291,12 @@ async def import_template(
                   message=f"导入模板 {file_name}，{total_rows} 行，通过 {actual_passed}（新增 {len(new_rows)}），失败 {actual_failed}",
                   operator=_get_username(user))
 
-    # Store diff data in a temp JSON file — v2.0: 包含 new_rows
+    # Store diff data in a temp JSON file — v2.0: 包含 new_rows, v3.10: 包含 delete_rows
     diff_file = os.path.join(UPLOAD_DIR, f"diff_{log.id}.json")
     diff_data = {
         "diff_rows": diff_rows,
         "new_rows": new_rows,
+        "delete_rows": delete_rows,
         "import_data": [{"row_num": r["row_num"], "data": r["data"], "pk_key": r["pk_key"]}
                         for r in data_rows if not r["errors"]],
     }
@@ -1245,6 +1315,7 @@ async def import_template(
         "warnings": len(warnings),
         "diff_count": len(diff_rows),
         "new_count": len(new_rows),
+        "delete_count": len(delete_rows),
         "errors": errors[:100],
         "warnings_list": warnings[:50],
         "ai_warnings": ai_warnings[:100],
