@@ -722,7 +722,7 @@ def export_template(
 
 
 @router.get("/{table_config_id}/export-info")
-def get_export_info(table_config_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(get_current_user)):
+def get_export_info(table_config_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(require_role("admin", "operator"))):
     """获取导出前的预估信息。"""
     tc = _get_tc(db, table_config_id)
     ds = _get_ds(db, tc.datasource_id)
@@ -1345,7 +1345,7 @@ async def import_template(
 # ─────────────────────────────────────────────
 
 @router.get("/import-tasks/{task_id}/diff")
-def get_import_diff(task_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(get_current_user)):
+def get_import_diff(task_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(require_role("admin", "operator"))):
     """返回原值/新值对比数据。"""
     task = db.query(ImportTaskLog).filter(ImportTaskLog.id == task_id).first()
     if not task:
@@ -1381,7 +1381,7 @@ def get_import_diff(task_id: int, db: Session = Depends(get_db), user: UserAccou
 
 
 @router.get("/import-tasks/{task_id}/diff-report")
-def get_diff_report(task_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(get_current_user)):
+def get_diff_report(task_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(require_role("admin", "operator"))):
     """Generate and download a diff comparison Excel report."""
     import openpyxl
     from openpyxl.styles import PatternFill, Font, Alignment
