@@ -14,7 +14,10 @@ export default function DataComparePage() {
   const [result, setResult] = useState<any>(null);
 
   useEffect(() => {
-    api.get('/api/datasource').then(res => setDatasources(res.data.items || [])).catch(() => {});
+    api.get('/datasource', { params: { page_size: 100 } }).then(res => {
+      const list = Array.isArray(res.data) ? res.data : (res.data.items || []);
+      setDatasources(list);
+    }).catch(() => {});
   }, []);
 
   const handleCompare = async () => {
