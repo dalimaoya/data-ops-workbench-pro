@@ -119,7 +119,9 @@ export default function DiffPreview() {
       dataIndex: 'new_value',
       key: 'new_value',
       render: (v: string | null, record: { change_type?: string }) =>
-        <span style={{ color: record.change_type === 'insert' ? '#52c41a' : '#1890ff', fontWeight: 500 }}>{v ?? 'NULL'}</span>,
+        record.change_type === 'delete'
+          ? <span style={{ color: '#ff4d4f', fontStyle: 'italic', textDecoration: 'line-through' }}>—</span>
+          : <span style={{ color: record.change_type === 'insert' ? '#52c41a' : '#1890ff', fontWeight: 500 }}>{v ?? 'NULL'}</span>,
     },
     {
       title: t('diffPreview.changeType'),
@@ -130,6 +132,7 @@ export default function DiffPreview() {
         const map: Record<string, { color: string; label: string }> = {
           update: { color: 'orange', label: t('diffPreview.changeUpdate') },
           insert: { color: 'green', label: t('diffPreview.changeInsert') },
+          delete: { color: 'red', label: t('diffPreview.changeDelete', '删除') },
         };
         const info = map[v] || { color: 'default', label: v };
         return <Tag color={info.color}>{info.label}</Tag>;
@@ -196,7 +199,7 @@ export default function DiffPreview() {
           scroll={{ x: 800 }}
           pagination={{ pageSize: 50, showTotal: (total) => t('diffPreview.totalDiff', { count: total }) }}
           size="small"
-          rowClassName={(record) => record.change_type === 'insert' ? 'ant-table-row-insert' : ''}
+          rowClassName={(record) => record.change_type === 'insert' ? 'ant-table-row-insert' : record.change_type === 'delete' ? 'ant-table-row-delete' : ''}
         />
 
         <div style={{ marginTop: 16, textAlign: 'right' }}>
@@ -283,10 +286,13 @@ export default function DiffPreview() {
         </div>
       </Card>
 
-      {/* Style for insert rows */}
+      {/* Style for insert and delete rows */}
       <style>{`
         .ant-table-row-insert td {
           background-color: #f6ffed !important;
+        }
+        .ant-table-row-delete td {
+          background-color: #fff1f0 !important;
         }
       `}</style>
     </div>
