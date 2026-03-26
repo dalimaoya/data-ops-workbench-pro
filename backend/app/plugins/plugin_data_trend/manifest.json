@@ -14,8 +14,13 @@
         "key": "/data-trend",
         "icon": "LineChartOutlined",
         "label_key": "menu.dataTrend",
-        "roles": ["admin", "operator"]
+        "roles": [
+          "admin",
+          "operator"
+        ]
       }
     ]
-  }
+  },
+  "layer": "extension",
+  "category": "governance"
 }

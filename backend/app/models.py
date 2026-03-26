@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, SmallInteger, Float
+    Column, Integer, String, Text, DateTime, SmallInteger, Float, Boolean
 )
 from app.database import Base
 
@@ -437,3 +437,16 @@ class TaskExecutionLog(Base):
     status = Column(String(32), nullable=False, default="running")  # running/success/failed
     result_summary = Column(String(1000), nullable=True)
     error_message = Column(String(1000), nullable=True)
+
+
+# ── 21. plugin_status (v4.6) ──
+class PluginStatus(Base):
+    __tablename__ = "plugin_status"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    plugin_id = Column(String(100), unique=True, nullable=False)
+    enabled = Column(Boolean, default=False)
+    enabled_by = Column(String(100), nullable=True)
+    enabled_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=_now_bjt)
+    updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)

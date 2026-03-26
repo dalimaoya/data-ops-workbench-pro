@@ -14,8 +14,12 @@
         "key": "/approval-center",
         "icon": "AuditOutlined",
         "label_key": "menu.approvalCenter",
-        "roles": ["admin"]
+        "roles": [
+          "admin"
+        ]
       }
     ]
-  }
+  },
+  "layer": "extension",
+  "category": "workflow"
 }

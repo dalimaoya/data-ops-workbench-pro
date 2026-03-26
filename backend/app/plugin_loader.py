@@ -1,10 +1,11 @@
-"""Plugin loader — scan plugins/ directory and register each plugin with FastAPI."""
+"""Plugin loader — scan plugins/ directory, register plugins, manage layer/enabled state."""
 
 import os
 import json
 import importlib
 import logging
-from typing import List, Dict, Any
+from datetime import datetime, timezone, timedelta
+from typing import List, Dict, Any, Optional
 
 from fastapi import FastAPI
 
@@ -14,6 +15,9 @@ PLUGINS_DIR = os.path.join(os.path.dirname(__file__), "plugins")
 
 # Global registry: list of loaded plugin manifests
 _loaded_plugins: List[Dict[str, Any]] = []
+
+# All scanned manifests (loaded or not)
+_all_manifests: List[Dict[str, Any]] = []
 
 # All known plugin names (for "upgrade to unlock" display)
 ALL_KNOWN_PLUGINS = [
@@ -38,33 +42,66 @@ ALL_KNOWN_PLUGINS = [
     "plugin-sql-console",
 ]
 
+_BJT = timezone(timedelta(hours=8))
 
-def load_plugins(app: FastAPI) -> List[str]:
-    """Scan plugins/ directory, load all valid plugins, return loaded names."""
-    global _loaded_plugins
-    _loaded_plugins = []
-    loaded_names: List[str] = []
 
+def _scan_manifests() -> List[Dict[str, Any]]:
+    """Scan all manifest.json files and return manifest dicts."""
+    manifests = []
     if not os.path.isdir(PLUGINS_DIR):
-        logger.info("No plugins/ directory found — running in core-only mode")
-        return loaded_names
-
+        return manifests
     for plugin_name in sorted(os.listdir(PLUGINS_DIR)):
         plugin_path = os.path.join(PLUGINS_DIR, plugin_name)
         manifest_path = os.path.join(plugin_path, "manifest.json")
-
         if not os.path.isfile(manifest_path):
             continue
-
         try:
             with open(manifest_path, encoding="utf-8") as f:
                 manifest = json.load(f)
+            manifest["_dir_name"] = plugin_name
+            manifests.append(manifest)
         except Exception as e:
             logger.warning("Plugin %s: failed to parse manifest.json: %s", plugin_name, e)
-            continue
+    return manifests
+
+
+def _get_enabled_extension_ids() -> set:
+    """Query plugin_status table for enabled extension plugin IDs."""
+    try:
+        from app.database import SessionLocal
+        from app.models import PluginStatus as PSModel
+        db = SessionLocal()
+        try:
+            rows = db.query(PSModel).filter(PSModel.enabled == True).all()
+            return {r.plugin_id for r in rows}
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning("Could not query plugin_status: %s", e)
+        return set()
+
+
+def load_plugins(app: FastAPI) -> List[str]:
+    """Scan plugins/ directory, load plugins based on layer/enabled state."""
+    global _loaded_plugins, _all_manifests
+    _loaded_plugins = []
+    _all_manifests = []
+    loaded_names: List[str] = []
+
+    _all_manifests = _scan_manifests()
+    enabled_ids = _get_enabled_extension_ids()
+
+    for manifest in _all_manifests:
+        plugin_name = manifest.get("_dir_name", "")
+        layer = manifest.get("layer", "builtin")
+
+        # Extension plugins only load if enabled in plugin_status
+        if layer == "extension":
+            plugin_id = manifest.get("name", plugin_name)
+            if plugin_id not in enabled_ids:
+                continue
 
         try:
-            # Use underscored module name for import (Python doesn't like hyphens)
             module_name = plugin_name.replace("-", "_")
             module = importlib.import_module(f"app.plugins.{module_name}")
 
@@ -72,7 +109,10 @@ def load_plugins(app: FastAPI) -> List[str]:
                 module.register(app, manifest)
                 loaded_names.append(manifest.get("name", plugin_name))
                 _loaded_plugins.append(manifest)
-                logger.info("[PLUGIN] %s v%s loaded", manifest.get("display_name", plugin_name), manifest.get("version", "?"))
+                logger.info("[PLUGIN] %s v%s loaded (layer=%s)",
+                            manifest.get("display_name", plugin_name),
+                            manifest.get("version", "?"),
+                            layer)
             else:
                 logger.warning("Plugin %s has no register() function", plugin_name)
         except Exception as e:
@@ -87,11 +127,11 @@ def get_loaded_plugins() -> List[Dict[str, Any]]:
 
 
 def get_all_plugin_status() -> List[Dict[str, Any]]:
-    """Return all known plugins with loaded/unloaded status."""
+    """Return all known plugins with loaded/unloaded status (for menu rendering).
+    Only returns builtin + enabled extensions (loaded plugins)."""
     loaded_names = {p.get("name") for p in _loaded_plugins}
     result = []
 
-    # First add loaded plugins (with full manifest)
     for manifest in _loaded_plugins:
         result.append({
             "name": manifest.get("name"),
@@ -100,10 +140,12 @@ def get_all_plugin_status() -> List[Dict[str, Any]]:
             "version": manifest.get("version"),
             "description": manifest.get("description"),
             "loaded": True,
+            "layer": manifest.get("layer", "builtin"),
+            "category": manifest.get("category", "tool"),
             "frontend": manifest.get("frontend", {}),
         })
 
-    # Then add unloaded known plugins
+    # Add unloaded known plugins (not loaded but known)
     for name in ALL_KNOWN_PLUGINS:
         if name not in loaded_names:
             result.append({
@@ -113,7 +155,87 @@ def get_all_plugin_status() -> List[Dict[str, Any]]:
                 "version": None,
                 "description": None,
                 "loaded": False,
+                "layer": "unknown",
+                "category": "unknown",
                 "frontend": {},
             })
 
     return result
+
+
+def get_all_plugins_full() -> List[Dict[str, Any]]:
+    """Return ALL plugins (all manifests) with layer/category/enabled status.
+    Used by plugin center page."""
+    loaded_names = {p.get("name") for p in _loaded_plugins}
+    enabled_ids = _get_enabled_extension_ids()
+    result = []
+
+    for manifest in _all_manifests:
+        name = manifest.get("name")
+        layer = manifest.get("layer", "builtin")
+        is_loaded = name in loaded_names
+
+        if layer == "builtin":
+            enabled = True
+        else:
+            enabled = name in enabled_ids
+
+        result.append({
+            "name": name,
+            "display_name": manifest.get("display_name"),
+            "display_name_en": manifest.get("display_name_en"),
+            "version": manifest.get("version"),
+            "description": manifest.get("description"),
+            "author": manifest.get("author"),
+            "license": manifest.get("license", "free"),
+            "layer": layer,
+            "category": manifest.get("category", "tool"),
+            "enabled": enabled,
+            "loaded": is_loaded,
+            "frontend": manifest.get("frontend", {}),
+        })
+
+    return result
+
+
+def toggle_plugin(plugin_id: str, enable: bool, operator: str = "admin") -> bool:
+    """Toggle an extension plugin's enabled state. Returns new enabled state."""
+    from app.database import SessionLocal
+    from app.models import PluginStatus as PSModel
+
+    # Verify plugin exists and is extension
+    manifest = None
+    for m in _all_manifests:
+        if m.get("name") == plugin_id:
+            manifest = m
+            break
+
+    if not manifest:
+        raise ValueError(f"Plugin '{plugin_id}' not found")
+
+    if manifest.get("layer") != "extension":
+        raise ValueError(f"Plugin '{plugin_id}' is builtin, cannot toggle")
+
+    db = SessionLocal()
+    try:
+        row = db.query(PSModel).filter(PSModel.plugin_id == plugin_id).first()
+        now = datetime.now(_BJT)
+
+        if row:
+            row.enabled = enable
+            row.enabled_by = operator if enable else None
+            row.enabled_at = now if enable else None
+            row.updated_at = now
+        else:
+            row = PSModel(
+                plugin_id=plugin_id,
+                enabled=enable,
+                enabled_by=operator if enable else None,
+                enabled_at=now if enable else None,
+            )
+            db.add(row)
+
+        db.commit()
+        return enable
+    finally:
+        db.close()

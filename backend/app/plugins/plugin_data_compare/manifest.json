@@ -14,8 +14,13 @@
         "key": "/data-compare",
         "icon": "SwapOutlined",
         "label_key": "menu.dataCompare",
-        "roles": ["admin", "operator"]
+        "roles": [
+          "admin",
+          "operator"
+        ]
       }
     ]
-  }
+  },
+  "layer": "extension",
+  "category": "governance"
 }

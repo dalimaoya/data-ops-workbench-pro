@@ -7,15 +7,21 @@
   "author": "dalimaoya",
   "license": "proprietary",
   "requires_core": ">=3.2.0",
-  "dependencies": ["httpx"],
+  "dependencies": [
+    "httpx"
+  ],
   "frontend": {
     "menu_items": [
       {
         "key": "/notify-push-config",
         "icon": "SendOutlined",
         "label_key": "menu.notifyPush",
-        "roles": ["admin"]
+        "roles": [
+          "admin"
+        ]
       }
     ]
-  }
+  },
+  "layer": "extension",
+  "category": "integration"
 }

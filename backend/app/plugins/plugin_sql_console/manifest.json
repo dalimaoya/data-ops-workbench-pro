@@ -14,8 +14,12 @@
         "key": "/sql-console",
         "icon": "CodeOutlined",
         "label_key": "menu.sqlConsole",
-        "roles": ["admin"]
+        "roles": [
+          "admin"
+        ]
       }
     ]
-  }
+  },
+  "layer": "builtin",
+  "category": "tool"
 }

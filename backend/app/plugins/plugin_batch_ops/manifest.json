@@ -16,5 +16,7 @@
         "label_key": "menu.dbMaintenance"
       }
     ]
-  }
+  },
+  "layer": "builtin",
+  "category": "tool"
 }

@@ -7,8 +7,12 @@
   "author": "dalimaoya",
   "license": "proprietary",
   "requires_core": ">=3.2.0",
-  "dependencies": ["reportlab"],
+  "dependencies": [
+    "reportlab"
+  ],
   "frontend": {
     "menu_items": []
-  }
+  },
+  "layer": "extension",
+  "category": "report"
 }

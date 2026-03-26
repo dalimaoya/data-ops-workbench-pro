@@ -14,8 +14,12 @@
         "key": "/health-check",
         "icon": "MedicineBoxOutlined",
         "label_key": "menu.healthCheck",
-        "roles": ["admin"]
+        "roles": [
+          "admin"
+        ]
       }
     ]
-  }
+  },
+  "layer": "builtin",
+  "category": "tool"
 }

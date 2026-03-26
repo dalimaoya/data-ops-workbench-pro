@@ -14,9 +14,13 @@
         "key": "/db-manager",
         "icon": "ConsoleSqlOutlined",
         "label_key": "menu.dbManager",
-        "roles": ["admin"],
+        "roles": [
+          "admin"
+        ],
         "parent": "/data-maintenance-group"
       }
     ]
-  }
+  },
+  "layer": "builtin",
+  "category": "tool"
 }

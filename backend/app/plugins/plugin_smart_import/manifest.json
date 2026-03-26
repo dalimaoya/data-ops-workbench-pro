@@ -16,5 +16,7 @@
         "label_key": "menu.smartImport"
       }
     ]
-  }
+  },
+  "layer": "extension",
+  "category": "ai"
 }

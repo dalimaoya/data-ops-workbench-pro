@@ -7,15 +7,22 @@
   "author": "dalimaoya",
   "license": "proprietary",
   "requires_core": ">=3.0.0",
-  "dependencies": ["httpx", "openai"],
+  "dependencies": [
+    "httpx",
+    "openai"
+  ],
   "frontend": {
     "menu_items": [
       {
         "key": "/ai-config",
         "icon": "RobotOutlined",
         "label_key": "menu.aiConfig",
-        "roles": ["admin"]
+        "roles": [
+          "admin"
+        ]
       }
     ]
-  }
+  },
+  "layer": "extension",
+  "category": "ai"
 }

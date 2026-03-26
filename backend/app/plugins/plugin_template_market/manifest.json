@@ -14,8 +14,12 @@
         "key": "/template-market",
         "icon": "ShopOutlined",
         "label_key": "menu.templateMarket",
-        "roles": ["admin"]
+        "roles": [
+          "admin"
+        ]
       }
     ]
-  }
+  },
+  "layer": "extension",
+  "category": "market"
 }

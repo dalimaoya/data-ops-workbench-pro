@@ -10,5 +10,7 @@
   "dependencies": [],
   "frontend": {
     "menu_items": []
-  }
+  },
+  "layer": "builtin",
+  "category": "tool"
 }

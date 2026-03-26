@@ -14,8 +14,12 @@
         "key": "/platform-backup",
         "icon": "CloudServerOutlined",
         "label_key": "menu.platformBackup",
-        "roles": ["admin"]
+        "roles": [
+          "admin"
+        ]
       }
     ]
-  }
+  },
+  "layer": "builtin",
+  "category": "tool"
 }

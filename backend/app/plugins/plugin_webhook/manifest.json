@@ -7,15 +7,21 @@
   "author": "dalimaoya",
   "license": "proprietary",
   "requires_core": ">=3.2.0",
-  "dependencies": ["httpx"],
+  "dependencies": [
+    "httpx"
+  ],
   "frontend": {
     "menu_items": [
       {
         "key": "/webhook-config",
         "icon": "ApiOutlined",
         "label_key": "menu.webhookConfig",
-        "roles": ["admin"]
+        "roles": [
+          "admin"
+        ]
       }
     ]
-  }
+  },
+  "layer": "extension",
+  "category": "integration"
 }

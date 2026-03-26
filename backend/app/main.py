@@ -13,6 +13,7 @@ from app.routers import datasource, table_config, field_config, data_maintenance
 from app.routers import auth as auth_router
 from app.routers import dashboard as dashboard_router
 from app.routers import users as users_router
+from app.routers import plugins as plugins_router
 from app.utils.auth import init_default_admin
 from app.utils.security_middleware import SecurityHeadersMiddleware, check_rate_limit
 from app.i18n import parse_accept_language, set_lang
@@ -170,6 +171,7 @@ app.include_router(data_maintenance.router)
 app.include_router(backup_version.router)
 app.include_router(logs.router)
 app.include_router(users_router.router)
+app.include_router(plugins_router.router)
 
 # Plugin routers are registered via plugin_loader during lifespan startup
 
