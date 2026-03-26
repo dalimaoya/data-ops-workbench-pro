@@ -96,9 +96,7 @@ const baseMenuItems: MenuItem[] = [
     key: '/data-maintenance-group',
     icon: <ToolOutlined />,
     labelKey: 'menu.dataMaintenance',
-    children: [
-      { key: '/data-maintenance', icon: <EyeOutlined />, labelKey: 'menu.tableMaintenance' },
-    ],
+    children: [],
   },
 ];
 
@@ -109,10 +107,15 @@ interface BuiltinPluginMenu {
   parentGroup?: string;  // if belongs to a submenu group
 }
 
+// 数据维护子菜单中的静态项（不依赖插件加载）
+const dataMaintenanceStaticItems: BuiltinPluginMenu[] = [
+  { pluginName: '__static_data_maintenance__', menuItem: { key: '/data-maintenance', icon: <EyeOutlined />, labelKey: 'menu.tableMaintenance' }, parentGroup: '/data-maintenance-group' },
+];
+
 const builtinPluginMenuDefs: BuiltinPluginMenu[] = [
+  { pluginName: 'plugin-batch-ops', menuItem: { key: '/db-maintenance', icon: <DatabaseOutlined />, labelKey: 'menu.dbMaintenance' }, parentGroup: '/data-maintenance-group' },
   { pluginName: 'plugin-db-manager', menuItem: { key: '/db-manager', icon: <ConsoleSqlOutlined />, labelKey: 'menu.dbManager', roles: ['admin'] }, parentGroup: '/data-maintenance-group' },
   { pluginName: 'plugin-sql-console', menuItem: { key: '/sql-console', icon: <CodeOutlined />, labelKey: 'menu.sqlConsole', roles: ['admin'] }, parentGroup: '/data-maintenance-group' },
-  { pluginName: 'plugin-batch-ops', menuItem: { key: '/db-maintenance', icon: <DatabaseOutlined />, labelKey: 'menu.dbMaintenance' }, parentGroup: '/data-maintenance-group' },
   { pluginName: 'plugin-scheduler', menuItem: { key: '/scheduler', icon: <ScheduleOutlined />, labelKey: 'menu.scheduler', roles: ['admin'] } },
   { pluginName: 'plugin-health-check', menuItem: { key: '/health-check', icon: <MedicineBoxOutlined />, labelKey: 'menu.healthCheck', roles: ['admin'] } },
   { pluginName: 'plugin-backup', menuItem: { key: '/platform-backup', icon: <CloudServerOutlined />, labelKey: 'menu.platformBackup', roles: ['admin'] } },
@@ -162,14 +165,31 @@ function buildMenuGroups(loadedPlugins: PluginStatus[], t: (key: string) => stri
     children: item.children ? item.children.map(c => ({ ...c })) : undefined,
   }));
 
-  // Add builtin plugins that go into submenu groups within base
+  // Add static data-maintenance items first (顺序: 数据库维护 → 数据表维护 → 库表管理 → SQL 操作台)
   for (const def of builtinPluginMenuDefs) {
     if (!loadedSet.has(def.pluginName)) continue;
     if (def.parentGroup) {
       const group = baseItems.find(i => i.key === def.parentGroup);
       if (group) {
         if (!group.children) group.children = [];
-        group.children.push({ ...def.menuItem });
+        // 数据库维护排最前
+        if (def.pluginName === 'plugin-batch-ops') {
+          group.children.unshift({ ...def.menuItem });
+        } else {
+          group.children.push({ ...def.menuItem });
+        }
+      }
+    }
+  }
+  // Insert 数据表维护 after 数据库维护 (position 1)
+  for (const def of dataMaintenanceStaticItems) {
+    if (def.parentGroup) {
+      const group = baseItems.find(i => i.key === def.parentGroup);
+      if (group) {
+        if (!group.children) group.children = [];
+        // Insert at position 1 (after 数据库维护)
+        const insertIdx = group.children.findIndex(c => c.key === '/db-maintenance');
+        group.children.splice(insertIdx >= 0 ? insertIdx + 1 : 0, 0, { ...def.menuItem });
       }
     }
   }

@@ -69,7 +69,7 @@
     "dataCompare": "数据对比",
     "templateMarket": "模板市场",
     "webhookConfig": "Webhook 配置",
-    "sqlConsole": "SQL 控制台",
+    "sqlConsole": "SQL 操作台",
     "pluginCenter": "插件中心",
     "systemGroup": "系统",
     "toolGroup": "基础工具",
@@ -1169,7 +1169,7 @@
     "deleteConfirm": "确定删除此 Webhook？"
   },
   "sqlConsole": {
-    "title": "SQL 控制台",
+    "title": "SQL 操作台",
     "selectDatasource": "选择数据源",
     "execute": "执行",
     "executing": "执行中...",

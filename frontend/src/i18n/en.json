@@ -69,7 +69,7 @@
     "dataCompare": "Data Compare",
     "templateMarket": "Template Market",
     "webhookConfig": "Webhook Config",
-    "sqlConsole": "SQL Console",
+    "sqlConsole": "SQL Workbench",
     "pluginCenter": "Plugin Center",
     "systemGroup": "System",
     "toolGroup": "Basic Tools",
@@ -1169,7 +1169,7 @@
     "deleteConfirm": "Delete this webhook?"
   },
   "sqlConsole": {
-    "title": "SQL Console",
+    "title": "SQL Workbench",
     "selectDatasource": "Select datasource",
     "execute": "Execute",
     "executing": "Executing...",
