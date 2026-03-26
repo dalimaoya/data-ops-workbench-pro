@@ -20,7 +20,35 @@ from tkinter import ttk, messagebox
 from urllib.request import urlopen, Request
 from urllib.error import URLError
 
-CURRENT_VERSION = "3.8.0"
+def _read_version():
+    """从 version.txt 或 package.json 自动读取版本号，找不到时回退到硬编码。"""
+    _fallback = "3.10.0"
+    # 优先读取 version.txt（构建时自动写入）
+    base = os.path.dirname(os.path.abspath(__file__))
+    version_file = os.path.join(base, "version.txt")
+    if os.path.isfile(version_file):
+        try:
+            with open(version_file, "r", encoding="utf-8") as f:
+                v = f.read().strip().lstrip("vV")
+                if v:
+                    return v
+        except Exception:
+            pass
+    # 其次尝试 package.json
+    pkg_file = os.path.join(base, "package.json")
+    if os.path.isfile(pkg_file):
+        try:
+            with open(pkg_file, "r", encoding="utf-8") as f:
+                import json as _json
+                pkg = _json.load(f)
+                v = pkg.get("version", "")
+                if v:
+                    return v
+        except Exception:
+            pass
+    return _fallback
+
+CURRENT_VERSION = _read_version()
 PORT = 8580
 URL = f"http://localhost:{PORT}"
 
