@@ -99,18 +99,20 @@ export default function MaintenanceList() {
       title: t('maintenance.tableAlias'),
       dataIndex: 'table_alias',
       key: 'table_alias',
+      width: 140,
+      ellipsis: true,
       render: (v: string, r: MaintenanceTable) => v || r.table_name,
     },
-    { title: t('common.datasource'), dataIndex: 'datasource_name', key: 'datasource_name' },
-    { title: t('maintenance.dbSchema'), dataIndex: 'db_name', key: 'db_name', render: (v: string, r: MaintenanceTable) => v || r.schema_name || '-' },
-    { title: t('common.tableName'), dataIndex: 'table_name', key: 'table_name' },
+    { title: t('common.datasource'), dataIndex: 'datasource_name', key: 'datasource_name', width: 140, ellipsis: true },
+    { title: t('maintenance.dbSchema'), dataIndex: 'db_name', key: 'db_name', width: 120, ellipsis: true, render: (v: string, r: MaintenanceTable) => v || r.schema_name || '-' },
+    { title: t('common.tableName'), dataIndex: 'table_name', key: 'table_name', width: 180, ellipsis: true },
     { title: t('maintenance.fieldCount'), dataIndex: 'field_count', key: 'field_count', width: 80 },
     { title: t('maintenance.configVersion'), dataIndex: 'config_version', key: 'config_version', width: 90, render: (v: number) => `v${v}` },
     {
       title: t('maintenance.structureStatus'),
       dataIndex: 'structure_check_status',
       key: 'structure_check_status',
-      width: 100,
+      width: 110,
       render: (v: string) => {
         const map: Record<string, { color: string; text: string }> = {
           normal: { color: 'green', text: t('maintenance.structureNormal') },
@@ -190,7 +192,7 @@ export default function MaintenanceList() {
           onChange: (p, ps) => { setPage(p); setPageSize(ps); },
           showTotal: (t_count) => t('common.total', { count: t_count }),
         }}
-        scroll={{ x: 1000 }}
+        scroll={{ x: 'max-content' }}
       />
     </Card>
   );
