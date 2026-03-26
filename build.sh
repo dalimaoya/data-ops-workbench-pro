@@ -42,8 +42,8 @@ echo "📦 安装后端依赖..."
 pip install -q --upgrade pip
 pip install -q -r "$BACKEND_DIR/requirements.txt"
 
-echo "📦 安装 PyInstaller..."
-pip install -q pyinstaller
+echo "📦 安装构建工具..."
+pip install -q nuitka ordered-set
 
 echo "✅ 依赖安装完成"
 
@@ -73,17 +73,23 @@ else
   fi
 fi
 
-# ── Step 4: PyInstaller 打包 ──
+# ── Step 4: Nuitka 打包（与 CI 一致）──
 echo ""
-echo "📦 PyInstaller 打包中..."
+echo "📦 Nuitka 打包中（standalone 模式）..."
 cd "$BACKEND_DIR"
 
 # Clean previous build
 rm -rf build/ dist/
 
-pyinstaller app.spec --noconfirm
+python -m nuitka \
+    --standalone \
+    --output-dir=dist \
+    --include-data-dir=web=web \
+    --enable-plugin=anti-bloat \
+    --remove-output \
+    app/main.py
 
-echo "✅ PyInstaller 打包完成"
+echo "✅ Nuitka 打包完成"
 
 # ── Step 5: Assemble release directory ──
 echo ""
@@ -91,8 +97,8 @@ echo "📁 组装发布目录..."
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR/server"
 
-# Copy PyInstaller output (onedir mode: dist/app/ directory)
-cp -r "$BACKEND_DIR/dist/app" "$DIST_DIR/server/app"
+# Copy Nuitka output (standalone mode: dist/main.dist/ directory)
+cp -r "$BACKEND_DIR/dist/main.dist" "$DIST_DIR/server/app"
 
 # Copy start scripts
 cp "$SCRIPT_DIR/start.sh" "$DIST_DIR/start.sh"
