@@ -66,7 +66,7 @@ export default function DiffPreview() {
         <Result
           status={resultStatus}
           title={resultTitle}
-          subTitle={t('diffPreview.writebackSummary', { updated: writeResult.updated, inserted: writeResult.inserted, failed: writeResult.failed })}
+          subTitle={t('diffPreview.writebackSummary', { updated: writeResult.updated, inserted: writeResult.inserted, deleted: writeResult.deleted ?? 0, failed: writeResult.failed })}
           extra={[
             <Button key="back" onClick={() => navigate(`/data-maintenance/browse/${diffData?.table_config_id}`)}>
               {t('diffPreview.backToBrowse')}
@@ -83,6 +83,7 @@ export default function DiffPreview() {
             <Descriptions.Item label={t('diffPreview.backupRecordCount')}>{writeResult.backup_record_count}</Descriptions.Item>
             <Descriptions.Item label={t('diffPreview.updatedRows')}>{writeResult.updated}</Descriptions.Item>
             <Descriptions.Item label={t('diffPreview.insertedRows')}>{writeResult.inserted}</Descriptions.Item>
+            <Descriptions.Item label={t('diffPreview.deletedRows', '删除行数')}>{writeResult.deleted ?? 0}</Descriptions.Item>
             <Descriptions.Item label={t('diffPreview.operatorUser')}>{writeResult.operator_user}</Descriptions.Item>
             <Descriptions.Item label={t('diffPreview.finishedTime')}>{writeResult.finished_at}</Descriptions.Item>
           </Descriptions>
@@ -143,6 +144,7 @@ export default function DiffPreview() {
   // Count update vs insert diff rows
   const updateDiffCount = diffData?.diff_rows?.filter(d => d.change_type === 'update').length ?? 0;
   const insertDiffCount = diffData?.diff_rows?.filter(d => d.change_type === 'insert').length ?? 0;
+  const deleteDiffCount = diffData?.diff_rows?.filter(d => d.change_type === 'delete').length ?? 0;
   void insertDiffCount;
 
   return (
@@ -181,6 +183,12 @@ export default function DiffPreview() {
             <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ fontSize: 24, fontWeight: 'bold', color: '#52c41a' }}>{diffData.new_count}</div>
               <div style={{ color: '#666' }}>{t('diffPreview.newRows')}</div>
+            </Card>
+          )}
+          {deleteDiffCount > 0 && (
+            <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: '#ff4d4f' }}>{deleteDiffCount}</div>
+              <div style={{ color: '#666' }}>{t('diffPreview.deleteRows', '删除行')}</div>
             </Card>
           )}
           <Card size="small" style={{ flex: 1, textAlign: 'center' }}>
