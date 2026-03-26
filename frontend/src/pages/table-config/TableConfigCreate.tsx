@@ -4,6 +4,7 @@ import { Card, Form, Select, Button, Input, Space, Table, message, Spin, Tag, De
 import { SearchOutlined, KeyOutlined } from '@ant-design/icons';
 import { listDatasources, type Datasource } from '../../api/datasource';
 import { getRemoteTables, createTableConfig, type RemoteTableInfo } from '../../api/tableConfig';
+import { findFirstHealthyDs } from '../../utils/datasourceHelper';
 import { api } from '../../api/request';
 import { useTranslation } from 'react-i18next';
 
@@ -33,7 +34,15 @@ export default function TableConfigCreate() {
   const [loadingPreview, setLoadingPreview] = useState(false);
 
   useEffect(() => {
-    listDatasources({ page_size: 100 }).then(r => setDatasources(r.data));
+    listDatasources({ page_size: 100 }).then(r => {
+      const list = r.data || [];
+      setDatasources(list);
+      // 默认选中第1个连接正常的数据源
+      if (list.length > 0 && !selectedDs) {
+        const healthy = findFirstHealthyDs(list);
+        if (healthy) handleDsChange(healthy.id);
+      }
+    });
   }, []);
 
   const handleDsChange = async (dsId: number) => {

@@ -14,6 +14,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { listDatasources, type Datasource } from '../../api/datasource';
 import { getRemoteTables, listTableConfigs, type RemoteTableInfo, type TableConfig } from '../../api/tableConfig';
+import { findFirstHealthyDs } from '../../utils/datasourceHelper';
 import {
   batchManageTables, batchConfirm, batchExport,
   type BatchTableResult,
@@ -99,10 +100,15 @@ export default function DatabaseMaintenance() {
   // Load datasources and restore from URL params
   useEffect(() => {
     listDatasources({ status: 'enabled' }).then(res => {
-      setDatasources(res.data);
+      const list = res.data || [];
+      setDatasources(list);
       const dsParam = searchParams.get('ds');
       if (dsParam && !selectedDsId) {
         setSelectedDsId(Number(dsParam));
+      } else if (list.length > 0 && !selectedDsId) {
+        // 默认选中第1个连接正常的数据源
+        const healthy = findFirstHealthyDs(list);
+        if (healthy) setSelectedDsId(healthy.id);
       }
     }).catch(() => {});
   }, []);

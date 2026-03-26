@@ -8,6 +8,7 @@ import { listDatasources } from '../../api/datasource';
 import type { Datasource } from '../../api/datasource';
 import { formatBeijingTime } from '../../utils/formatTime';
 import { useTranslation } from 'react-i18next';
+import { findFirstHealthyDs } from '../../utils/datasourceHelper';
 
 export default function MaintenanceList() {
   const { t } = useTranslation();
@@ -24,7 +25,15 @@ export default function MaintenanceList() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    listDatasources({ page_size: 100 }).then(r => setDatasources(r.data)).catch(() => {});
+    listDatasources({ page_size: 100 }).then(r => {
+      const list = r.data || [];
+      setDatasources(list);
+      // 默认选中第1个连接正常的数据源
+      if (list.length > 0 && !datasourceId) {
+        const healthy = findFirstHealthyDs(list);
+        if (healthy) setDatasourceId(healthy.id);
+      }
+    }).catch(() => {});
   }, []);
 
   const fetchData = async () => {
@@ -45,7 +54,7 @@ export default function MaintenanceList() {
     }
   };
 
-  useEffect(() => { fetchData(); }, [page, pageSize]);
+  useEffect(() => { fetchData(); }, [page, pageSize, datasourceId]);
 
   const handleSearch = () => { setPage(1); fetchData(); };
 

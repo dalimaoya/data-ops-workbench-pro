@@ -3,6 +3,7 @@ import { Card, Select, Button, Table, message, Space, Tag, Alert } from 'antd';
 import { PlayCircleOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/request';
+import { findFirstHealthyDs } from '../../utils/datasourceHelper';
 
 export default function SqlConsolePage() {
   const { t } = useTranslation();
@@ -14,12 +15,14 @@ export default function SqlConsolePage() {
   const [exportLoading, setExportLoading] = useState(false);
 
   useEffect(() => {
-    api.get('/datasource').then(res => {
-      const items = res.data.items || [];
+    api.get('/datasource', { params: { page_size: 100 } }).then(res => {
+      const raw = res.data;
+      const items = Array.isArray(raw) ? raw : (raw.items || []);
       setDatasources(items);
-      // 默认选中第1个数据源
+      // 默认选中第1个连接正常的数据源
       if (items.length > 0 && !selectedDs) {
-        setSelectedDs(items[0].id);
+        const healthy = findFirstHealthyDs(items);
+        if (healthy) setSelectedDs(healthy.id);
       }
     }).catch(() => {});
   }, []);

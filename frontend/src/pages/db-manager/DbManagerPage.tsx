@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/request';
+import { findFirstHealthyDs } from '../../utils/datasourceHelper';
 
 const { Text, Paragraph } = Typography;
 
@@ -70,17 +71,21 @@ export default function DbManagerPage() {
 
   // Fetch datasources
   useEffect(() => {
-    api.get('/datasource/list').then((res: any) => {
-      const items = res.data?.items || res.data || [];
+    api.get('/datasource', { params: { page_size: 100 } }).then((res: any) => {
+      const raw = res.data;
+      const items = Array.isArray(raw) ? raw : (raw?.items || []);
       const mapped = items.map((d: any) => ({
         id: d.id,
         datasource_name: d.datasource_name,
         db_type: d.db_type,
+        status: d.status,
+        last_test_status: d.last_test_status,
       }));
       setDatasources(mapped);
-      // 默认选中第1个数据源
+      // 默认选中第1个连接正常的数据源
       if (mapped.length > 0 && !selectedDs) {
-        setSelectedDs(mapped[0].id);
+        const healthy = findFirstHealthyDs(mapped);
+        if (healthy) setSelectedDs(healthy.id);
       }
     }).catch(() => {});
   }, []);
