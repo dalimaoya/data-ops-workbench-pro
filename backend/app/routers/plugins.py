@@ -39,7 +39,7 @@ def toggle_plugin_status(
         new_state = toggle_plugin(
             plugin_id,
             body.enabled,
-            operator=current_user.get("username", "admin"),
+            operator=current_user.username,
         )
         action = "启用" if new_state else "停用"
         return ToggleResponse(

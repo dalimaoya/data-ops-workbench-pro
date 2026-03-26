@@ -207,13 +207,15 @@ export default function PluginCenterPage() {
                       </Tooltip>
                     )}
                     <Tooltip title={isAdmin ? '' : (isZh ? '仅管理员可操作' : 'Admin only')}>
-                      <Switch
-                        checked={plugin.enabled}
-                        loading={toggling === plugin.name}
-                        disabled={!isAdmin}
-                        onChange={checked => handleToggle(plugin, checked)}
-                        size="small"
-                      />
+                      <span onClick={e => e.stopPropagation()}>
+                        <Switch
+                          checked={plugin.enabled}
+                          loading={toggling === plugin.name}
+                          disabled={!isAdmin}
+                          onChange={checked => handleToggle(plugin, checked)}
+                          size="small"
+                        />
+                      </span>
                     </Tooltip>
                   </Space>
                 </div>
