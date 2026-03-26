@@ -45,7 +45,7 @@ def toggle_plugin_status(
         return ToggleResponse(
             plugin_id=plugin_id,
             enabled=new_state,
-            message=f"插件已{action}，刷新页面后生效",
+            message=f"插件已{action}",
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

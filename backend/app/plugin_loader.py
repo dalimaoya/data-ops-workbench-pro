@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 
 logger = logging.getLogger("plugin_loader")
 
@@ -89,17 +89,30 @@ def load_plugins(app: FastAPI) -> List[str]:
     loaded_names: List[str] = []
 
     _all_manifests = _scan_manifests()
-    enabled_ids = _get_enabled_extension_ids()
+
+    from app.utils.plugin_guard import require_plugin_enabled
+
+    # Save original include_router so we can wrap it for extension plugins
+    _original_include_router = app.include_router
 
     for manifest in _all_manifests:
         plugin_name = manifest.get("_dir_name", "")
         layer = manifest.get("layer", "builtin")
+        plugin_id = manifest.get("name", plugin_name)
 
-        # Extension plugins only load if enabled in plugin_status
+        # For extension plugins, intercept include_router to inject the guard dependency
         if layer == "extension":
-            plugin_id = manifest.get("name", plugin_name)
-            if plugin_id not in enabled_ids:
-                continue
+            guard_dep = Depends(require_plugin_enabled(plugin_id))
+
+            def _guarded_include_router(router, *args, _guard=guard_dep, **kwargs):
+                # Prepend our guard dependency to the router's dependencies
+                existing = list(router.dependencies) if router.dependencies else []
+                router.dependencies = [_guard] + existing
+                _original_include_router(router, *args, **kwargs)
+
+            app.include_router = _guarded_include_router
+        else:
+            app.include_router = _original_include_router
 
         try:
             module_name = plugin_name.replace("-", "_")
@@ -107,7 +120,7 @@ def load_plugins(app: FastAPI) -> List[str]:
 
             if hasattr(module, "register"):
                 module.register(app, manifest)
-                loaded_names.append(manifest.get("name", plugin_name))
+                loaded_names.append(plugin_id)
                 _loaded_plugins.append(manifest)
                 logger.info("[PLUGIN] %s v%s loaded (layer=%s)",
                             manifest.get("display_name", plugin_name),
@@ -118,6 +131,9 @@ def load_plugins(app: FastAPI) -> List[str]:
         except Exception as e:
             logger.warning("Plugin %s failed to load: %s", plugin_name, e, exc_info=True)
 
+    # Restore original include_router
+    app.include_router = _original_include_router
+
     return loaded_names
 
 
@@ -127,20 +143,30 @@ def get_loaded_plugins() -> List[Dict[str, Any]]:
 
 
 def get_all_plugin_status() -> List[Dict[str, Any]]:
-    """Return all known plugins with loaded/unloaded status (for menu rendering).
-    Only returns builtin + enabled extensions (loaded plugins)."""
+    """Return all known plugins with loaded/enabled status (for menu rendering).
+    Builtin plugins are always 'loaded'. Extension plugins show as loaded only if enabled."""
+    from app.utils.plugin_guard import is_plugin_enabled
+
     loaded_names = {p.get("name") for p in _loaded_plugins}
     result = []
 
     for manifest in _loaded_plugins:
+        name = manifest.get("name")
+        layer = manifest.get("layer", "builtin")
+        # For extension plugins, check enabled state dynamically
+        if layer == "extension":
+            is_active = is_plugin_enabled(name)
+        else:
+            is_active = True
+
         result.append({
-            "name": manifest.get("name"),
+            "name": name,
             "display_name": manifest.get("display_name"),
             "display_name_en": manifest.get("display_name_en"),
             "version": manifest.get("version"),
             "description": manifest.get("description"),
-            "loaded": True,
-            "layer": manifest.get("layer", "builtin"),
+            "loaded": is_active,
+            "layer": layer,
             "category": manifest.get("category", "tool"),
             "frontend": manifest.get("frontend", {}),
         })
@@ -202,6 +228,7 @@ def toggle_plugin(plugin_id: str, enable: bool, operator: str = "admin") -> bool
     """Toggle an extension plugin's enabled state. Returns new enabled state."""
     from app.database import SessionLocal
     from app.models import PluginStatus as PSModel
+    from app.utils.plugin_guard import clear_cache
 
     # Verify plugin exists and is extension
     manifest = None
@@ -236,6 +263,8 @@ def toggle_plugin(plugin_id: str, enable: bool, operator: str = "admin") -> bool
             db.add(row)
 
         db.commit()
+        # Clear plugin guard cache so subsequent requests see the new state immediately
+        clear_cache(plugin_id)
         return enable
     finally:
         db.close()
