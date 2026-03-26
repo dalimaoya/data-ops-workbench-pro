@@ -248,6 +248,39 @@ def run_task_now(
     return {"message": t("scheduler.run_started")}
 
 
+@router.get("/execution-logs")
+def get_all_execution_logs(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
+    """Get all execution logs across all tasks."""
+    q = db.query(TaskExecutionLog)
+    total = q.count()
+    rows = q.order_by(TaskExecutionLog.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
+
+    # Build task name map
+    task_ids = list(set(log.task_id for log in rows))
+    tasks = db.query(ScheduledTask).filter(ScheduledTask.id.in_(task_ids)).all() if task_ids else []
+    task_map = {t.id: t.name for t in tasks}
+
+    items = []
+    for log in rows:
+        items.append({
+            "id": log.id,
+            "task_id": log.task_id,
+            "task_name": task_map.get(log.task_id, f"task-{log.task_id}"),
+            "started_at": log.started_at.isoformat() if log.started_at else None,
+            "finished_at": log.finished_at.isoformat() if log.finished_at else None,
+            "status": log.status,
+            "result_summary": log.result_summary,
+            "error_message": log.error_message,
+        })
+
+    return {"total": total, "items": items}
+
+
 @router.get("/tasks/{task_id}/history")
 def get_task_history(
     task_id: int,

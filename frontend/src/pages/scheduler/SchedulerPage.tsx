@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Card, Table, Button, Space, Tag, Switch, Modal, Form, Input, Select, InputNumber,
-  message, Popconfirm, Timeline, Badge,
+  message, Popconfirm, Timeline, Badge, Tabs,
 } from 'antd';
 import {
   PlusOutlined, PlayCircleOutlined, DeleteOutlined, EditOutlined,
@@ -10,9 +10,10 @@ import {
 import { useTranslation } from 'react-i18next';
 import {
   listScheduledTasks, createScheduledTask, updateScheduledTask,
-  deleteScheduledTask, runTaskNow, getTaskHistory,
+  deleteScheduledTask, runTaskNow, getTaskHistory, getAllExecutionLogs,
 } from '../../api/scheduler';
-import type { ScheduledTask, TaskExecution, ScheduleConfig } from '../../api/scheduler';
+import type { ScheduledTask, TaskExecution, ScheduleConfig, ExecutionLogItem } from '../../api/scheduler';
+import { formatBeijingTime } from '../../utils/formatTime';
 
 const TASK_TYPES = [
   { value: 'health_check', labelKey: 'scheduler.typeHealthCheck' },
@@ -57,6 +58,28 @@ export default function SchedulerPage() {
   const [history, setHistory] = useState<TaskExecution[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  // Active tab
+  const [activeTab, setActiveTab] = useState('tasks');
+
+  // Execution logs
+  const [execLogs, setExecLogs] = useState<ExecutionLogItem[]>([]);
+  const [execLogsTotal, setExecLogsTotal] = useState(0);
+  const [execLogsPage, setExecLogsPage] = useState(1);
+  const [execLogsLoading, setExecLogsLoading] = useState(false);
+
+  const fetchExecLogs = async (p: number = execLogsPage) => {
+    setExecLogsLoading(true);
+    try {
+      const res = await getAllExecutionLogs({ page: p, page_size: 20 });
+      setExecLogs(res.data.items);
+      setExecLogsTotal(res.data.total);
+    } catch {
+      message.error(t('scheduler.historyLoadFailed'));
+    } finally {
+      setExecLogsLoading(false);
+    }
+  };
+
   const fetchTasks = async () => {
     setLoading(true);
     try {
@@ -71,6 +94,7 @@ export default function SchedulerPage() {
   };
 
   useEffect(() => { fetchTasks(); }, [page]);
+  useEffect(() => { if (activeTab === 'logs') fetchExecLogs(execLogsPage); }, [execLogsPage, activeTab]);
 
   const handleCreate = () => {
     setEditingTask(null);
@@ -293,6 +317,58 @@ export default function SchedulerPage() {
   const scheduleType = Form.useWatch('schedule_type', form);
   const taskType = Form.useWatch('type', form);
 
+  // Execution log columns
+  const execLogColumns = [
+    {
+      title: t('scheduler.taskName'),
+      dataIndex: 'task_name',
+      key: 'task_name',
+      width: 180,
+    },
+    {
+      title: t('common.status'),
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (v: string) => {
+        const map: Record<string, { color: string; text: string }> = {
+          success: { color: 'green', text: t('scheduler.statusSuccess') },
+          failed: { color: 'red', text: t('scheduler.statusFailed') },
+          running: { color: 'blue', text: t('scheduler.statusRunning') },
+        };
+        const info = map[v] || { color: 'default', text: v };
+        return <Tag color={info.color}>{info.text}</Tag>;
+      },
+    },
+    {
+      title: t('scheduler.startedAt', '开始时间'),
+      dataIndex: 'started_at',
+      key: 'started_at',
+      width: 180,
+      render: (v: string) => formatBeijingTime(v),
+    },
+    {
+      title: t('scheduler.finishedAt', '结束时间'),
+      dataIndex: 'finished_at',
+      key: 'finished_at',
+      width: 180,
+      render: (v: string) => formatBeijingTime(v),
+    },
+    {
+      title: t('scheduler.resultSummary', '结果摘要'),
+      dataIndex: 'result_summary',
+      key: 'result_summary',
+      ellipsis: true,
+    },
+    {
+      title: t('scheduler.errorMessage', '错误信息'),
+      dataIndex: 'error_message',
+      key: 'error_message',
+      ellipsis: true,
+      render: (v: string) => v ? <span style={{ color: '#ff4d4f' }}>{v}</span> : '-',
+    },
+  ];
+
   return (
     <>
       <Card
@@ -303,27 +379,63 @@ export default function SchedulerPage() {
           </Space>
         }
         extra={
-          <Space>
-            <Button icon={<ReloadOutlined />} onClick={fetchTasks}>{t('common.refresh')}</Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-              {t('scheduler.createTask')}
-            </Button>
-          </Space>
+          activeTab === 'tasks' ? (
+            <Space>
+              <Button icon={<ReloadOutlined />} onClick={fetchTasks}>{t('common.refresh')}</Button>
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+                {t('scheduler.createTask')}
+              </Button>
+            </Space>
+          ) : (
+            <Button icon={<ReloadOutlined />} onClick={() => fetchExecLogs(execLogsPage)}>{t('common.refresh')}</Button>
+          )
         }
       >
-        <Table
-          columns={columns}
-          dataSource={tasks}
-          rowKey="id"
-          loading={loading}
-          pagination={{
-            current: page,
-            total,
-            pageSize: 20,
-            onChange: setPage,
-            showTotal: (t) => `${t}`,
-          }}
-          size="middle"
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={[
+            {
+              key: 'tasks',
+              label: t('scheduler.taskList', '任务列表'),
+              children: (
+                <Table
+                  columns={columns}
+                  dataSource={tasks}
+                  rowKey="id"
+                  loading={loading}
+                  pagination={{
+                    current: page,
+                    total,
+                    pageSize: 20,
+                    onChange: setPage,
+                    showTotal: (t) => `${t}`,
+                  }}
+                  size="middle"
+                />
+              ),
+            },
+            {
+              key: 'logs',
+              label: t('scheduler.executionLogs', '执行日志'),
+              children: (
+                <Table
+                  columns={execLogColumns}
+                  dataSource={execLogs}
+                  rowKey="id"
+                  loading={execLogsLoading}
+                  pagination={{
+                    current: execLogsPage,
+                    total: execLogsTotal,
+                    pageSize: 20,
+                    onChange: setExecLogsPage,
+                    showTotal: (t) => `${t}`,
+                  }}
+                  size="middle"
+                />
+              ),
+            },
+          ]}
         />
       </Card>
 

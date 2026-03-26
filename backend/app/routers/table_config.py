@@ -83,6 +83,48 @@ def get_remote_tables(
     )
 
 
+# ── Preview remote table columns + sample data (for create wizard) ──
+@router.get("/remote-preview/{ds_id}")
+def preview_remote_table(
+    ds_id: int,
+    table_name: str = Query(...),
+    sample_limit: int = Query(5, ge=1, le=20),
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(get_current_user),
+):
+    """获取远程表的字段列表和示例数据（用于新增纳管表向导）。"""
+    ds = _get_ds(db, ds_id)
+    pwd = decrypt_password(ds.password_encrypted)
+    use_db = ds.database_name
+    use_schema = ds.schema_name
+    try:
+        columns = list_columns(
+            db_type=ds.db_type, host=ds.host, port=ds.port,
+            user=ds.username, password=pwd,
+            table_name=table_name,
+            database=use_db, schema=use_schema,
+            charset=ds.charset, timeout=ds.connect_timeout_seconds or 10,
+        )
+    except Exception as e:
+        raise HTTPException(400, t("table_config.datasource_connect_failed", error=str(e)))
+    try:
+        col_names, sample_rows = fetch_sample_data(
+            db_type=ds.db_type, host=ds.host, port=ds.port,
+            user=ds.username, password=pwd,
+            table_name=table_name,
+            database=use_db, schema=use_schema,
+            charset=ds.charset, timeout=ds.connect_timeout_seconds or 10,
+            limit=sample_limit,
+        )
+    except Exception:
+        col_names, sample_rows = [], []
+    return {
+        "columns": columns,
+        "sample_columns": col_names,
+        "sample_rows": sample_rows,
+    }
+
+
 # ── List table configs ──
 @router.get("", response_model=List[TableConfigOut])
 def list_table_configs(

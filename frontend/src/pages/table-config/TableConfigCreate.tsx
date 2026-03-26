@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Form, Select, Button, Input, Space, Table, message, Spin } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
+import { Card, Form, Select, Button, Input, Space, Table, message, Spin, Tag, Descriptions } from 'antd';
+import { SearchOutlined, KeyOutlined } from '@ant-design/icons';
 import { listDatasources, type Datasource } from '../../api/datasource';
 import { getRemoteTables, createTableConfig, type RemoteTableInfo } from '../../api/tableConfig';
+import { api } from '../../api/request';
 import { useTranslation } from 'react-i18next';
+
+interface RemoteColumn {
+  column_name: string;
+  data_type: string;
+  is_primary_key: boolean;
+  is_nullable: boolean;
+}
 
 export default function TableConfigCreate() {
   const { t } = useTranslation();
@@ -18,6 +26,12 @@ export default function TableConfigCreate() {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
 
+  // Preview: columns + sample data
+  const [previewColumns, setPreviewColumns] = useState<RemoteColumn[]>([]);
+  const [sampleColumns, setSampleColumns] = useState<string[]>([]);
+  const [sampleRows, setSampleRows] = useState<(string | null)[][]>([]);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
   useEffect(() => {
     listDatasources({ page_size: 100 }).then(r => setDatasources(r.data));
   }, []);
@@ -26,6 +40,8 @@ export default function TableConfigCreate() {
     setSelectedDs(dsId);
     setSelectedTable(undefined);
     setRemoteTables([]);
+    setPreviewColumns([]);
+    setSampleRows([]);
     setLoadingTables(true);
     try {
       const res = await getRemoteTables(dsId);
@@ -37,13 +53,39 @@ export default function TableConfigCreate() {
     }
   };
 
-  const handleSelectTable = (tbl: RemoteTableInfo) => {
+  const handleSelectTable = async (tbl: RemoteTableInfo) => {
     setSelectedTable(tbl);
     form.setFieldsValue({
       table_name: tbl.table_name,
       table_alias: tbl.table_name,
       table_comment: tbl.table_comment || '',
+      primary_key_fields: undefined,
     });
+
+    // Fetch preview data
+    if (selectedDs) {
+      setLoadingPreview(true);
+      try {
+        const res = await api.get(`/table-config/remote-preview/${selectedDs}`, {
+          params: { table_name: tbl.table_name, sample_limit: 5 },
+        });
+        const cols: RemoteColumn[] = res.data.columns || [];
+        setPreviewColumns(cols);
+        setSampleColumns(res.data.sample_columns || []);
+        setSampleRows(res.data.sample_rows || []);
+
+        // Auto-set primary key from detected PK columns
+        const pkFields = cols.filter(c => c.is_primary_key).map(c => c.column_name);
+        if (pkFields.length > 0) {
+          form.setFieldsValue({ primary_key_fields: pkFields });
+        }
+      } catch {
+        setPreviewColumns([]);
+        setSampleRows([]);
+      } finally {
+        setLoadingPreview(false);
+      }
+    }
   };
 
   const handleSave = async () => {
@@ -51,12 +93,15 @@ export default function TableConfigCreate() {
     if (!selectedDs) { message.error(t('tableConfig.selectDatasource')); return; }
     setSaving(true);
     try {
+      const pkValue = Array.isArray(values.primary_key_fields)
+        ? values.primary_key_fields.join(',')
+        : values.primary_key_fields;
       const res = await createTableConfig({
         datasource_id: selectedDs,
         table_name: values.table_name,
         table_alias: values.table_alias,
         table_comment: values.table_comment,
-        primary_key_fields: values.primary_key_fields,
+        primary_key_fields: pkValue,
         remark: values.remark,
       });
       message.success(t('tableConfig.createSuccess'));
@@ -84,6 +129,55 @@ export default function TableConfigCreate() {
       ),
     },
   ];
+
+  // Field preview columns
+  const fieldPreviewColumns = [
+    {
+      title: t('fieldConfig.fieldName', '字段名'),
+      dataIndex: 'column_name',
+      key: 'column_name',
+      width: 200,
+      render: (val: string, record: RemoteColumn) => (
+        <Space>
+          <span style={{ fontWeight: record.is_primary_key ? 600 : 400 }}>{val}</span>
+          {record.is_primary_key && <Tag color="gold"><KeyOutlined /> PK</Tag>}
+        </Space>
+      ),
+    },
+    {
+      title: t('fieldConfig.dbType', '数据类型'),
+      dataIndex: 'data_type',
+      key: 'data_type',
+      width: 160,
+    },
+    {
+      title: t('fieldConfig.nullable', '可空'),
+      dataIndex: 'is_nullable',
+      key: 'is_nullable',
+      width: 80,
+      render: (val: boolean) => val ? <Tag>YES</Tag> : <Tag color="red">NO</Tag>,
+    },
+  ];
+
+  // Sample data table columns
+  const sampleTableColumns = sampleColumns.map(col => ({
+    title: col,
+    dataIndex: col,
+    key: col,
+    ellipsis: true,
+    width: 140,
+  }));
+  const sampleTableData = sampleRows.map((row, idx) => {
+    const obj: Record<string, unknown> = { _key: idx };
+    sampleColumns.forEach((c, i) => { obj[c] = row[i]; });
+    return obj;
+  });
+
+  // Primary key options from preview columns
+  const pkOptions = previewColumns.map(c => ({
+    label: `${c.column_name} (${c.data_type})`,
+    value: c.column_name,
+  }));
 
   return (
     <div>
@@ -117,6 +211,47 @@ export default function TableConfigCreate() {
             </Spin>
           )}
         </Space>
+
+        {/* Field Preview + Sample Data */}
+        {selectedTable && (
+          <Spin spinning={loadingPreview}>
+            {previewColumns.length > 0 && (
+              <div style={{ marginTop: 24 }}>
+                <Descriptions size="small" column={3} style={{ marginBottom: 12 }}>
+                  <Descriptions.Item label={t('common.tableName')}>{selectedTable.table_name}</Descriptions.Item>
+                  <Descriptions.Item label={t('dbMaintenance.fieldCount', '字段数')}>{previewColumns.length}</Descriptions.Item>
+                  <Descriptions.Item label="PK">
+                    {previewColumns.filter(c => c.is_primary_key).map(c => c.column_name).join(', ') || '-'}
+                  </Descriptions.Item>
+                </Descriptions>
+
+                <Card title={t('fieldConfig.fieldList', '字段列表')} size="small" style={{ marginBottom: 12 }}>
+                  <Table
+                    rowKey="column_name"
+                    columns={fieldPreviewColumns}
+                    dataSource={previewColumns}
+                    size="small"
+                    pagination={false}
+                    scroll={{ y: 240 }}
+                  />
+                </Card>
+
+                {sampleTableData.length > 0 && (
+                  <Card title={t('tableDetail.sampleData', '示例数据（前5行）')} size="small">
+                    <Table
+                      rowKey="_key"
+                      columns={sampleTableColumns}
+                      dataSource={sampleTableData}
+                      size="small"
+                      pagination={false}
+                      scroll={{ x: sampleTableColumns.length * 140 }}
+                    />
+                  </Card>
+                )}
+              </div>
+            )}
+          </Spin>
+        )}
       </Card>
 
       {selectedTable && (
@@ -133,7 +268,15 @@ export default function TableConfigCreate() {
             </Form.Item>
             <Form.Item name="primary_key_fields" label={t('tableConfig.primaryKeyFields')} rules={[{ required: true, message: t('tableConfig.primaryKeyFieldsRequired') }]}
               tooltip={t('tableConfig.primaryKeyFieldsTip')}>
-              <Input placeholder={t('tableConfig.primaryKeyFieldsPlaceholder')} />
+              {pkOptions.length > 0 ? (
+                <Select
+                  mode="multiple"
+                  placeholder={t('tableConfig.primaryKeyFieldsPlaceholder')}
+                  options={pkOptions}
+                />
+              ) : (
+                <Input placeholder={t('tableConfig.primaryKeyFieldsPlaceholder')} />
+              )}
             </Form.Item>
             <Form.Item name="remark" label={t('common.remark')}>
               <Input.TextArea rows={2} />

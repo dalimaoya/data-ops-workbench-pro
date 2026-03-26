@@ -62,3 +62,10 @@ export const runTaskNow = (id: number) =>
 
 export const getTaskHistory = (id: number, params?: { page?: number; page_size?: number }) =>
   api.get<{ total: number; items: TaskExecution[]; task_name: string }>(`/scheduler/tasks/${id}/history`, { params });
+
+export interface ExecutionLogItem extends TaskExecution {
+  task_name?: string;
+}
+
+export const getAllExecutionLogs = (params?: { page?: number; page_size?: number }) =>
+  api.get<{ total: number; items: ExecutionLogItem[] }>('/scheduler/execution-logs', { params });

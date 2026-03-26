@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, Upload, Button, Space, message, Descriptions, Alert, Tabs, Tag, Tooltip, Collapse } from 'antd';
 import { InboxOutlined, ArrowLeftOutlined, ExclamationCircleOutlined, InfoCircleOutlined, RobotOutlined } from '@ant-design/icons';
 import { importTemplate } from '../../api/dataMaintenance';
 import type { ImportResult, AIWarningItem } from '../../api/dataMaintenance';
+import { getTableConfig, type TableConfig } from '../../api/tableConfig';
 import { useTranslation } from 'react-i18next';
 
 const { Dragger } = Upload;
@@ -34,6 +35,14 @@ export default function ImportPage() {
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [activeTab, setActiveTab] = useState('all');
+  const [tableInfo, setTableInfo] = useState<TableConfig | null>(null);
+
+  // Fetch target table info
+  useEffect(() => {
+    if (tableConfigId) {
+      getTableConfig(tableConfigId).then(res => setTableInfo(res.data)).catch(() => {});
+    }
+  }, [tableConfigId]);
 
   const handleUpload = async () => {
     if (!file) {
@@ -321,6 +330,15 @@ export default function ImportPage() {
         </Space>
       }
     >
+      {/* Target table info */}
+      {tableInfo && (
+        <Descriptions size="small" bordered column={3} style={{ marginBottom: 16 }}>
+          <Descriptions.Item label={t('common.tableName')}>{tableInfo.table_name}</Descriptions.Item>
+          <Descriptions.Item label={t('tableConfig.tableAlias', '表别名')}>{tableInfo.table_alias || '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('common.datasource')}>{tableInfo.datasource_name || '-'}</Descriptions.Item>
+        </Descriptions>
+      )}
+
       <Dragger
         accept=".xlsx,.xls"
         maxCount={1}
