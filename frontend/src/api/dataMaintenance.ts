@@ -125,6 +125,7 @@ export interface WritebackResult {
   failed: number;
   updated: number;
   inserted: number;
+  deleted: number;
   backup_table: string;
   backup_record_count: number;
   operator_user: string;

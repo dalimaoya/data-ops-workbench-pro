@@ -183,13 +183,13 @@ export default function StepPreview({ selectedTables, onReset }: Props) {
           return text || '-';
         }
 
-        const maxSeverity = cellIssues.some(i => i.severity === 'error') ? 'error' : 'warning';
+        const maxSeverity = cellIssues.some((i: any) => i.severity === 'error') ? 'error' : 'warning';
         const bgColor = maxSeverity === 'error' ? '#fff2f0' : '#fffbe6';
         const borderColor = maxSeverity === 'error' ? '#ffccc7' : '#ffe58f';
 
         const tooltipContent = (
           <div>
-            {cellIssues.map((issue, idx) => {
+            {cellIssues.map((issue: any, idx: number) => {
               const typeInfo = CHECK_TYPE_LABELS[issue.check_type] || { zh: issue.check_type, en: issue.check_type, color: 'default' };
               return (
                 <div key={idx} style={{ marginBottom: idx < cellIssues.length - 1 ? 8 : 0 }}>

@@ -9,9 +9,9 @@ import {
   ThunderboltOutlined, ExperimentOutlined, SyncOutlined,
 } from '@ant-design/icons';
 import { smartFillDetect, smartFillApply } from '../../api/aiSmartFill';
-import type { SmartFillFieldResult, SmartFillSuggestion, SmartFillPattern } from '../../api/aiSmartFill';
+import type { SmartFillFieldResult, SmartFillSuggestion } from '../../api/aiSmartFill';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { Panel } = Collapse;
 
 interface ColumnMeta {

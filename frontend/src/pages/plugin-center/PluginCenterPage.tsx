@@ -31,7 +31,7 @@ const CATEGORY_MAP: Record<string, { label: string; labelEn: string; icon: strin
 const ALL_CATEGORIES = ['all', 'ai', 'governance', 'report', 'workflow', 'integration', 'market'];
 
 export default function PluginCenterPage() {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const isZh = i18n.language === 'zh';
@@ -83,11 +83,12 @@ export default function PluginCenterPage() {
     setToggling(plugin.name);
     try {
       const res = await togglePlugin(plugin.name, checked);
-      message.success(res.message);
-      // Update local state
+      message.success(res.message || (checked ? '插件已启用' : '插件已停用'));
+      // Update local state then auto-reload so nav reflects the change
       setPlugins(prev => prev.map(p =>
         p.name === plugin.name ? { ...p, enabled: checked } : p
       ));
+      setTimeout(() => window.location.reload(), 500);
     } catch (err: any) {
       message.error(err?.response?.data?.detail || '操作失败');
     } finally {

@@ -1,4 +1,4 @@
-import request from './request';
+import { api } from './request';
 
 export interface NetworkStatus {
   online: boolean;
@@ -6,5 +6,5 @@ export interface NetworkStatus {
 }
 
 export function getNetworkStatus() {
-  return request.get<NetworkStatus>('/api/system/network-status');
+  return api.get<NetworkStatus>('/system/network-status');
 }

@@ -875,9 +875,9 @@ export default function DataBrowse() {
         columns={columns.map(c => ({
           field_name: c.field_name,
           field_alias: c.field_alias,
-          is_editable: c.is_editable,
-          is_primary_key: c.is_primary_key,
-          is_system_field: c.is_system_field,
+          is_editable: !!c.is_editable,
+          is_primary_key: !!c.is_primary_key,
+          is_system_field: !!c.is_system_field,
         }))}
       />
     </div>

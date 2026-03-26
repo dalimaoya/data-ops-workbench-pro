@@ -43,6 +43,7 @@ export interface TableConfig {
   created_at: string;
   updated_by: string;
   updated_at: string;
+  template_reserved_blank_rows?: number;
   datasource_name?: string;
   db_type?: string;
   field_count?: number;
@@ -65,6 +66,7 @@ export interface TableConfigCreate {
   backup_keep_count?: number;
   strict_template_version?: number;
   strict_field_order?: number;
+  template_reserved_blank_rows?: number;
   remark?: string;
 }
 

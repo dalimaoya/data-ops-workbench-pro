@@ -11,7 +11,6 @@ import {
   HomeOutlined,
   UserOutlined,
   LogoutOutlined,
-  InfoCircleOutlined,
   TeamOutlined,
   KeyOutlined,
   EditOutlined,
@@ -37,9 +36,7 @@ import {
   SettingOutlined,
   AppstoreOutlined,
   EyeOutlined,
-  FormOutlined,
   SafetyCertificateOutlined,
-  ThunderboltOutlined,
   FundProjectionScreenOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
@@ -68,7 +65,8 @@ interface MenuGroup {
 }
 
 // ── Icon mapping for plugin menu items ──
-const ICON_MAP: Record<string, React.ReactNode> = {
+// @ts-ignore reserved for dynamic plugin icon resolution
+const _ICON_MAP: Record<string, React.ReactNode> = {
   'RobotOutlined': <RobotOutlined />,
   'CloudServerOutlined': <CloudServerOutlined />,
   'MedicineBoxOutlined': <MedicineBoxOutlined />,
@@ -154,7 +152,7 @@ interface PluginStatus {
   category?: string;
 }
 
-function buildMenuGroups(loadedPlugins: PluginStatus[], t: (key: string) => string): MenuGroup[] {
+function buildMenuGroups(loadedPlugins: PluginStatus[], _t: (key: string) => string): MenuGroup[] {
   const loadedSet = new Set(loadedPlugins.filter(p => p.loaded).map(p => p.name));
   const groups: MenuGroup[] = [];
 
