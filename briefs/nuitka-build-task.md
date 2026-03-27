@@ -32,8 +32,8 @@
 7. ✅ 原 build.sh 保留不删除
 
 ## 交付物
-- `/root/.openclaw/workspace/projects/data-ops-workbench/build-nuitka.sh`
-- `/root/.openclaw/workspace/projects/data-ops-workbench/release/data-ops-workbench-v3.3.1-linux-x64.tar.gz`
+- `/home/node/.openclaw/workspace/projects/data-ops-workbench/build-nuitka.sh`
+- `/home/node/.openclaw/workspace/projects/data-ops-workbench/release/data-ops-workbench-v3.3.1-linux-x64.tar.gz`
 - 编译日志截图或摘要
 
 ## 优先级
