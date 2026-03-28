@@ -1,0 +1,17 @@
+{
+  "$schema": "./sprint.schema.json",
+  "project": "data-ops-workbench",
+  "version": "",
+  "goal": "协议验证测试",
+  "deadline": null,
+  "status": "in_progress",
+  "priorities": {
+    "P0": [],
+    "P1": [],
+    "P2": []
+  },
+  "blockers": [],
+  "notes": "",
+  "updated_by": "agent-product-swain",
+  "updated_at": "2026-03-28T07:59:18Z"
+}
