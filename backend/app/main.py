@@ -230,7 +230,7 @@ def list_loaded_plugins():
         try:
             now = _now_bjt()
             trial = db.query(TrialActivation).filter(
-                TrialActivation.expires_at > now
+                TrialActivation.expires_at > now.replace(tzinfo=None)
             ).first()
             has_active_trial = trial is not None
         finally:

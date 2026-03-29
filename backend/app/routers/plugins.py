@@ -36,7 +36,7 @@ def list_all_plugins(current_user=Depends(get_current_user), db: Session = Depen
     try:
         now = _now_bjt()
         trial = db.query(TrialActivation).filter(
-            TrialActivation.expires_at > now
+            TrialActivation.expires_at > now.replace(tzinfo=None)
         ).first()
         has_active_trial = trial is not None
     except Exception:
@@ -80,16 +80,21 @@ def get_trial_status(
     db: Session = Depends(get_db),
 ):
     """Return current trial activation status."""
-    from app.models import TrialActivation, _now_bjt
+    from app.models import TrialActivation, _now_bjt, _BJT
     from math import ceil
 
     now = _now_bjt()
+    now_naive = now.replace(tzinfo=None)
     trial = db.query(TrialActivation).filter(
-        TrialActivation.expires_at > now
+        TrialActivation.expires_at > now_naive
     ).order_by(TrialActivation.expires_at.desc()).first()
 
     if trial:
-        remaining = (trial.expires_at - now).total_seconds()
+        expires = trial.expires_at
+        # SQLite returns naive datetimes; make aware for subtraction
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=_BJT)
+        remaining = (expires - now).total_seconds()
         days_remaining = max(0, ceil(remaining / 86400))
         return {
             "active": True,

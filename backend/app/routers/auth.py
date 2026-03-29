@@ -81,7 +81,12 @@ class WechatQRParams(BaseModel):
 async def get_wechat_qr_params(request: Request):
     """Return params for embedding WeChat QR login via WxLogin JS SDK."""
     callback_url = f"{request.base_url}auth/callback"
-    redirect_url = await build_wechat_redirect_url(callback_url)
+    try:
+        redirect_url = await build_wechat_redirect_url(callback_url)
+    except UnifiedAuthError:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"无法连接认证平台：{str(e)[:100]}")
     # Parse state from the redirect URL returned by auth platform
     from urllib.parse import urlparse, parse_qs
     parsed = urlparse(redirect_url)
@@ -89,6 +94,8 @@ async def get_wechat_qr_params(request: Request):
     state = qs.get("state", [""])[0]
     appid = qs.get("appid", [""])[0]
     redirect_uri = qs.get("redirect_uri", [""])[0]
+    if not appid:
+        raise HTTPException(status_code=502, detail="认证平台返回的跳转地址缺少 appid 参数")
     return WechatQRParams(appid=appid, redirect_uri=redirect_uri, state=state)
 
 
@@ -111,7 +118,8 @@ async def check_update():
     import os
 
     current_version = "0.0.0"
-    version_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "version.txt")
+    # __file__ = backend/app/routers/auth.py → 4 levels up to project root
+    version_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "version.txt")
     if os.path.exists(version_file):
         with open(version_file) as f:
             current_version = f.read().strip()
