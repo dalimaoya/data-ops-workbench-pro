@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, Spin, Typography, Result, Button } from 'antd';
 import { refreshPublicKey, verifyTokenOnline, verifyTokenOffline } from '../../api/unifiedAuth';
 import { useAuth } from '../../context/AuthContext';
+import { api } from '../../api/request';
 
 const { Title } = Typography;
 
@@ -53,6 +54,21 @@ export default function AuthCallback() {
           verify_mode: verified.mode === 'offline' ? 'offline' : 'online',
           offline_validated_at: verified.mode === 'offline' ? new Date().toISOString() : null,
         });
+
+        // Fetch actual local user info (admin account) to sync display_name and role
+        try {
+          const meRes = await api.get('/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+          const me = meRes.data;
+          const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+          localStorage.setItem('user', JSON.stringify({
+            ...storedUser,
+            username: me.username || storedUser.username,
+            role: me.role || storedUser.role,
+            display_name: me.display_name || storedUser.display_name,
+          }));
+        } catch {
+          // Non-blocking: keep whatever saveSession wrote
+        }
 
         // Small delay to let state propagate
         setTimeout(() => {
