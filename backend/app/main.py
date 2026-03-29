@@ -262,8 +262,9 @@ def list_loaded_plugins():
 # Mount frontend static files (production)
 # When frozen by PyInstaller, look for web/ in the bundle's _MEIPASS directory
 if getattr(sys, 'frozen', False):
-    _bundle_dir = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
-    STATIC_DIR = os.path.join(_bundle_dir, "web")
+    # In packaged mode, web/ is at the release root (set by app_entry.py)
+    _base = os.environ.get('DATA_OPS_BASE_DIR', os.path.dirname(sys.executable))
+    STATIC_DIR = os.path.join(_base, "web")
 else:
     STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
 if os.path.isdir(STATIC_DIR):
