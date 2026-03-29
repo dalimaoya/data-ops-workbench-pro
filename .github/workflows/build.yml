@@ -38,6 +38,9 @@ jobs:
         with:
           version: 9
 
+      - name: Sync version
+        run: echo "${{ inputs.version }}" > version.txt
+
       - name: Install backend dependencies
         run: |
           cd backend
@@ -70,6 +73,11 @@ jobs:
             --hidden-import jose \
             --hidden-import httpx \
             --hidden-import openpyxl \
+            --hidden-import passlib.handlers.bcrypt \
+            --hidden-import passlib.handlers.des_crypt \
+            --hidden-import passlib.handlers.pbkdf2 \
+            --hidden-import passlib.handlers.sha2_crypt \
+            --collect-submodules passlib \
             --collect-submodules fastapi \
             --collect-submodules pydantic \
             app/main.py
@@ -118,6 +126,9 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           version: 9
+
+      - name: Sync version
+        run: echo "${{ inputs.version }}" > version.txt
 
       - name: Install backend dependencies
         run: |
