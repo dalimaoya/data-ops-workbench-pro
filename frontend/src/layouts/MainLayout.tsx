@@ -111,21 +111,25 @@ const dataOpsPluginDefs: PluginMenuDef[] = [
   // 数据维护子菜单
   { pluginName: 'plugin-batch-ops', menuItem: { key: '/db-maintenance', icon: <DatabaseOutlined />, labelKey: 'menu.dbMaintenance' }, parentGroup: '/data-maintenance-group' },
   { pluginName: '__static_data_maintenance__', menuItem: { key: '/data-maintenance', icon: <EyeOutlined />, labelKey: 'menu.tableMaintenance' }, parentGroup: '/data-maintenance-group' },
-  { pluginName: 'plugin-db-manager', menuItem: { key: '/db-manager', icon: <ConsoleSqlOutlined />, labelKey: 'menu.dbManager', roles: ['admin'] }, parentGroup: '/data-maintenance-group' },
-  { pluginName: 'plugin-sql-console', menuItem: { key: '/sql-console', icon: <CodeOutlined />, labelKey: 'menu.sqlConsole', roles: ['admin'] }, parentGroup: '/data-maintenance-group' },
   // Top-level items in 数据运维
   { pluginName: 'plugin-data-compare', menuItem: { key: '/data-compare', icon: <SwapOutlined />, labelKey: 'menu.dataCompare', roles: ['admin', 'operator'] } },
   { pluginName: 'plugin-approval', menuItem: { key: '/approval-center', icon: <AuditOutlined />, labelKey: 'menu.approvalCenter', roles: ['admin'] } },
 ];
 
-// ── Group 2: 智能功能 ──
+// ── Group 2: 数据管理 ──
+const dataManagePluginDefs: PluginMenuDef[] = [
+  { pluginName: 'plugin-db-manager', menuItem: { key: '/db-manager', icon: <ConsoleSqlOutlined />, labelKey: 'menu.dbManager', roles: ['admin'] } },
+  { pluginName: 'plugin-sql-console', menuItem: { key: '/sql-console', icon: <CodeOutlined />, labelKey: 'menu.sqlConsole', roles: ['admin'] } },
+];
+
+// ── Group 3: 智能功能 ──
 const smartPluginDefs: PluginMenuDef[] = [
   { pluginName: 'plugin-ai-assistant', menuItem: { key: '/ai-config', icon: <RobotOutlined />, labelKey: 'menu.aiConfig', roles: ['admin'] } },
   { pluginName: 'plugin-ai-predict', menuItem: { key: '/ai-predict', icon: <FundProjectionScreenOutlined />, labelKey: 'menu.aiPredict' } },
   { pluginName: 'plugin-smart-import', menuItem: { key: '/smart-import', icon: <ImportOutlined />, labelKey: 'menu.smartImport' } },
 ];
 
-// ── Group 3: 运维监控 ──
+// ── Group 4: 运维监控 ──
 const monitorPluginDefs: PluginMenuDef[] = [
   { pluginName: 'plugin-health-check', menuItem: { key: '/health-check', icon: <MedicineBoxOutlined />, labelKey: 'menu.healthCheck', roles: ['admin'] } },
   { pluginName: 'plugin-data-trend', menuItem: { key: '/data-trend', icon: <LineChartOutlined />, labelKey: 'menu.dataTrend', roles: ['admin', 'operator'] } },
@@ -133,14 +137,14 @@ const monitorPluginDefs: PluginMenuDef[] = [
   { pluginName: 'plugin-backup', menuItem: { key: '/platform-backup', icon: <CloudServerOutlined />, labelKey: 'menu.platformBackup', roles: ['admin'] } },
 ];
 
-// ── Group 4: 集成与通知 ──
+// ── Group 5: 集成与通知 ──
 const integrationPluginDefs: PluginMenuDef[] = [
   { pluginName: 'plugin-notify-push', menuItem: { key: '/notify-push-config', icon: <SendOutlined />, labelKey: 'menu.notifyPush', roles: ['admin'] } },
   { pluginName: 'plugin-webhook', menuItem: { key: '/webhook-config', icon: <ApiOutlined />, labelKey: 'menu.webhookConfig', roles: ['admin'] } },
   { pluginName: 'plugin-template-market', menuItem: { key: '/template-market', icon: <ShopOutlined />, labelKey: 'menu.templateMarket', roles: ['admin'] } },
 ];
 
-// ── Group 5: 系统 ──
+// ── Group 6: 系统 ──
 const systemMenuItems: MenuItem[] = [
   { key: '/log-center', icon: <FileTextOutlined />, labelKey: 'menu.logCenter' },
   { key: '/version-rollback', icon: <HistoryOutlined />, labelKey: 'menu.versionRollback', roles: ['admin'] },
@@ -201,7 +205,22 @@ function buildMenuGroups(loadedPlugins: PluginStatus[], _t: (key: string) => str
     items: [...dataOpsItems, ...dataOpsTopLevel],
   });
 
-  // ── Group 2: 智能功能 ──
+  // ── Group 2: 数据管理 ──
+  const dataManageItems: MenuItem[] = [];
+  for (const def of dataManagePluginDefs) {
+    if (loadedSet.has(def.pluginName)) {
+      dataManageItems.push({ ...def.menuItem });
+    }
+  }
+  if (dataManageItems.length > 0) {
+    groups.push({
+      groupLabel: '数据管理',
+      groupLabelKey: 'menu.dataManageGroup',
+      items: dataManageItems,
+    });
+  }
+
+  // ── Group 3: 智能功能 ──
   const smartItems: MenuItem[] = [];
   for (const def of smartPluginDefs) {
     if (loadedSet.has(def.pluginName)) {

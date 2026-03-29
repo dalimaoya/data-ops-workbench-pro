@@ -73,6 +73,7 @@
     "pluginCenter": "插件中心",
     "systemGroup": "系统",
     "dataOpsGroup": "数据运维",
+    "dataManageGroup": "数据管理",
     "smartGroup": "智能功能",
     "monitorGroup": "运维监控",
     "integrationGroup": "集成与通知",
