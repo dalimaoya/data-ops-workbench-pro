@@ -46,10 +46,11 @@ if "!PORT_IN_USE!"=="1" (
 :: --------------------------------------------
 :: Step 2: 定位 dataops-server
 :: --------------------------------------------
-set "SERVER_BIN=%SCRIPT_DIR%server\dataops-server.exe"
-if not exist "%SERVER_BIN%" set "SERVER_BIN=%SCRIPT_DIR%server\app.exe"
+set "SERVER_BIN=%SCRIPT_DIR%server\app\app_entry.exe"
+if not exist "%SERVER_BIN%" set "SERVER_BIN=%SCRIPT_DIR%server\app\app.exe"
+if not exist "!SERVER_BIN!" set "SERVER_BIN=%SCRIPT_DIR%server\app.exe"
+if not exist "!SERVER_BIN!" set "SERVER_BIN=%SCRIPT_DIR%server\dataops-server.exe"
 if not exist "!SERVER_BIN!" set "SERVER_BIN=%SCRIPT_DIR%server\app\dataops-server.exe"
-if not exist "!SERVER_BIN!" set "SERVER_BIN=%SCRIPT_DIR%server\app\app.exe"
 if not exist "!SERVER_BIN!" (
     :: 回退到开发模式
     goto :dev_mode
