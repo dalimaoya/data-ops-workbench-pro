@@ -189,7 +189,7 @@ export default function Login() {
               <div
                 id="wechat-qr-container"
                 ref={qrContainerRef}
-                style={{ width: '100%', height: 260, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}
+                style={{ width: '100%', height: 239, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}
               >
                 <Spin size="large" tip="正在加载微信二维码..." style={{ marginTop: 80 }} />
               </div>
