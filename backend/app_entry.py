@@ -58,7 +58,7 @@ def main():
     print("  数据运维工作台 Data Ops Workbench")
     print("============================================")
     print(f"  访问地址: http://localhost:{args.port}")
-    print(f"  默认账号: admin / admin123")
+    print(f"  默认账号: admin / dalimaoya")
     print(f"  按 Ctrl+C 停止服务")
     print("============================================")
     print()

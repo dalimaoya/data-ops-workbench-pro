@@ -325,8 +325,8 @@ export default function MainLayout() {
   const fetchNotifications = useCallback(async () => {
     try {
       const res = await listNotifications({ page_size: 10 });
-      setNotifications(res.data.items);
-      setUnreadCount(res.data.unread_count);
+      setNotifications(Array.isArray(res.data.items) ? res.data.items : (Array.isArray(res.data) ? res.data : []));
+      setUnreadCount(res.data.unread_count ?? 0);
     } catch { /* ignore */ }
   }, []);
 
