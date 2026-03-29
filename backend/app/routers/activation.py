@@ -56,9 +56,16 @@ def _verify_activation_code(payload: dict) -> bool:
 
         signature = base64.b64decode(signature_b64)
 
-        # Reconstruct the signed data (everything except signature)
-        signed_data = {k: v for k, v in payload.items() if k != "signature"}
-        message = json.dumps(signed_data, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        # Reconstruct signed data in the exact field order used by the auth platform (Node.js JSON.stringify)
+        signed_data = {
+            "code": payload.get("code"),
+            "product": payload.get("product"),
+            "plugin_keys": payload.get("plugin_keys"),
+            "expires_at": payload.get("expires_at"),
+            "created_at": payload.get("created_at"),
+            "batch_no": payload.get("batch_no"),
+        }
+        message = json.dumps(signed_data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
         public_key.verify(signature, message)
         return True
