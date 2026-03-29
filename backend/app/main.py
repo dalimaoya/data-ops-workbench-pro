@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from app.database import engine, Base, SessionLocal
 from app.routers import datasource, table_config, field_config, data_maintenance, backup_version, logs
@@ -137,6 +138,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# GZip compression for faster page loads (2.1MB JS → ~600KB)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Security response headers middleware
 app.add_middleware(SecurityHeadersMiddleware)
