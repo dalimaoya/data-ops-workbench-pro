@@ -16,9 +16,9 @@ set "URL=http://localhost:%PORT%/loading"
 set "HEALTH_URL=http://localhost:%PORT%/api/health"
 set "MAX_WAIT=60"
 
-:: ────────────────────────────────────────────
+:: --------------------------------------------
 :: Step 1: 检测端口占用
-:: ────────────────────────────────────────────
+:: --------------------------------------------
 echo [INFO] 检测端口 %PORT% ...
 set "PORT_IN_USE=0"
 
@@ -43,9 +43,9 @@ if "!PORT_IN_USE!"=="1" (
     )
 )
 
-:: ────────────────────────────────────────────
+:: --------------------------------------------
 :: Step 2: 定位 dataops-server
-:: ────────────────────────────────────────────
+:: --------------------------------------------
 set "SERVER_BIN=%SCRIPT_DIR%server\dataops-server.exe"
 if not exist "%SERVER_BIN%" set "SERVER_BIN=%SCRIPT_DIR%server\app.exe"
 if not exist "!SERVER_BIN!" set "SERVER_BIN=%SCRIPT_DIR%server\app\dataops-server.exe"
@@ -65,18 +65,18 @@ if not exist "%SCRIPT_DIR%data" mkdir "%SCRIPT_DIR%data"
 if not exist "%SCRIPT_DIR%backups" mkdir "%SCRIPT_DIR%backups"
 if not exist "%SCRIPT_DIR%logs" mkdir "%SCRIPT_DIR%logs"
 
-:: ────────────────────────────────────────────
+:: --------------------------------------------
 :: Step 3: 后台启动服务
-:: ────────────────────────────────────────────
+:: --------------------------------------------
 echo [INFO] 正在启动服务 ...
 start "" /B cmd /c ""!SERVER_BIN!" --port %PORT% > "%SCRIPT_DIR%logs\server.log" 2>&1"
 
 :: 记录后台进程 PID（通过端口查找）
 set "SERVER_PID="
 
-:: ────────────────────────────────────────────
+:: --------------------------------------------
 :: Step 4: 健康检查轮询
-:: ────────────────────────────────────────────
+:: --------------------------------------------
 echo [INFO] 等待服务就绪 ...
 echo.
 
@@ -113,7 +113,7 @@ goto :health_loop
 echo.
 echo.
 echo ============================================
-echo   ✓ 服务已就绪！
+echo   [OK] 服务已就绪！
 echo.
 echo   地址：  %URL%
 echo   账号：  admin / dalimaoya
@@ -122,16 +122,16 @@ echo   按 Ctrl+C 停止服务
 echo ============================================
 echo.
 
-:: ────────────────────────────────────────────
+:: --------------------------------------------
 :: Step 5: 自动打开浏览器
-:: ────────────────────────────────────────────
+:: --------------------------------------------
 start "" "%URL%"
 
-:: ────────────────────────────────────────────
+:: --------------------------------------------
 :: Step 6: 保持前台运行，实时显示日志
-:: ────────────────────────────────────────────
+:: --------------------------------------------
 echo [INFO] 服务日志输出：
-echo ────────────────────────────────────────────
+echo --------------------------------------------
 
 :: 获取服务进程 PID
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":%PORT% " ^| findstr "LISTENING" 2^>nul') do (
@@ -156,9 +156,9 @@ if exist "%SCRIPT_DIR%logs\server.log" (
 timeout /t 3 /nobreak >nul
 goto :tail_loop
 
-:: ════════════════════════════════════════════
+:: ============================================
 :: 开发模式
-:: ════════════════════════════════════════════
+:: ============================================
 :dev_mode
 echo [MODE] 开发模式 - 需要 Python
 echo.
@@ -284,7 +284,7 @@ goto :dev_health_loop
 echo.
 echo.
 echo ============================================
-echo   ✓ 服务已就绪！
+echo   [OK] 服务已就绪！
 echo.
 echo   地址：  %URL%
 echo   账号：  admin / dalimaoya
@@ -297,7 +297,7 @@ start "" "%URL%"
 
 :: 前台显示日志
 echo [INFO] 服务日志输出：
-echo ────────────────────────────────────────────
+echo --------------------------------------------
 if exist "%SCRIPT_DIR%logs\server.log" (
     powershell -NoProfile -Command "Get-Content '%SCRIPT_DIR%logs\server.log' -Wait"
 )
