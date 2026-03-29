@@ -72,9 +72,11 @@
     "sqlConsole": "SQL Workbench",
     "pluginCenter": "Plugin Center",
     "systemGroup": "System",
-    "toolGroup": "Basic Tools",
-    "extensionGroup": "Extensions",
-    "baseGroup": "Base"
+    "dataOpsGroup": "Data Ops",
+    "smartGroup": "Smart Features",
+    "monitorGroup": "Monitoring",
+    "integrationGroup": "Integration & Notification",
+    "aiPredict": "AI Data Prediction"
   },
   "aiConfig": {
     "title": "AI Smart Assistant",

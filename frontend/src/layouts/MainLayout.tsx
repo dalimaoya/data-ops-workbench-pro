@@ -85,8 +85,16 @@ const _ICON_MAP: Record<string, React.ReactNode> = {
   'FundProjectionScreenOutlined': <FundProjectionScreenOutlined />,
 };
 
-// ── Static base menu (底座) ──
-const baseMenuItems: MenuItem[] = [
+// ── Plugin menu definition: pluginName → MenuItem ──
+interface PluginMenuDef {
+  pluginName: string;       // matches manifest name
+  menuItem: MenuItem;
+  parentGroup?: string;     // key of parent submenu group, if nested
+}
+
+// ── Group 1: 数据运维 ──
+// Static items (always shown)
+const dataOpsStaticItems: MenuItem[] = [
   { key: '/', icon: <HomeOutlined />, labelKey: 'menu.dashboard' },
   { key: '/datasource', icon: <DatabaseOutlined />, labelKey: 'menu.datasource', roles: ['admin'] },
   { key: '/table-config', icon: <TableOutlined />, labelKey: 'menu.tableConfig', roles: ['admin'] },
@@ -98,51 +106,47 @@ const baseMenuItems: MenuItem[] = [
   },
 ];
 
-// ── Builtin plugin → menu mapping (基础工具) ──
-interface BuiltinPluginMenu {
-  pluginName: string;
-  menuItem: MenuItem;
-  parentGroup?: string;  // if belongs to a submenu group
-}
-
-// 数据维护子菜单中的静态项（不依赖插件加载）
-const dataMaintenanceStaticItems: BuiltinPluginMenu[] = [
-  { pluginName: '__static_data_maintenance__', menuItem: { key: '/data-maintenance', icon: <EyeOutlined />, labelKey: 'menu.tableMaintenance' }, parentGroup: '/data-maintenance-group' },
-];
-
-const builtinPluginMenuDefs: BuiltinPluginMenu[] = [
+// Plugin items in 数据运维 group
+const dataOpsPluginDefs: PluginMenuDef[] = [
+  // 数据维护子菜单
   { pluginName: 'plugin-batch-ops', menuItem: { key: '/db-maintenance', icon: <DatabaseOutlined />, labelKey: 'menu.dbMaintenance' }, parentGroup: '/data-maintenance-group' },
+  { pluginName: '__static_data_maintenance__', menuItem: { key: '/data-maintenance', icon: <EyeOutlined />, labelKey: 'menu.tableMaintenance' }, parentGroup: '/data-maintenance-group' },
   { pluginName: 'plugin-db-manager', menuItem: { key: '/db-manager', icon: <ConsoleSqlOutlined />, labelKey: 'menu.dbManager', roles: ['admin'] }, parentGroup: '/data-maintenance-group' },
   { pluginName: 'plugin-sql-console', menuItem: { key: '/sql-console', icon: <CodeOutlined />, labelKey: 'menu.sqlConsole', roles: ['admin'] }, parentGroup: '/data-maintenance-group' },
-  { pluginName: 'plugin-scheduler', menuItem: { key: '/scheduler', icon: <ScheduleOutlined />, labelKey: 'menu.scheduler', roles: ['admin'] } },
+  // Top-level items in 数据运维
+  { pluginName: 'plugin-data-compare', menuItem: { key: '/data-compare', icon: <SwapOutlined />, labelKey: 'menu.dataCompare', roles: ['admin', 'operator'] } },
+  { pluginName: 'plugin-approval', menuItem: { key: '/approval-center', icon: <AuditOutlined />, labelKey: 'menu.approvalCenter', roles: ['admin'] } },
+];
+
+// ── Group 2: 智能功能 ──
+const smartPluginDefs: PluginMenuDef[] = [
+  { pluginName: 'plugin-ai-assistant', menuItem: { key: '/ai-config', icon: <RobotOutlined />, labelKey: 'menu.aiConfig', roles: ['admin'] } },
+  { pluginName: 'plugin-ai-predict', menuItem: { key: '/ai-predict', icon: <FundProjectionScreenOutlined />, labelKey: 'menu.aiPredict' } },
+  { pluginName: 'plugin-smart-import', menuItem: { key: '/smart-import', icon: <ImportOutlined />, labelKey: 'menu.smartImport' } },
+];
+
+// ── Group 3: 运维监控 ──
+const monitorPluginDefs: PluginMenuDef[] = [
   { pluginName: 'plugin-health-check', menuItem: { key: '/health-check', icon: <MedicineBoxOutlined />, labelKey: 'menu.healthCheck', roles: ['admin'] } },
+  { pluginName: 'plugin-data-trend', menuItem: { key: '/data-trend', icon: <LineChartOutlined />, labelKey: 'menu.dataTrend', roles: ['admin', 'operator'] } },
+  { pluginName: 'plugin-scheduler', menuItem: { key: '/scheduler', icon: <ScheduleOutlined />, labelKey: 'menu.scheduler', roles: ['admin'] } },
   { pluginName: 'plugin-backup', menuItem: { key: '/platform-backup', icon: <CloudServerOutlined />, labelKey: 'menu.platformBackup', roles: ['admin'] } },
 ];
 
-// ── Extension plugin → menu mapping (扩展功能, dynamic) ──
-interface ExtensionPluginMenu {
-  pluginName: string;
-  menuItem: MenuItem;
-}
-
-const extensionPluginMenuDefs: ExtensionPluginMenu[] = [
-  { pluginName: 'plugin-smart-import', menuItem: { key: '/smart-import', icon: <ImportOutlined />, labelKey: 'menu.smartImport' } },
-  { pluginName: 'plugin-ai-assistant', menuItem: { key: '/ai-config', icon: <RobotOutlined />, labelKey: 'menu.aiConfig', roles: ['admin'] } },
-  { pluginName: 'plugin-approval', menuItem: { key: '/approval-center', icon: <AuditOutlined />, labelKey: 'menu.approvalCenter', roles: ['admin'] } },
-  { pluginName: 'plugin-data-trend', menuItem: { key: '/data-trend', icon: <LineChartOutlined />, labelKey: 'menu.dataTrend', roles: ['admin', 'operator'] } },
-  { pluginName: 'plugin-data-compare', menuItem: { key: '/data-compare', icon: <SwapOutlined />, labelKey: 'menu.dataCompare', roles: ['admin', 'operator'] } },
-  { pluginName: 'plugin-template-market', menuItem: { key: '/template-market', icon: <ShopOutlined />, labelKey: 'menu.templateMarket', roles: ['admin'] } },
+// ── Group 4: 集成与通知 ──
+const integrationPluginDefs: PluginMenuDef[] = [
   { pluginName: 'plugin-notify-push', menuItem: { key: '/notify-push-config', icon: <SendOutlined />, labelKey: 'menu.notifyPush', roles: ['admin'] } },
   { pluginName: 'plugin-webhook', menuItem: { key: '/webhook-config', icon: <ApiOutlined />, labelKey: 'menu.webhookConfig', roles: ['admin'] } },
+  { pluginName: 'plugin-template-market', menuItem: { key: '/template-market', icon: <ShopOutlined />, labelKey: 'menu.templateMarket', roles: ['admin'] } },
 ];
 
-// ── System menu (系统) ──
+// ── Group 5: 系统 ──
 const systemMenuItems: MenuItem[] = [
   { key: '/log-center', icon: <FileTextOutlined />, labelKey: 'menu.logCenter' },
   { key: '/version-rollback', icon: <HistoryOutlined />, labelKey: 'menu.versionRollback', roles: ['admin'] },
   { key: '/user-management', icon: <TeamOutlined />, labelKey: 'menu.userManagement', roles: ['admin'] },
-  { key: '/about', icon: <SettingOutlined />, labelKey: 'menu.about' },
   { key: '/plugin-center', icon: <AppstoreOutlined />, labelKey: 'menu.pluginCenter', roles: ['admin'] },
+  { key: '/about', icon: <SettingOutlined />, labelKey: 'menu.about' },
 ];
 
 interface PluginStatus {
@@ -151,6 +155,29 @@ interface PluginStatus {
   layer?: string;
   category?: string;
   authorized?: boolean;
+}
+
+/** Collect plugin menu items from a definition list, handling parentGroup nesting. */
+function collectPluginItems(
+  defs: PluginMenuDef[],
+  loadedSet: Set<string>,
+  baseItems: MenuItem[],
+): MenuItem[] {
+  const topLevel: MenuItem[] = [];
+  for (const def of defs) {
+    // Static items (prefixed __) always show; plugin items need loaded check
+    if (!def.pluginName.startsWith('__') && !loadedSet.has(def.pluginName)) continue;
+    if (def.parentGroup) {
+      const group = baseItems.find(i => i.key === def.parentGroup);
+      if (group) {
+        if (!group.children) group.children = [];
+        group.children.push({ ...def.menuItem });
+      }
+    } else {
+      topLevel.push({ ...def.menuItem });
+    }
+  }
+  return topLevel;
 }
 
 function buildMenuGroups(loadedPlugins: PluginStatus[], _t: (key: string) => string): MenuGroup[] {
@@ -162,80 +189,64 @@ function buildMenuGroups(loadedPlugins: PluginStatus[], _t: (key: string) => str
   );
   const groups: MenuGroup[] = [];
 
-  // ── Group 1: 底座 (Base) ──
-  // Deep clone base items
-  const baseItems: MenuItem[] = baseMenuItems.map(item => ({
+  // ── Group 1: 数据运维 ──
+  const dataOpsItems: MenuItem[] = dataOpsStaticItems.map(item => ({
     ...item,
     children: item.children ? item.children.map(c => ({ ...c })) : undefined,
   }));
-
-  // Add static data-maintenance items first (顺序: 数据库维护 → 数据表维护 → 库表管理 → SQL 操作台)
-  for (const def of builtinPluginMenuDefs) {
-    if (!loadedSet.has(def.pluginName)) continue;
-    if (def.parentGroup) {
-      const group = baseItems.find(i => i.key === def.parentGroup);
-      if (group) {
-        if (!group.children) group.children = [];
-        // 数据库维护排最前
-        if (def.pluginName === 'plugin-batch-ops') {
-          group.children.unshift({ ...def.menuItem });
-        } else {
-          group.children.push({ ...def.menuItem });
-        }
-      }
-    }
-  }
-  // Insert 数据表维护 after 数据库维护 (position 1)
-  for (const def of dataMaintenanceStaticItems) {
-    if (def.parentGroup) {
-      const group = baseItems.find(i => i.key === def.parentGroup);
-      if (group) {
-        if (!group.children) group.children = [];
-        // Insert at position 1 (after 数据库维护)
-        const insertIdx = group.children.findIndex(c => c.key === '/db-maintenance');
-        group.children.splice(insertIdx >= 0 ? insertIdx + 1 : 0, 0, { ...def.menuItem });
-      }
-    }
-  }
-
+  const dataOpsTopLevel = collectPluginItems(dataOpsPluginDefs, loadedSet, dataOpsItems);
   groups.push({
-    groupLabel: '底座',
-    groupLabelKey: 'menu.baseGroup',
-    items: baseItems,
+    groupLabel: '数据运维',
+    groupLabelKey: 'menu.dataOpsGroup',
+    items: [...dataOpsItems, ...dataOpsTopLevel],
   });
 
-  // ── Group 2: 基础工具 (Basic Tools) ──
-  const toolItems: MenuItem[] = [];
-  for (const def of builtinPluginMenuDefs) {
-    if (!loadedSet.has(def.pluginName)) continue;
-    if (!def.parentGroup) {
-      toolItems.push({ ...def.menuItem });
-    }
-  }
-  if (toolItems.length > 0) {
-    groups.push({
-      groupLabel: '基础工具',
-      groupLabelKey: 'menu.toolGroup',
-      items: toolItems,
-    });
-  }
-
-  // ── Group 3: 扩展功能 (Extensions) — only enabled extensions ──
-  const extItems: MenuItem[] = [];
-  for (const def of extensionPluginMenuDefs) {
+  // ── Group 2: 智能功能 ──
+  const smartItems: MenuItem[] = [];
+  for (const def of smartPluginDefs) {
     if (loadedSet.has(def.pluginName)) {
-      extItems.push({ ...def.menuItem });
+      smartItems.push({ ...def.menuItem });
     }
   }
-  if (extItems.length > 0) {
+  if (smartItems.length > 0) {
     groups.push({
-      groupLabel: '扩展功能',
-      groupLabelKey: 'menu.extensionGroup',
-      items: extItems,
+      groupLabel: '智能功能',
+      groupLabelKey: 'menu.smartGroup',
+      items: smartItems,
     });
   }
 
-  // ── Group 4: 系统 (System) ──
+  // ── Group 3: 运维监控 ──
+  const monitorItems: MenuItem[] = [];
+  for (const def of monitorPluginDefs) {
+    if (loadedSet.has(def.pluginName)) {
+      monitorItems.push({ ...def.menuItem });
+    }
+  }
+  if (monitorItems.length > 0) {
+    groups.push({
+      groupLabel: '运维监控',
+      groupLabelKey: 'menu.monitorGroup',
+      items: monitorItems,
+    });
+  }
+
+  // ── Group 4: 集成与通知 ──
+  const integrationItems: MenuItem[] = [];
+  for (const def of integrationPluginDefs) {
+    if (loadedSet.has(def.pluginName)) {
+      integrationItems.push({ ...def.menuItem });
+    }
+  }
+  if (integrationItems.length > 0) {
+    groups.push({
+      groupLabel: '集成与通知',
+      groupLabelKey: 'menu.integrationGroup',
+      items: integrationItems,
+    });
+  }
+
+  // ── Group 5: 系统 ──
   groups.push({
     groupLabel: '系统',
     groupLabelKey: 'menu.systemGroup',
