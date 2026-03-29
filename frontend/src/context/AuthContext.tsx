@@ -86,10 +86,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const verified = await verifyTokenOnline(storedToken).catch(async () => {
-          const offline = await verifyTokenOffline(storedToken);
-          return { ...offline, mode: 'offline' as const };
-        });
+        // Timeout protection: don't let bootstrap hang forever
+        const verifyWithTimeout = Promise.race([
+          verifyTokenOnline(storedToken).catch(async () => {
+            const offline = await verifyTokenOffline(storedToken);
+            return { ...offline, mode: 'offline' as const };
+          }),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
+        ]);
+        const verified = await verifyWithTimeout;
 
         if (cancelled) return;
 
