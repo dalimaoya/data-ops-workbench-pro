@@ -803,7 +803,9 @@ export default function MainLayout() {
         >
           <span style={{ fontSize: 14, color: '#666' }}>
             欢迎回来，{user?.display_name || user?.username || ''}
-            {user?.role && <Tag style={{ marginLeft: 8 }}>{t(`role.${user.role}`)}</Tag>}
+            <Tag style={{ marginLeft: 8 }} color={user?.role === 'admin' ? 'blue' : user?.role === 'operator' ? 'green' : 'default'}>
+              {t(`role.${user?.role || ''}`)}
+            </Tag>
           </span>
           <Space size={8}>
             {/* Language Switcher */}

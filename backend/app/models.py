@@ -218,6 +218,7 @@ class UserAccount(Base):
     display_name = Column(String(128), nullable=True)
     status = Column(String(32), nullable=False, default="enabled")
     last_login_at = Column(DateTime, nullable=True)  # v3.6: track last login time
+    wechat_unionid = Column(String(128), nullable=True)  # v5.0: bind first WeChat scan to admin
     created_at = Column(DateTime, nullable=False, default=_now_bjt)
     updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)
 

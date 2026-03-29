@@ -165,15 +165,24 @@ def get_current_user(
     auth_source = payload.get("_auth_source", "local")
 
     if auth_source == "unified-auth":
-        # Unified auth token: map to local admin user
-        # The instance owner who scans WeChat QR = superadmin (admin account)
-        user = db.query(UserAccount).filter(
+        # Unified auth token: bind first WeChat scan to admin, then verify subsequent scans
+        unionid = payload.get("unionid")
+        admin = db.query(UserAccount).filter(
             UserAccount.username == "admin",
             UserAccount.status == "enabled",
         ).first()
-        if not user:
+        if not admin:
             raise HTTPException(status_code=401, detail=t("auth.user_not_found_disabled"))
-        return user
+
+        if not admin.wechat_unionid:
+            # First scan: bind this WeChat to admin
+            admin.wechat_unionid = unionid
+            db.commit()
+        elif unionid and admin.wechat_unionid != unionid:
+            # Different WeChat trying to login as admin
+            raise HTTPException(status_code=403, detail="此微信账号未绑定为管理员")
+
+        return admin
 
     # Local token
     username = payload.get("sub")
