@@ -410,11 +410,48 @@ export default function About() {
     },
   ];
 
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateResult, setUpdateResult] = useState<any>(null);
+
+  const handleCheckUpdate = async () => {
+    setUpdateChecking(true);
+    setUpdateResult(null);
+    try {
+      const res = await api.get('/auth/check-update');
+      setUpdateResult(res.data);
+      if (res.data.has_update) {
+        Modal.info({
+          title: '发现新版本',
+          content: (
+            <div>
+              <p>当前版本：{res.data.current_version}</p>
+              <p>最新版本：{res.data.latest_version}</p>
+              {res.data.release_name && <p>版本名称：{res.data.release_name}</p>}
+              {res.data.release_body && <p style={{ whiteSpace: 'pre-wrap', fontSize: 13, color: '#666' }}>{res.data.release_body}</p>}
+              {res.data.release_url && <p><a href={res.data.release_url} target="_blank" rel="noopener noreferrer">前往下载页面</a></p>}
+            </div>
+          ),
+        });
+      } else if (res.data.error) {
+        message.warning(res.data.error);
+      } else {
+        message.success(`当前已是最新版本 (${res.data.current_version})`);
+      }
+    } catch {
+      message.error('检查更新失败，请稍后重试');
+    } finally {
+      setUpdateChecking(false);
+    }
+  };
+
   return (
     <Card style={{ maxWidth: 960, margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: 16 }}>
         <Title level={3} style={{ marginBottom: 4 }}>{t('about.title')}</Title>
-        <Tag color="blue" style={{ fontSize: 14, padding: '2px 12px' }}>{t('about.version')}</Tag>
+        <Space>
+          <Tag color="blue" style={{ fontSize: 14, padding: '2px 12px' }}>{t('about.version')}</Tag>
+          <Button size="small" loading={updateChecking} onClick={handleCheckUpdate}>检查更新</Button>
+        </Space>
       </div>
 
       <Tabs

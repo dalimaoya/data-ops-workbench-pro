@@ -104,6 +104,50 @@ async def network_check():
         return {"online": False}
 
 
+@router.get("/check-update")
+async def check_update():
+    """Check for new version from Gitee releases. Manual trigger only."""
+    import httpx
+    import os
+
+    current_version = "0.0.0"
+    version_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "version.txt")
+    if os.path.exists(version_file):
+        with open(version_file) as f:
+            current_version = f.read().strip()
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://gitee.com/api/v5/repos/dalimaoya/data-ops-workbench/releases/latest"
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                latest_version = (data.get("tag_name") or "").lstrip("v")
+                return {
+                    "current_version": current_version,
+                    "latest_version": latest_version,
+                    "has_update": latest_version > current_version if latest_version else False,
+                    "release_name": data.get("name"),
+                    "release_url": data.get("html_url"),
+                    "release_body": data.get("body", "")[:500],
+                    "published_at": data.get("created_at"),
+                }
+            return {
+                "current_version": current_version,
+                "latest_version": None,
+                "has_update": False,
+                "error": "无法获取版本信息",
+            }
+    except Exception as e:
+        return {
+            "current_version": current_version,
+            "latest_version": None,
+            "has_update": False,
+            "error": f"网络不可用：{str(e)[:100]}",
+        }
+
+
 @router.get("/verify")
 async def remote_verify(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer)):
     if not credentials:
