@@ -42,8 +42,9 @@ jobs:
       - name: Install frontend dependencies & build
         run: |
           cd frontend
-          npm ci
-          npm run build
+          npm install --legacy-peer-deps
+          npx tsc -b
+          npx vite build
 
       - name: Build backend with Nuitka
         run: |
@@ -127,8 +128,9 @@ jobs:
       - name: Install frontend dependencies & build
         run: |
           cd frontend
-          npm ci
-          npm run build
+          npm install --legacy-peer-deps
+          npx tsc -b
+          npx vite build
 
       - name: Build backend with Nuitka
         run: |
