@@ -175,9 +175,9 @@ export default function Login() {
       label: '联网登录',
       disabled: !networkOnline,
       children: (
-        <div style={{ textAlign: 'center', padding: '8px 0' }}>
+        <div style={{ textAlign: 'center', padding: '8px 0', height: 280, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
           {!networkOnline ? (
-            <div style={{ padding: 40, color: '#999' }}>
+            <div style={{ color: '#999' }}>
               <GlobalOutlined style={{ fontSize: 32, marginBottom: 12, display: 'block' }} />
               当前网络不可用，请使用离线登录
             </div>
@@ -186,11 +186,11 @@ export default function Login() {
               <div
                 id="wechat-qr-container"
                 ref={qrContainerRef}
-                style={{ minHeight: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: '100%', height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
               >
                 <Spin size="large" tip="正在加载微信二维码..." />
               </div>
-              <div style={{ marginTop: 8, color: '#999', fontSize: 13 }}>
+              <div style={{ marginTop: 4, color: '#999', fontSize: 13 }}>
                 请使用微信扫描二维码登录
               </div>
             </>
