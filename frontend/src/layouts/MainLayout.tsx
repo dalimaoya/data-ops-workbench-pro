@@ -427,12 +427,20 @@ export default function MainLayout() {
         <Space>
           <UserOutlined />
           {user?.display_name || user?.username}
-          <Tag>{t(`role.${user?.role || ''}`) || user?.role}</Tag>
+          <Tag>{user?.auth_source ? '统一认证' : (t(`role.${user?.role || ''}`) || user?.role)}</Tag>
         </Space>
       ),
       disabled: true,
     },
-    { type: 'divider' as const },
+    ...(user?.account_id ? [{
+      key: 'expires-at',
+      label: <span>到期时间：{user.expires_at ? new Date(user.expires_at).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '-'}</span>,
+      disabled: true,
+    }, {
+      key: 'verify-mode',
+      label: <span>校验方式：{user.verify_mode === 'offline' ? '离线验签' : '在线校验'}</span>,
+      disabled: true,
+    }, { type: 'divider' as const }] : [{ type: 'divider' as const }]),
     {
       key: 'change-password',
       label: (
@@ -752,11 +760,15 @@ export default function MainLayout() {
             padding: '0 24px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'flex-end',
+            justifyContent: 'space-between',
             borderBottom: '1px solid #f0f0f0',
             flexShrink: 0,
           }}
         >
+          <span style={{ fontSize: 14, color: '#666' }}>
+            欢迎回来，{user?.display_name || user?.username || ''}
+            {user?.role && <Tag style={{ marginLeft: 8 }}>{t(`role.${user.role}`)}</Tag>}
+          </span>
           <Space size={8}>
             {/* Language Switcher */}
             <Dropdown menu={{ items: languageMenuItems, selectedKeys: [i18n.language] }} placement="bottomRight">

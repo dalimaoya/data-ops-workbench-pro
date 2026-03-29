@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider } from 'antd';
+import { ConfigProvider, Spin } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import enUS from 'antd/locale/en_US';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,7 @@ import { useAuth } from './context/AuthContext';
 import MainLayout from './layouts/MainLayout';
 import Loading from './pages/Loading';
 import Login from './pages/Login';
+import AuthCallback from './pages/auth/AuthCallback';
 import Home from './pages/Home';
 import DatasourceList from './pages/datasource/DatasourceList';
 import DatasourceForm from './pages/datasource/DatasourceForm';
@@ -40,7 +41,10 @@ import PluginCenterPage from './pages/plugin-center/PluginCenterPage';
 import PluginGuard from './components/PluginGuard';
 
 function RequireAuth({ children }: { children: React.JSX.Element }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, authReady } = useAuth();
+  if (!authReady) {
+    return <div style={{ minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}><Spin size="large" /></div>;
+  }
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -69,6 +73,7 @@ function App() {
       <Routes>
         <Route path="/loading" element={<Loading />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route
           element={
             <RequireAuth>

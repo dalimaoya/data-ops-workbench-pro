@@ -12,6 +12,7 @@ from app.ai.ai_config import get_ai_config, update_ai_config
 from app.ai.ai_client import AIClient
 from app.utils.crypto import decrypt_password
 from app.models import AIConfig, SystemSetting
+from app.i18n import t
 
 router = APIRouter(prefix="/api/ai", tags=["AI Configuration"])
 
@@ -127,7 +128,7 @@ async def test_connection(
                     api_protocol = row.cloud_api_protocol or "openai"
 
     if not api_url or not model_name:
-        raise HTTPException(status_code=400, detail="请提供 API 地址和模型名称")
+        raise HTTPException(status_code=400, detail=t("ai.config_provide_url_model"))
 
     client = AIClient(
         api_url=api_url,

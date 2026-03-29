@@ -114,22 +114,68 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
+def _load_unified_auth_public_key() -> Optional[str]:
+    """Load the unified auth platform's RS256 public key for verifying platform JWT tokens."""
+    key_path = os.path.join(DATA_DIR, "auth", "jwt_public.pem")
+    if os.path.exists(key_path):
+        try:
+            with open(key_path, "r") as f:
+                return f.read().strip()
+        except Exception:
+            pass
+    return None
+
+
 def decode_token(token: str) -> dict:
+    # Try local HS256 token first
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload["_auth_source"] = "local"
         return payload
     except JWTError:
-        raise HTTPException(status_code=401, detail=t("auth.token_invalid_expired"))
+        pass
+
+    # Try unified auth platform RS256 token
+    public_key = _load_unified_auth_public_key()
+    if public_key:
+        try:
+            payload = jwt.decode(
+                token,
+                public_key,
+                algorithms=["RS256"],
+                audience="data-ops-workbench",
+                options={"verify_iss": False},
+            )
+            payload["_auth_source"] = "unified-auth"
+            return payload
+        except JWTError:
+            pass
+
+    raise HTTPException(status_code=401, detail=t("auth.token_invalid_expired"))
 
 
 def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db),
 ) -> UserAccount:
-    """Extract current user from JWT token."""
+    """Extract current user from JWT token. Supports local and unified auth tokens."""
     if not credentials:
         raise HTTPException(status_code=401, detail=t("auth.no_credentials"))
     payload = decode_token(credentials.credentials)
+    auth_source = payload.get("_auth_source", "local")
+
+    if auth_source == "unified-auth":
+        # Unified auth token: map to local admin user
+        # The instance owner who scans WeChat QR = superadmin (admin account)
+        user = db.query(UserAccount).filter(
+            UserAccount.username == "admin",
+            UserAccount.status == "enabled",
+        ).first()
+        if not user:
+            raise HTTPException(status_code=401, detail=t("auth.user_not_found_disabled"))
+        return user
+
+    # Local token
     username = payload.get("sub")
     if not username:
         raise HTTPException(status_code=401, detail=t("auth.token_invalid"))

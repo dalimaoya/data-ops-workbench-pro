@@ -49,7 +49,7 @@ def _read_version():
     return _fallback
 
 CURRENT_VERSION = _read_version()
-PORT = 8580
+PORT = 9590
 URL = f"http://localhost:{PORT}"
 
 # ── psutil 可选 ─────────────────────────────────────────────────
@@ -395,13 +395,20 @@ class LauncherApp:
                 with urlopen(req, timeout=2) as resp:
                     if resp.status == 200:
                         self.root.after(0, lambda: self._set_state("running"))
+                        # B5: /loading 路由已确认存在（frontend/src/App.tsx → pages/Loading.tsx）
                         webbrowser.open(f"{URL}/loading")
                         return
             except Exception:
                 pass
             time.sleep(2)
             waited += 2
-        # 超时：可能仍在启动，不报错
+        # B1 fix: 超时后将状态置为 stopped，提示用户
+        if self.server_state == "starting":
+            self.root.after(0, lambda: self._set_state("stopped"))
+            self.root.after(0, lambda: messagebox.showwarning(
+                "启动超时",
+                "服务启动超时（60秒），请检查端口是否被占用或查看日志后重试。",
+            ))
 
     # ── 服务停止 ─────────────────────────────────────────────────
     def _stop_service(self):

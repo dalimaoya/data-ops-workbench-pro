@@ -20,6 +20,7 @@ from app.utils.auth import get_current_user, require_role
 from app.utils.permissions import get_permitted_datasource_ids
 from app.utils.audit import log_operation
 from app.models import UserAccount
+from app.i18n import t
 
 router = APIRouter(prefix="/api/writeback", tags=["Writeback Multi"])
 
@@ -142,14 +143,14 @@ def _writeback_single_table(
         TableConfig.status == "enabled",
     ).first()
     if not tc:
-        return {"table_id": table_id, "status": "error", "error": "纳管表不存在"}
+        return {"table_id": table_id, "status": "error", "error": t("writeback_multi.table_not_found")}
 
     ds = db.query(DatasourceConfig).filter(
         DatasourceConfig.id == tc.datasource_id,
         DatasourceConfig.is_deleted == 0,
     ).first()
     if not ds:
-        return {"table_id": table_id, "status": "error", "error": "数据源不存在"}
+        return {"table_id": table_id, "status": "error", "error": t("writeback_multi.datasource_not_found")}
 
     fields = (
         db.query(FieldConfig)
@@ -376,7 +377,7 @@ async def multi_confirm(
     # Load preview data
     preview_file = os.path.join(UPLOAD_DIR, f"multi_preview_{body.session_id}.json")
     if not os.path.isfile(preview_file):
-        raise HTTPException(404, "多表预览数据不存在或已过期，请重新预览")
+        raise HTTPException(404, t("writeback_multi.preview_not_found"))
 
     with open(preview_file, "r", encoding="utf-8") as f:
         preview_data = json.load(f)
@@ -384,7 +385,7 @@ async def multi_confirm(
     # Build map of confirmed table_ids
     confirmed_ids = {c.table_id for c in body.confirmations if c.confirmed}
     if not confirmed_ids:
-        raise HTTPException(400, "没有确认任何表的修改")
+        raise HTTPException(400, t("writeback_multi.no_confirm"))
 
     # Build table data map from preview
     table_data_map = {}
@@ -393,7 +394,7 @@ async def multi_confirm(
             table_data_map[t["table_id"]] = t
 
     if not table_data_map:
-        raise HTTPException(400, "没有需要回写的变更数据")
+        raise HTTPException(400, t("writeback_multi.no_changes"))
 
     # Execute writeback sequentially
     results = []
@@ -407,7 +408,7 @@ async def multi_confirm(
                 "table_id": tid,
                 "table_name": table_data_map.get(tid, {}).get("table_name", "未知"),
                 "status": "skipped",
-                "error": "前序表回写失败，已暂停",
+                "error": t("writeback_multi.skipped_prev_fail"),
             })
             continue
 
@@ -417,7 +418,7 @@ async def multi_confirm(
                 "table_id": tid,
                 "table_name": "未知",
                 "status": "skipped",
-                "error": "无变更数据",
+                "error": t("writeback_multi.skipped_no_data"),
             })
             continue
 

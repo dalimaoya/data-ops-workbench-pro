@@ -22,6 +22,7 @@ from app.ai.rules_engine import (
     suggest_semantic_name, is_system_field, is_readonly_field,
     suggest_enum, FIELD_NAME_MAP,
 )
+from app.i18n import t
 
 router = APIRouter(prefix="/api/ai", tags=["AI Field Suggest"])
 
@@ -208,13 +209,13 @@ async def field_suggest(
         TableConfig.id == body.table_id, TableConfig.is_deleted == 0
     ).first()
     if not tc:
-        raise HTTPException(404, "纳管表不存在")
+        raise HTTPException(404, t("ai_suggest.table_not_found"))
 
     ds = db.query(DatasourceConfig).filter(
         DatasourceConfig.id == tc.datasource_id, DatasourceConfig.is_deleted == 0
     ).first()
     if not ds:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("ai_suggest.datasource_not_found"))
 
     # 2. Get field configs from platform DB
     fields = (
@@ -224,13 +225,13 @@ async def field_suggest(
         .all()
     )
     if not fields:
-        raise HTTPException(400, "该表尚未同步字段配置，请先同步字段")
+        raise HTTPException(400, t("ai_suggest.no_fields"))
 
     # 3. Sample data from remote business DB
     try:
         columns, rows = _sample_data_from_remote(ds, tc, body.sample_count)
     except Exception as e:
-        raise HTTPException(500, f"采样数据失败: {str(e)[:200]}")
+        raise HTTPException(500, t("ai_suggest.sample_failed", error=str(e)[:200]))
 
     actual_sample_count = len(rows)
 

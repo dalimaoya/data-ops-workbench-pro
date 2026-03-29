@@ -1,0 +1,14 @@
+{
+  "id": "EVT-20260328T180001Z",
+  "type": "task-assigned",
+  "from": "claude-teemo",
+  "to": "agent-product-swain",
+  "timestamp": "2026-03-28T18:00:01Z",
+  "subject": "P1 i18n 并行推进任务 TASK-DOW-001",
+  "body": "统一认证联调条件补齐预计需要数天，在此期间请并行推进 i18n 国际化工作。目标：后端 i18n 从 52% 推到 85%+，前端 i18n 框架搭建，达梦/人大金仓适配继续。截止日期：2026-04-04。任务详情见 .iteration/tasks/TASK-DOW-001.json。请确认收到并反馈排期。",
+  "ref_task": "TASK-DOW-001",
+  "priority": "P1",
+  "_dispatched": true,
+  "_dispatched_at": "2026-03-28T16:45:22.232966",
+  "_dispatched_to": "teemo-brain"
+}

@@ -1,6 +1,7 @@
 """Authentication endpoints: login, me, captcha, lockout management."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -16,8 +17,19 @@ from app.utils.security_middleware import (
     login_lockout, check_rate_limit,
 )
 from app.i18n import t
+from app.services.unified_auth import (
+    AUTH_PLATFORM_BASE_URL,
+    PUBLIC_KEY_CACHE_PATH,
+    UnifiedAuthError,
+    build_wechat_redirect_url,
+    verify_token_online,
+    check_plugin_license,
+    download_public_key,
+    verify_token_offline,
+)
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
+bearer = HTTPBearer(auto_error=False)
 
 
 class LoginRequest(BaseModel):
@@ -45,6 +57,81 @@ class UserInfo(BaseModel):
 class CaptchaResponse(BaseModel):
     captcha_id: str
     image: str  # base64 png
+
+
+class UnifiedAuthRedirectResponse(BaseModel):
+    redirect_url: str
+
+
+@router.get("/wechat/redirect-url", response_model=UnifiedAuthRedirectResponse)
+async def get_wechat_redirect_url(request: Request):
+    callback_url = f"{request.base_url}auth/callback"
+    redirect_url = await build_wechat_redirect_url(callback_url)
+    return UnifiedAuthRedirectResponse(redirect_url=redirect_url)
+
+
+class WechatQRParams(BaseModel):
+    appid: str
+    redirect_uri: str
+    state: str
+    scope: str = "snsapi_login"
+
+
+@router.get("/wechat/qr-params")
+async def get_wechat_qr_params(request: Request):
+    """Return params for embedding WeChat QR login via WxLogin JS SDK."""
+    callback_url = f"{request.base_url}auth/callback"
+    redirect_url = await build_wechat_redirect_url(callback_url)
+    # Parse state from the redirect URL returned by auth platform
+    from urllib.parse import urlparse, parse_qs
+    parsed = urlparse(redirect_url)
+    qs = parse_qs(parsed.query)
+    state = qs.get("state", [""])[0]
+    appid = qs.get("appid", [""])[0]
+    redirect_uri = qs.get("redirect_uri", [""])[0]
+    return WechatQRParams(appid=appid, redirect_uri=redirect_uri, state=state)
+
+
+@router.get("/network-check")
+async def network_check():
+    """Check if the unified auth platform is reachable."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.head(f"{AUTH_PLATFORM_BASE_URL}/api/auth/verify")
+            return {"online": resp.status_code in (200, 401, 403)}
+    except Exception:
+        return {"online": False}
+
+
+@router.get("/verify")
+async def remote_verify(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="缺少 token")
+    return await verify_token_online(credentials.credentials)
+
+
+@router.get("/offline-verify")
+async def offline_verify(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="缺少 token")
+    return await verify_token_offline(credentials.credentials)
+
+
+@router.post("/public-key/refresh")
+async def refresh_public_key():
+    key = await download_public_key(force=True)
+    return {"cached": True, "path": PUBLIC_KEY_CACHE_PATH, "length": len(key)}
+
+
+@router.get("/platform-config")
+def get_unified_auth_platform_config(request: Request):
+    return {
+        "provider": "auth-platform",
+        "base_url": AUTH_PLATFORM_BASE_URL,
+        "callback_url": f"{request.base_url}auth/callback",
+        "public_key_cache_path": PUBLIC_KEY_CACHE_PATH,
+    }
 
 
 @router.get("/captcha", response_model=CaptchaResponse)

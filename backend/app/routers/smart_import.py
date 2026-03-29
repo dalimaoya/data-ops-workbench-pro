@@ -13,6 +13,7 @@ from app.models import MappingTemplate, TableConfig, FieldConfig
 from app.utils.auth import get_current_user
 from app.ai.file_parser import parse_file
 from app.ai.smart_import_engine import match_tables, map_fields, _normalize_text, _jaccard_similarity
+from app.i18n import t
 
 router = APIRouter(prefix="/api/ai/import", tags=["Smart Import"])
 

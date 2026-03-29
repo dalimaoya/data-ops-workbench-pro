@@ -14,6 +14,7 @@ from app.utils.remote_db import _connect
 from app.utils.sql_security import check_sql_injection
 from app.ai.ai_engine import AIEngine
 from app.ai.nl_query_engine import parse_nl_query_rules, parse_nl_query_llm
+from app.i18n import t
 
 router = APIRouter(prefix="/api/ai", tags=["AI NL Query"])
 
@@ -150,10 +151,10 @@ def _get_table_and_ds(db: Session, table_id: int):
         TableConfig.status == "enabled",
     ).first()
     if not tc:
-        raise HTTPException(404, "纳管表不存在或已禁用")
+        raise HTTPException(404, t("ai_nl_query.table_not_found"))
     ds = db.query(DatasourceConfig).filter(DatasourceConfig.id == tc.datasource_id).first()
     if not ds:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("ai_nl_query.datasource_not_found"))
     return tc, ds
 
 
@@ -170,7 +171,7 @@ async def nl_query(
 
     query_text = (body.query_text or "").strip()
     if not query_text:
-        raise HTTPException(400, "查询文本不能为空")
+        raise HTTPException(400, t("ai_nl_query.empty_query"))
 
     # Build field context — prefer request context, fallback to DB
     if body.context and body.context.get("fields"):
@@ -196,7 +197,7 @@ async def nl_query(
 
     # If rules engine returned nothing useful, provide friendly message
     if not result.get("filters") and result.get("confidence", 0) == 0:
-        result["explanation"] = "未能理解您的查询意图，请尝试用更具体的方式描述，例如：\"找出状态是停用的记录\" 或 \"最近7天更新过的数据\""
+        result["explanation"] = t("ai_nl_query.parse_hint")
 
     # Generate SQL preview
     result["sql_preview"] = _build_sql_preview(tc.table_name, result.get("filters", []))
@@ -356,7 +357,7 @@ async def nl_query_execute(
             },
         }
     except Exception as e:
-        raise HTTPException(500, f"查询执行失败: {str(e)}")
+        raise HTTPException(500, t("ai_nl_query.execute_failed", error=str(e)))
     finally:
         try:
             conn.close()

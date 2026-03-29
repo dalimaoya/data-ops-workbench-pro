@@ -23,6 +23,7 @@ from app.ai.batch_fill_engine import (
     build_llm_prompt, parse_llm_response,
 )
 from app.models import UserAccount
+from app.i18n import t
 
 router = APIRouter(prefix="/api/ai", tags=["AI Batch Fill Multi"])
 
@@ -144,10 +145,10 @@ async def _process_single_table(
     if not tc or not ds:
         return {
             "table_id": table_id,
-            "table_name": "未知",
-            "display_name": "未知",
+            "table_name": t("ai_batch_fill_multi.unknown"),
+            "display_name": t("ai_batch_fill_multi.unknown"),
             "status": "error",
-            "error": "纳管表不存在、未启用或无权访问",
+            "error": t("ai_batch_fill_multi.table_error"),
             "rows_changed": 0,
             "fields_changed": [],
             "changes": [],
@@ -164,7 +165,7 @@ async def _process_single_table(
             "table_name": tc.table_alias or tc.table_name,
             "display_name": tc.table_name,
             "status": "error",
-            "error": "不支持删除操作",
+            "error": t("ai_batch_fill_multi.delete_not_supported"),
             "rows_changed": 0,
             "fields_changed": [],
             "changes": [],
@@ -205,7 +206,7 @@ async def _process_single_table(
             "table_name": tc.table_alias or tc.table_name,
             "display_name": tc.table_name,
             "status": "skipped",
-            "error": "无法解析修改规则（该表可能没有匹配的字段）",
+            "error": t("ai_batch_fill_multi.parse_failed"),
             "rows_changed": 0,
             "fields_changed": [],
             "changes": [],
@@ -225,7 +226,7 @@ async def _process_single_table(
             "table_name": tc.table_alias or tc.table_name,
             "display_name": tc.table_name,
             "status": "skipped",
-            "error": f"表中未找到字段「{target_field}」",
+            "error": t("ai_batch_fill_multi.field_not_found", field=target_field),
             "rows_changed": 0,
             "fields_changed": [],
             "changes": [],
@@ -237,7 +238,7 @@ async def _process_single_table(
             "table_name": tc.table_alias or tc.table_name,
             "display_name": tc.table_name,
             "status": "skipped",
-            "error": "目标字段为主键或系统字段，不允许修改",
+            "error": t("ai_batch_fill_multi.pk_or_system"),
             "rows_changed": 0,
             "fields_changed": [],
             "changes": [],
@@ -252,7 +253,7 @@ async def _process_single_table(
             "table_name": tc.table_alias or tc.table_name,
             "display_name": tc.table_name,
             "status": "error",
-            "error": f"读取表数据失败: {str(e)}",
+            "error": t("ai_batch_fill_multi.fetch_failed", error=str(e)),
             "rows_changed": 0,
             "fields_changed": [],
             "changes": [],
@@ -264,7 +265,7 @@ async def _process_single_table(
             "table_name": tc.table_alias or tc.table_name,
             "display_name": tc.table_name,
             "status": "skipped",
-            "error": "表中没有数据",
+            "error": t("ai_batch_fill_multi.no_data"),
             "rows_changed": 0,
             "fields_changed": [],
             "changes": [],
@@ -318,12 +319,12 @@ async def batch_fill_multi_preview(
     ai_engine = AIEngine(db)
 
     if not ai_engine.is_enabled:
-        raise HTTPException(400, "AI 功能未启用，请在系统设置中开启")
+        raise HTTPException(400, t("ai.not_enabled"))
     if not ai_engine.is_feature_enabled("batch_fill"):
-        raise HTTPException(400, "AI 智能填充功能未启用")
+        raise HTTPException(400, t("ai.batch_fill_not_enabled"))
 
     if not body.table_ids and body.scope != "global":
-        raise HTTPException(400, "请至少选择一张表")
+        raise HTTPException(400, t("ai_batch_fill_multi.select_table"))
 
     # If scope is "global", fetch all enabled tables
     if body.scope == "global":
@@ -339,7 +340,7 @@ async def batch_fill_multi_preview(
         table_ids = body.table_ids
 
     if not table_ids:
-        raise HTTPException(400, "没有可用的纳管表")
+        raise HTTPException(400, t("ai_batch_fill_multi.no_tables"))
 
     # Process each table
     tables_result = []

@@ -16,6 +16,7 @@ from app.utils.auth import get_current_user, require_role
 from app.utils.crypto import decrypt_password
 from app.utils.remote_db import _connect
 from app.utils.audit import log_operation
+from app.i18n import t
 
 router = APIRouter(prefix="/api/ai", tags=["ai-indicator"])
 
@@ -24,7 +25,7 @@ def _get_ai_config(db: Session):
     """Get AI configuration."""
     ai_cfg = db.query(AIConfig).first()
     if not ai_cfg:
-        raise HTTPException(400, "请先配置 AI 模型")
+        raise HTTPException(400, t("ai.config_required"))
     api_url = ai_cfg.cloud_api_url or ai_cfg.local_api_url or ai_cfg.api_url
     api_key = None
     model_name = ai_cfg.cloud_model_name or ai_cfg.local_model_name or ai_cfg.model_name
@@ -37,7 +38,7 @@ def _get_ai_config(db: Session):
             except Exception:
                 continue
     if not api_url or not api_key:
-        raise HTTPException(400, "AI 模型未正确配置")
+        raise HTTPException(400, t("ai.config_invalid"))
     return api_url, api_key, model_name, api_protocol
 
 
@@ -65,7 +66,7 @@ async def _call_ai(api_url: str, api_key: str, model_name: str, api_protocol: st
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(url, json=payload, headers=headers)
         if resp.status_code != 200:
-            raise HTTPException(502, f"AI 调用失败: {resp.text[:200]}")
+            raise HTTPException(502, t("ai.call_failed", detail=resp.text[:200]))
         result = resp.json()
 
     if api_protocol == "claude":
@@ -127,7 +128,7 @@ async def design_indicators(
         content_text = data.decode("utf-8", errors="replace")[:10000]
 
     if not content_text.strip():
-        raise HTTPException(400, "无法从文件中提取内容")
+        raise HTTPException(400, t("ai.file_no_content"))
 
     # Truncate
     content_text = content_text[:8000]
@@ -196,7 +197,7 @@ def batch_create_tables(
         DatasourceConfig.id == body.datasource_id, DatasourceConfig.is_deleted == 0
     ).first()
     if not ds:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("ai_indicator.datasource_not_found"))
 
     pwd = decrypt_password(ds.password_encrypted)
     conn = _connect(ds.db_type, ds.host, ds.port, ds.username, pwd,

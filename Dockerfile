@@ -30,8 +30,8 @@ RUN mkdir -p /app/data /app/backups
 
 # Set environment variables
 ENV DATA_OPS_DATA_DIR=/app/data
-ENV PORT=8580
+ENV PORT=9590
 
-EXPOSE 8580
+EXPOSE 9590
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8580"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "9590"]

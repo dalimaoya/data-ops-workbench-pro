@@ -23,6 +23,7 @@ from app.ai.batch_fill_engine import (
     build_llm_prompt, parse_llm_response,
 )
 from app.models import UserAccount
+from app.i18n import t
 
 router = APIRouter(prefix="/api/ai", tags=["AI Batch Fill"])
 
@@ -53,19 +54,19 @@ def _get_table_and_ds(db: Session, table_id: int, user):
         TableConfig.status == "enabled",
     ).first()
     if not tc:
-        raise HTTPException(404, "纳管表不存在或未启用")
+        raise HTTPException(404, t("ai_batch_fill.table_not_found"))
 
     # Permission check
     permitted_ids = get_permitted_datasource_ids(db, user)
     if permitted_ids is not None and tc.datasource_id not in permitted_ids:
-        raise HTTPException(403, "无权访问该数据源")
+        raise HTTPException(403, t("ai_batch_fill.no_permission"))
 
     ds = db.query(DatasourceConfig).filter(
         DatasourceConfig.id == tc.datasource_id,
         DatasourceConfig.is_deleted == 0,
     ).first()
     if not ds:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("ai_batch_fill.datasource_not_found"))
 
     return tc, ds
 
@@ -158,9 +159,9 @@ async def batch_fill_preview(
 
     # Check AI feature
     if not ai_engine.is_enabled:
-        raise HTTPException(400, "AI 功能未启用，请在系统设置中开启")
+        raise HTTPException(400, t("ai.not_enabled"))
     if not ai_engine.is_feature_enabled("batch_fill"):
-        raise HTTPException(400, "AI 智能填充功能未启用")
+        raise HTTPException(400, t("ai.batch_fill_not_enabled"))
 
     tc, ds = _get_table_and_ds(db, body.table_id, user)
     fields_list = _get_fields_list(db, body.table_id)
@@ -169,7 +170,7 @@ async def batch_fill_preview(
     # Reject dangerous operations
     rule_lower = body.rule_text.strip().lower()
     if any(w in rule_lower for w in ("删除", "drop", "delete", "truncate", "remove")):
-        raise HTTPException(400, "不支持删除操作。AI 批量修改仅支持修改字段值，不能删除记录。")
+        raise HTTPException(400, t("ai_batch_fill.delete_not_supported"))
 
     # Step 1: Try rules engine first
     parsed_rule = parse_rule_text(body.rule_text, fields_list)
@@ -195,15 +196,7 @@ async def batch_fill_preview(
                 pass
 
     if parsed_rule is None:
-        raise HTTPException(
-            400,
-            "无法解析修改规则。请尝试更明确的表述，例如：\n"
-            "• 「部门是华北区的，负责人改为李明」\n"
-            "• 「所有记录的备注改为已处理」\n"
-            "• 「把负责人中的张三换成李四」\n"
-            "• 「清空所有备注字段」\n"
-            "• 「所有金额增加10%」"
-        )
+        raise HTTPException(400, t("ai_batch_fill.parse_failed"))
 
     # Validate target field is editable
     target_field = parsed_rule.get("target_field", "")
@@ -214,16 +207,16 @@ async def batch_fill_preview(
             break
 
     if not target_field_config:
-        raise HTTPException(400, f"未找到字段「{target_field}」，请检查字段名是否正确")
+        raise HTTPException(400, t("ai_batch_fill.field_not_found", field=target_field))
     if target_field_config.get("is_primary_key"):
-        raise HTTPException(400, "不允许修改主键字段")
+        raise HTTPException(400, t("ai_batch_fill.pk_not_allowed"))
     if target_field_config.get("is_system_field"):
-        raise HTTPException(400, "不允许修改系统字段")
+        raise HTTPException(400, t("ai_batch_fill.system_field_not_allowed"))
 
     # Step 3: Fetch data
     all_data = _fetch_all_data(ds, tc, fields_list)
     if not all_data:
-        raise HTTPException(400, "表中没有数据")
+        raise HTTPException(400, t("ai_batch_fill.no_data"))
 
     # Step 4: Apply rule and get changes
     changes = apply_rule_to_data(parsed_rule, all_data, fields_list, pk_fields)
@@ -283,7 +276,7 @@ async def batch_fill_apply(
     pk_fields = [f.strip() for f in tc.primary_key_fields.split(",")]
 
     if not body.changes:
-        raise HTTPException(400, "没有修改数据")
+        raise HTTPException(400, t("ai_batch_fill.no_changes"))
 
     # Fetch current data to build full import_data for writeback
     all_data = _fetch_all_data(ds, tc, fields_list)

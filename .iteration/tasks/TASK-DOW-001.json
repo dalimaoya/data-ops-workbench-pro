@@ -1,0 +1,25 @@
+{
+  "id": "TASK-DOW-001",
+  "title": "i18n 国际化并行推进（认证阻塞期间）",
+  "assignee": "agent-product-swain",
+  "priority": "P1",
+  "status": "in_progress",
+  "depends_on": [],
+  "created_by": "claude-teemo",
+  "created_at": "2026-03-28T18:00:00Z",
+  "deadline": "2026-04-04T00:00:00Z",
+
+  "spec": {
+    "action": "implement",
+    "description": "统一认证联调条件补齐预计需要数天，在此期间并行推进后端 i18n 工作（当前进度 52%）。具体任务：\n\n1. **后端 i18n 剩余 48%**：完成所有 router 和 AI 引擎的 i18n 覆盖，确保所有用户可见文案支持中英文切换\n2. **前端 i18n 基础框架**：搭建前端 i18n 基础设施（react-i18next），完成核心页面的文案提取\n3. **达梦/人大金仓环境依赖专项**：继续推进数据库适配相关工作\n\n目标：在认证阻塞解除前，将 i18n 整体进度推到 85% 以上，确保认证对接完成后可快速进入集成测试。",
+    "reference": ["PROJECT-BRIEF.md 当前状态章节"],
+    "acceptance": [
+      "后端 i18n 覆盖率 ≥ 85%",
+      "前端 i18n 框架搭建完成，核心页面文案已提取",
+      "达梦/人大金仓适配无新增阻塞"
+    ],
+    "test": "切换语言后核心 API 返回对应语言文案，前端核心页面可切换语言"
+  },
+
+  "result": null
+}

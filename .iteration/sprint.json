@@ -2,16 +2,16 @@
   "$schema": "./sprint.schema.json",
   "project": "data-ops-workbench",
   "version": "",
-  "goal": "协议验证测试",
-  "deadline": null,
+  "goal": "i18n 国际化并行推进（认证阻塞期间）",
+  "deadline": "2026-04-04T00:00:00Z",
   "status": "in_progress",
   "priorities": {
     "P0": [],
-    "P1": [],
+    "P1": ["TASK-DOW-001"],
     "P2": []
   },
-  "blockers": [],
-  "notes": "",
+  "blockers": ["统一认证联调条件尚未补齐，等待对方环境"],
+  "notes": "认证阻塞期间并行推 i18n，目标从 52% 提升到 85%+",
   "updated_by": "agent-product-swain",
-  "updated_at": "2026-03-28T07:59:18Z"
+  "updated_at": "2026-03-28T18:10:00Z"
 }

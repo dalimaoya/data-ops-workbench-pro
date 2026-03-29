@@ -7,6 +7,7 @@ from typing import Optional
 from app.utils.auth import get_current_user, require_role
 
 from app.plugin_loader import get_all_plugins_full, toggle_plugin
+from app.i18n import t
 
 router = APIRouter(prefix="/api/plugins", tags=["plugins"])
 
@@ -41,11 +42,11 @@ def toggle_plugin_status(
             body.enabled,
             operator=current_user.username,
         )
-        action = "启用" if new_state else "停用"
+        action = t("user.enable") if new_state else t("user.disable")
         return ToggleResponse(
             plugin_id=plugin_id,
             enabled=new_state,
-            message=f"插件已{action}",
+            message=t("plugin.toggled", action=action),
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

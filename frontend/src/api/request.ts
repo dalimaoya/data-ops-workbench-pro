@@ -21,6 +21,8 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      localStorage.removeItem('unified-auth-session');
+      localStorage.removeItem('unified-auth-license-cache');
       // Redirect to login
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';

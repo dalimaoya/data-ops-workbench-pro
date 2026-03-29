@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
 from app.routers import datasource, table_config, field_config, data_maintenance, backup_version, logs
 from app.routers import auth as auth_router
+from app.routers import license as license_router
 from app.routers import dashboard as dashboard_router
 from app.routers import users as users_router
 from app.routers import plugins as plugins_router
@@ -125,7 +126,7 @@ if _allowed_origins_env:
     _allowed_origins = [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
 else:
     # Default: allow same-origin only (empty list with allow_credentials=False)
-    # For dev, set ALLOWED_ORIGINS=http://localhost:5173,http://localhost:8580
+    # For dev, set ALLOWED_ORIGINS=http://localhost:5173,http://localhost:9590
     _allowed_origins = []
 
 app.add_middleware(
@@ -187,6 +188,7 @@ async def rate_limit_middleware(request: Request, call_next):
 
 # Register CORE API routers (always available)
 app.include_router(auth_router.router)
+app.include_router(license_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(datasource.router)
 app.include_router(table_config.router)

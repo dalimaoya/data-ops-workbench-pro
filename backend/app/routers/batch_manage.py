@@ -27,6 +27,7 @@ from app.utils.permissions import get_permitted_datasource_ids
 from app.models import UserAccount
 from app.ai.ai_engine import AIEngine
 from app.ai.rules_engine import suggest_semantic_name, is_system_field, is_readonly_field
+from app.i18n import t
 
 router = APIRouter(prefix="/api/batch-manage", tags=["批量纳管"])
 
@@ -112,7 +113,7 @@ def _get_ds(db: Session, ds_id: int) -> DatasourceConfig:
         DatasourceConfig.id == ds_id, DatasourceConfig.is_deleted == 0
     ).first()
     if not ds:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("batch_manage.datasource_not_found"))
     return ds
 
 
@@ -226,7 +227,7 @@ async def _process_single_table(
         return {
             "table_name": table_name,
             "status": "error",
-            "error": f"获取字段失败: {str(e)[:200]}",
+            "error": t("batch_manage.fetch_fields_failed", error=str(e)[:200]),
             "is_managed": is_managed,
             "fields": [],
             "ai_suggestions": {},
@@ -455,7 +456,7 @@ async def batch_manage_tables(
     # Filter out already-managed tables
     tables_to_process = [tn for tn in body.table_names if tn not in managed_tables]
     if not tables_to_process:
-        raise HTTPException(400, "所有选中的表已经纳管")
+        raise HTTPException(400, t("batch_manage.all_managed"))
 
     results = []
     for table_name in tables_to_process:
@@ -500,7 +501,7 @@ def batch_confirm(
                 TableConfig.is_deleted == 0,
             ).first()
             if existing:
-                errors.append({"table_name": table_item.table_name, "error": "已纳管，跳过"})
+                errors.append({"table_name": table_item.table_name, "error": t("batch_manage.already_managed")})
                 continue
 
             # Compute structure hash
@@ -606,7 +607,7 @@ def batch_export(
     try:
         import openpyxl
     except ImportError:
-        raise HTTPException(500, "openpyxl 未安装，无法导出")
+        raise HTTPException(500, t("batch_manage.openpyxl_missing"))
 
     ds = _get_ds(db, body.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
@@ -621,7 +622,7 @@ def batch_export(
             table_configs.append(tc)
 
     if not table_configs:
-        raise HTTPException(400, "没有可导出的纳管表")
+        raise HTTPException(400, t("batch_manage.no_tables"))
 
     if body.format == "multi_sheet":
         # Single xlsx with multiple sheets

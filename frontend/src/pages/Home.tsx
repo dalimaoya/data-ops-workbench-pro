@@ -129,7 +129,7 @@ function TrendChart({ data }: { data: TrendDay[] }) {
 export default function Home() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [operations, setOperations] = useState<RecentOperation[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -200,12 +200,7 @@ export default function Home() {
   };
 
   return (
-    <Card title={t('home.title')} extra={
-      <Text type="secondary" style={{ fontSize: 13 }}>
-        {t('home.welcome', { name: user?.display_name || user?.username || '' })}
-        {user?.role && <Tag style={{ marginLeft: 8 }}>{t(`role.${user.role}`)}</Tag>}
-      </Text>
-    }>
+    <Card title={t('home.title')}>
       {/* Row 1: Stats */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={5}>

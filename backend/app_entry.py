@@ -44,8 +44,8 @@ def setup_environment():
 def main():
     import argparse
     parser = argparse.ArgumentParser(description='Data Ops Workbench Server')
-    parser.add_argument('--port', type=int, default=int(os.environ.get('PORT', '8580')),
-                        help='Server port (default: 8580)')
+    parser.add_argument('--port', type=int, default=int(os.environ.get('PORT', '9590')),
+                        help='Server port (default: 9590)')
     parser.add_argument('--host', default='0.0.0.0', help='Server host (default: 0.0.0.0)')
     args = parser.parse_args()
 

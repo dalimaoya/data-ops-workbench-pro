@@ -17,6 +17,7 @@ from app.utils.auth import get_current_user, require_role
 from app.utils.crypto import decrypt_password
 from app.utils.remote_db import _connect
 from app.ai.ai_engine import AIEngine
+from app.i18n import t
 
 router = APIRouter(prefix="/api/ai", tags=["AI Data Validate"])
 
@@ -668,20 +669,20 @@ async def data_validate(
     # 1. Check AI feature enabled
     engine = AIEngine(db)
     if not engine.is_enabled or not engine.is_feature_enabled("data_validate"):
-        raise HTTPException(400, "AI 智能校验功能未开启")
+        raise HTTPException(400, t("ai.validate_not_enabled"))
 
     # 2. Get table config & datasource
     tc = db.query(TableConfig).filter(
         TableConfig.id == body.table_id, TableConfig.is_deleted == 0
     ).first()
     if not tc:
-        raise HTTPException(404, "纳管表不存在")
+        raise HTTPException(404, t("ai_validate.table_not_found"))
 
     ds = db.query(DatasourceConfig).filter(
         DatasourceConfig.id == tc.datasource_id, DatasourceConfig.is_deleted == 0
     ).first()
     if not ds:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("ai_validate.datasource_not_found"))
 
     # 3. Get field configs
     fields = (
@@ -710,7 +711,7 @@ async def data_validate(
                     "check_elapsed_ms": int((time.time() - start) * 1000),
                     "historical_rows": 0,
                 },
-                "message": "暂无历史数据参考，跳过智能校验",
+                "message": t("ai.no_history_data"),
             },
         }
 

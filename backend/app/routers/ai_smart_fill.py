@@ -29,6 +29,7 @@ from app.ai.smart_fill_engine import (
     parse_llm_smart_fill_response,
 )
 from app.models import UserAccount
+from app.i18n import t
 
 router = APIRouter(prefix="/api/ai", tags=["AI Smart Fill"])
 
@@ -64,18 +65,18 @@ def _get_table_and_ds(db: Session, table_id: int, user):
         TableConfig.status == "enabled",
     ).first()
     if not tc:
-        raise HTTPException(404, "纳管表不存在或未启用")
+        raise HTTPException(404, t("ai_batch_fill.table_not_found"))
 
     permitted_ids = get_permitted_datasource_ids(db, user)
     if permitted_ids is not None and tc.datasource_id not in permitted_ids:
-        raise HTTPException(403, "无权访问该数据源")
+        raise HTTPException(403, t("ai_batch_fill.no_permission"))
 
     ds = db.query(DatasourceConfig).filter(
         DatasourceConfig.id == tc.datasource_id,
         DatasourceConfig.is_deleted == 0,
     ).first()
     if not ds:
-        raise HTTPException(404, "数据源不存在")
+        raise HTTPException(404, t("ai_batch_fill.datasource_not_found"))
 
     return tc, ds
 
@@ -165,9 +166,9 @@ async def smart_fill_detect(
     ai_engine = AIEngine(db)
 
     if not ai_engine.is_enabled:
-        raise HTTPException(400, "AI 功能未启用，请在系统设置中开启")
+        raise HTTPException(400, t("ai.not_enabled"))
     if not ai_engine.is_feature_enabled("batch_fill"):
-        raise HTTPException(400, "AI 智能填充功能未启用")
+        raise HTTPException(400, t("ai.batch_fill_not_enabled"))
 
     tc, ds = _get_table_and_ds(db, body.table_id, user)
     fields_list = _get_fields_list(db, body.table_id)
@@ -176,12 +177,12 @@ async def smart_fill_detect(
     field_name_set = {f["field_name"] for f in fields_list}
     for tf in body.target_fields:
         if tf not in field_name_set:
-            raise HTTPException(400, f"未找到字段「{tf}」")
+            raise HTTPException(400, t("ai_smart_fill.field_not_found", field=tf))
 
     # Fetch data
     all_data = _fetch_all_data(ds, tc, fields_list)
     if not all_data:
-        raise HTTPException(400, "表中没有数据")
+        raise HTTPException(400, t("ai_smart_fill.no_data"))
 
     results = {}
     for target_field in body.target_fields:
@@ -199,7 +200,7 @@ async def smart_fill_detect(
                 "filled_count": filled_count,
                 "patterns": [],
                 "suggestions": [],
-                "message": "该字段没有空白值",
+                "message": t("ai_smart_fill.no_blank"),
             }
             continue
 
@@ -210,7 +211,7 @@ async def smart_fill_detect(
                 "filled_count": filled_count,
                 "patterns": [],
                 "suggestions": [],
-                "message": "已填数据过少（不足2条），无法检测模式",
+                "message": t("ai_smart_fill.too_few"),
             }
             continue
 
@@ -314,7 +315,7 @@ async def smart_fill_apply(
     pk_fields = [f.strip() for f in tc.primary_key_fields.split(",")]
 
     if not body.fills:
-        raise HTTPException(400, "没有填充数据")
+        raise HTTPException(400, t("ai_smart_fill.no_fill_data"))
 
     # Fetch current data
     all_data = _fetch_all_data(ds, tc, fields_list)
@@ -373,7 +374,7 @@ async def smart_fill_apply(
         changes_by_pk[pk_key][field_name] = new_value
 
     if not diff_rows:
-        raise HTTPException(400, "没有有效的填充数据")
+        raise HTTPException(400, t("ai_smart_fill.no_valid_fill"))
 
     # Build import_data
     import_data = []

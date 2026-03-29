@@ -139,5 +139,79 @@
   "scheduler.deleted": "定时任务已删除",
   "scheduler.run_started": "任务已开始执行",
   "data_maintenance.row_pk_modified": "第{row}行主键值被修改：原值「{old_val}」，新值「{new_val}」，主键不允许修改",
-  "data_maintenance.row_field_expect_date": "第{row}行 字段[{field}] 期望日期格式，实际值「{value}」"
+  "data_maintenance.row_field_expect_date": "第{row}行 字段[{field}] 期望日期格式，实际值「{value}」",
+
+  "ai.not_enabled": "AI 功能未启用，请在系统设置中开启",
+  "ai.batch_fill_not_enabled": "AI 智能填充功能未启用",
+  "ai.config_required": "请先配置 AI 模型",
+  "ai.config_invalid": "AI 模型未正确配置",
+  "ai.call_failed": "AI 调用失败: {detail}",
+  "ai.validate_not_enabled": "AI 智能校验功能未开启",
+  "ai.no_history_data": "暂无历史数据参考，跳过智能校验",
+  "ai.config_provide_url_model": "请提供 API 地址和模型名称",
+  "ai.file_no_content": "无法从文件中提取内容",
+
+  "ai_batch_fill.table_not_found": "纳管表不存在或未启用",
+  "ai_batch_fill.no_permission": "无权访问该数据源",
+  "ai_batch_fill.datasource_not_found": "数据源不存在",
+  "ai_batch_fill.delete_not_supported": "不支持删除操作。AI 批量修改仅支持修改字段值，不能删除记录。",
+  "ai_batch_fill.parse_failed": "无法解析修改规则。请尝试更明确的表述，例如：\n• 「部门是华北区的，负责人改为李明」\n• 「所有记录的备注改为已处理」\n• 「把负责人中的张三换成李四」\n• 「清空所有备注字段」\n• 「所有金额增加10%」",
+  "ai_batch_fill.field_not_found": "未找到字段「{field}」，请检查字段名是否正确",
+  "ai_batch_fill.pk_not_allowed": "不允许修改主键字段",
+  "ai_batch_fill.system_field_not_allowed": "不允许修改系统字段",
+  "ai_batch_fill.no_data": "表中没有数据",
+  "ai_batch_fill.no_changes": "没有修改数据",
+
+  "ai_batch_fill_multi.table_error": "纳管表不存在、未启用或无权访问",
+  "ai_batch_fill_multi.delete_not_supported": "不支持删除操作",
+  "ai_batch_fill_multi.parse_failed": "无法解析修改规则（该表可能没有匹配的字段）",
+  "ai_batch_fill_multi.field_not_found": "表中未找到字段「{field}」",
+  "ai_batch_fill_multi.pk_or_system": "目标字段为主键或系统字段，不允许修改",
+  "ai_batch_fill_multi.fetch_failed": "读取表数据失败: {error}",
+  "ai_batch_fill_multi.no_data": "表中没有数据",
+  "ai_batch_fill_multi.select_table": "请至少选择一张表",
+  "ai_batch_fill_multi.no_tables": "没有可用的纳管表",
+  "ai_batch_fill_multi.unknown": "未知",
+
+  "ai_smart_fill.field_not_found": "未找到字段「{field}」",
+  "ai_smart_fill.no_data": "表中没有数据",
+  "ai_smart_fill.no_blank": "该字段没有空白值",
+  "ai_smart_fill.too_few": "已填数据过少（不足2条），无法检测模式",
+  "ai_smart_fill.no_fill_data": "没有填充数据",
+  "ai_smart_fill.no_valid_fill": "没有有效的填充数据",
+
+  "ai_suggest.table_not_found": "纳管表不存在",
+  "ai_suggest.datasource_not_found": "数据源不存在",
+  "ai_suggest.no_fields": "该表尚未同步字段配置，请先同步字段",
+  "ai_suggest.sample_failed": "采样数据失败: {error}",
+
+  "ai_validate.table_not_found": "纳管表不存在",
+  "ai_validate.datasource_not_found": "数据源不存在",
+
+  "ai_nl_query.table_not_found": "纳管表不存在或已禁用",
+  "ai_nl_query.datasource_not_found": "数据源不存在",
+  "ai_nl_query.empty_query": "查询文本不能为空",
+  "ai_nl_query.parse_hint": "未能理解您的查询意图，请尝试用更具体的方式描述，例如：\"找出状态是停用的记录\" 或 \"最近7天更新过的数据\"",
+  "ai_nl_query.execute_failed": "查询执行失败: {error}",
+
+  "ai_indicator.datasource_not_found": "数据源不存在",
+
+  "batch_manage.datasource_not_found": "数据源不存在",
+  "batch_manage.already_managed": "已纳管，跳过",
+  "batch_manage.fetch_fields_failed": "获取字段失败: {error}",
+  "batch_manage.all_managed": "所有选中的表已经纳管",
+  "batch_manage.no_tables": "没有可导出的纳管表",
+  "batch_manage.openpyxl_missing": "openpyxl 未安装，无法导出",
+
+  "license.missing_token": "缺少 token",
+
+  "plugin.toggled": "插件已{action}",
+
+  "writeback_multi.preview_not_found": "多表预览数据不存在或已过期，请重新预览",
+  "writeback_multi.no_confirm": "没有确认任何表的修改",
+  "writeback_multi.no_changes": "没有需要回写的变更数据",
+  "writeback_multi.table_not_found": "纳管表不存在",
+  "writeback_multi.datasource_not_found": "数据源不存在",
+  "writeback_multi.skipped_prev_fail": "前序表回写失败，已暂停",
+  "writeback_multi.skipped_no_data": "无变更数据"
 }

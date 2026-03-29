@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter
+from app.i18n import t
 
 logger = logging.getLogger("network_status")
 

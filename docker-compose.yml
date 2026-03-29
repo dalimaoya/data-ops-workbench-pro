@@ -3,9 +3,9 @@ services:
   dataops:
     build: .
     ports:
-      - "8580:8580"
+      - "9590:9590"
     volumes:
       - ./data:/app/data
       - ./backups:/app/backups
     environment:
-      - PORT=8580
+      - PORT=9590

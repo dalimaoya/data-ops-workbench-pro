@@ -9,7 +9,7 @@ import hashlib
 import sqlite3
 import requests
 
-BASE = "http://localhost:8580"
+BASE = "http://localhost:9590"
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "platform.db")
 
 results = []

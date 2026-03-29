@@ -288,7 +288,7 @@ const systemInfoContent = `# 数据运维工作台 - 系统说明
 
 | 端口 | 用途 | 可否修改 |
 |---|---|---|
-| 8580 | Web 服务 | 可通过 PORT 环境变量修改 |
+| 9590 | Web 服务 | 可通过 PORT 环境变量修改 |
 
 ### 6.4 数据目录
 
@@ -344,7 +344,7 @@ v3.0 已提供一键备份与迁移功能（系统设置 → 备份迁移）：
 
 ## 八、API 说明
 
-系统提供完整的 RESTful API，启动后访问 \`http://localhost:8580/docs\` 查看自动生成的 Swagger 文档。
+系统提供完整的 RESTful API，启动后访问 \`http://localhost:9590/docs\` 查看自动生成的 Swagger 文档。
 
 ### 主要 API 分组
 

@@ -1,7 +1,7 @@
 {
   "agent_id": "agent-product-swain",
   "status": "WORKING",
-  "task_id": "TASK-TEST-001",
-  "updated_at": "2026-03-28T07:59:18Z",
-  "note": "执行协议验证测试任务，更新 sprint.json、状态文件并写入 inbox 事件"
+  "task_id": "TASK-DOW-001",
+  "updated_at": "2026-03-28T18:10:00Z",
+  "note": "接收 TASK-DOW-001 i18n 并行推进任务，正在向团队分发子任务"
 }
