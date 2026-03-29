@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Result, Button, Spin } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { StopOutlined } from '@ant-design/icons';
+import { api } from '../api/request';
 
 interface PluginGuardProps {
   pluginId: string;
@@ -23,9 +24,8 @@ export default function PluginGuard({ pluginId, children, requireLicense = true 
 
   const checkPlugin = useCallback(async () => {
     try {
-      const response = await fetch('/api/plugins/loaded');
-      const data = await response.json();
-      const plugins: PluginInfo[] = data.plugins || [];
+      const res = await api.get('/plugins/loaded');
+      const plugins: PluginInfo[] = res.data.plugins || [];
       const found = plugins.find(p => p.name === pluginId);
       setPlugin(found || { name: pluginId, loaded: false, authorized: false });
     } catch {

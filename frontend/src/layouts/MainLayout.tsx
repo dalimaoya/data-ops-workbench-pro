@@ -40,6 +40,7 @@ import {
   FundProjectionScreenOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../api/request';
 import { changeMyPassword, updateMyProfile } from '../api/users';
 import { listNotifications, markNotificationRead, markAllNotificationsRead } from '../api/notifications';
 import type { NotificationItem } from '../api/notifications';
@@ -125,7 +126,7 @@ const dataManagePluginDefs: PluginMenuDef[] = [
 // ── Group 3: 智能功能 ──
 const smartPluginDefs: PluginMenuDef[] = [
   { pluginName: 'plugin-ai-assistant', menuItem: { key: '/ai-config', icon: <RobotOutlined />, labelKey: 'menu.aiConfig', roles: ['admin'] } },
-  { pluginName: 'plugin-ai-predict', menuItem: { key: '/ai-predict', icon: <FundProjectionScreenOutlined />, labelKey: 'menu.aiPredict' } },
+  // plugin-ai-predict has no standalone page (backend API only, invoked from data maintenance)
   { pluginName: 'plugin-smart-import', menuItem: { key: '/smart-import', icon: <ImportOutlined />, labelKey: 'menu.smartImport' } },
 ];
 
@@ -298,10 +299,9 @@ export default function MainLayout() {
   const menuGroups = buildMenuGroups(pluginStatuses, t);
 
   const refreshPluginStatus = useCallback(() => {
-    fetch('/api/plugins/loaded')
-      .then(r => r.json())
-      .then(data => {
-        if (data.plugins) setPluginStatuses(data.plugins);
+    api.get('/plugins/loaded')
+      .then(res => {
+        if (res.data.plugins) setPluginStatuses(res.data.plugins);
       })
       .catch(() => {});
   }, []);
