@@ -145,6 +145,14 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # Security response headers middleware
 app.add_middleware(SecurityHeadersMiddleware)
 
+# Cache static assets (hashed filenames, safe to cache forever)
+@app.middleware("http")
+async def cache_static_middleware(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/assets/"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return response
+
 # i18n middleware: parse Accept-Language header and set current language
 @app.middleware("http")
 async def i18n_middleware(request: Request, call_next):
