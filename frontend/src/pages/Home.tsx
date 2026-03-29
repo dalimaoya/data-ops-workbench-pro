@@ -149,11 +149,11 @@ export default function Home() {
           getTopTables(),
         ]);
         setStats(s.data);
-        setOperations(o.data);
-        setAlerts(a.data);
-        setTrends(tr.data);
-        setDsHealth(h.data);
-        setTopTables(tt.data);
+        setOperations(Array.isArray(o.data) ? o.data : []);
+        setAlerts(Array.isArray(a.data) ? a.data : []);
+        setTrends(Array.isArray(tr.data) ? tr.data : []);
+        setDsHealth(Array.isArray(h.data) ? h.data : []);
+        setTopTables(Array.isArray(tt.data) ? tt.data : []);
       } catch { /* empty */ }
     };
     fetchAll();
