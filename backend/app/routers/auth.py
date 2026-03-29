@@ -164,14 +164,15 @@ def _ensure_trial_activation(account_id: str | None) -> None:
         db = SessionLocal()
         try:
             now = _now_bjt()
+            now_naive = now.replace(tzinfo=None)
             existing = db.query(TrialActivation).filter(
-                TrialActivation.expires_at > now
+                TrialActivation.expires_at > now_naive
             ).first()
             if not existing:
                 trial = TrialActivation(
                     activation_type="wechat_login",
-                    activated_at=now,
-                    expires_at=now + timedelta(days=30),
+                    activated_at=now_naive,
+                    expires_at=now_naive + timedelta(days=30),
                     account_id=account_id,
                 )
                 db.add(trial)
