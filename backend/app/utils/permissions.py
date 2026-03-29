@@ -10,8 +10,8 @@ def get_permitted_datasource_ids(db: Session, user: UserAccount) -> Optional[Lis
     Returns None if user is admin (meaning all are permitted).
     Returns empty list if non-admin has no permissions.
     """
-    if user.role == "admin":
-        return None  # admin sees everything
+    if user.role in ("admin", "superadmin"):
+        return None  # admin/superadmin sees everything
     rows = db.query(UserDatasourcePermission.datasource_id).filter(
         UserDatasourcePermission.user_id == user.id
     ).all()
