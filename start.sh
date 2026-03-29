@@ -88,8 +88,14 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # ── 检测打包产物 ──
-SERVER_BIN="$SCRIPT_DIR/server/app/dataops-server"
-if [ -x "$SERVER_BIN" ]; then
+SERVER_BIN=""
+for _candidate in "$SCRIPT_DIR/server/app" "$SCRIPT_DIR/server/dataops-server" "$SCRIPT_DIR/server/app/dataops-server" "$SCRIPT_DIR/server/app/app"; do
+  if [ -x "$_candidate" ]; then
+    SERVER_BIN="$_candidate"
+    break
+  fi
+done
+if [ -n "$SERVER_BIN" ]; then
   # ═══════════════════════════════════════════
   #  打包模式：直接运行独立可执行文件
   # ═══════════════════════════════════════════

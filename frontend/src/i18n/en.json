@@ -694,7 +694,7 @@
   },
   "about": {
     "title": "Data Ops Workbench",
-    "version": "v4.8.0",
+    "version": "v5.0.0",
     "featureTitle": "Features",
     "featureDesc": "Data Ops Workbench is a lightweight data security revision platform that enables O&M and business personnel to maintain result data tables through a standardized workflow of \"Platform Template + Validation Preview + Secure Writeback\" without direct database access.\n\nCore Capabilities:\n• 7 database types supported (MySQL / PostgreSQL / SQL Server / Oracle / DM / KingbaseES / SQLite)\n• AI Assistant (7 scenarios): Smart field config, natural language query, AI batch modify, smart import validation, log analysis, health check, writeback impact assessment\n• Database Maintenance (batch onboarding / batch export / multi-table change comparison)\n• Backup & Migration (one-click backup / import restore / sensitive data masking)\n• Bilingual (Chinese & English), 3-role permission system, datasource-level isolation\n• Optional approval flow, notification center, inline editing, batch export, diff report export\n• Full audit trail, version rollback",
     "userManual": "User Manual",

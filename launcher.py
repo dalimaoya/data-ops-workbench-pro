@@ -84,8 +84,13 @@ def _find_server_bin():
     else:
         base = os.path.dirname(os.path.abspath(__file__))
     candidates = [
+        os.path.join(base, "server", "app.exe"),
+        os.path.join(base, "server", "app"),
+        os.path.join(base, "server", "dataops-server.exe"),
+        os.path.join(base, "server", "dataops-server"),
         os.path.join(base, "server", "app", "dataops-server.exe"),
         os.path.join(base, "server", "app", "dataops-server"),
+        os.path.join(base, "server", "app", "app.exe"),
         os.path.join(base, "dataops-server.exe"),
         os.path.join(base, "dataops-server"),
     ]
