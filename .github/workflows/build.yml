@@ -1,0 +1,240 @@
+name: Build & Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. 5.0.0)'
+        required: true
+        default: '5.0.0'
+      build_linux:
+        description: 'Build Linux'
+        type: boolean
+        default: true
+      build_windows:
+        description: 'Build Windows'
+        type: boolean
+        default: true
+
+jobs:
+  build-linux:
+    if: ${{ inputs.build_linux }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install nuitka ordered-set zstandard
+
+      - name: Install frontend dependencies & build
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Build backend with Nuitka
+        run: |
+          cd backend
+          python -m nuitka \
+            --standalone \
+            --onefile \
+            --output-filename=app \
+            --include-data-dir=web=web \
+            --include-data-dir=app/i18n=app/i18n \
+            --include-package=uvicorn \
+            --include-package=fastapi \
+            --include-package=sqlalchemy \
+            --include-package=pydantic \
+            --include-package=jose \
+            --include-package=cryptography \
+            --include-package=openpyxl \
+            --include-package=httpx \
+            --jobs=4 \
+            app/main.py
+
+      - name: Package Linux release
+        run: |
+          VERSION=${{ inputs.version }}
+          RELEASE_DIR="data-ops-workbench-v${VERSION}-linux-x64"
+          mkdir -p ${RELEASE_DIR}/server
+          mkdir -p ${RELEASE_DIR}/web
+          mkdir -p ${RELEASE_DIR}/data
+          mkdir -p ${RELEASE_DIR}/logs
+          mkdir -p ${RELEASE_DIR}/backups
+
+          # Backend binary
+          cp backend/app.bin ${RELEASE_DIR}/server/app 2>/dev/null || cp backend/app ${RELEASE_DIR}/server/app 2>/dev/null || echo "Binary not found, checking dist/"
+          [ -f ${RELEASE_DIR}/server/app ] || find backend -name "app" -type f -executable | head -1 | xargs -I{} cp {} ${RELEASE_DIR}/server/app
+          chmod +x ${RELEASE_DIR}/server/app
+
+          # Frontend
+          cp -r backend/web/* ${RELEASE_DIR}/web/
+
+          # Config & scripts
+          cp start.sh ${RELEASE_DIR}/
+          cp version.txt ${RELEASE_DIR}/
+          chmod +x ${RELEASE_DIR}/start.sh
+
+          # Activation public key
+          [ -f data/activation_public.pem ] && cp data/activation_public.pem ${RELEASE_DIR}/data/
+
+          # Package
+          tar czf ${RELEASE_DIR}.tar.gz ${RELEASE_DIR}
+          echo "linux_artifact=${RELEASE_DIR}.tar.gz" >> $GITHUB_ENV
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: data-ops-workbench-v${{ inputs.version }}-linux-x64.tar.gz
+          retention-days: 30
+
+  build-windows:
+    if: ${{ inputs.build_windows }}
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          pip install nuitka ordered-set zstandard pywebview pystray Pillow
+
+      - name: Install frontend dependencies & build
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Build backend with Nuitka
+        run: |
+          cd backend
+          python -m nuitka `
+            --standalone `
+            --onefile `
+            --output-filename=app.exe `
+            --include-data-dir=web=web `
+            --include-data-dir=app/i18n=app/i18n `
+            --include-package=uvicorn `
+            --include-package=fastapi `
+            --include-package=sqlalchemy `
+            --include-package=pydantic `
+            --include-package=jose `
+            --include-package=cryptography `
+            --include-package=openpyxl `
+            --include-package=httpx `
+            --windows-console-mode=disable `
+            --jobs=4 `
+            app/main.py
+
+      - name: Build launcher with Nuitka
+        run: |
+          pip install pywebview pystray Pillow
+          python -m nuitka `
+            --standalone `
+            --onefile `
+            --output-filename=DataOpsWorkbench.exe `
+            --windows-console-mode=disable `
+            --windows-icon-from-ico=frontend/public/favicon.ico `
+            --include-package=webview `
+            --include-package=pystray `
+            --jobs=4 `
+            launcher.py
+
+      - name: Package Windows release
+        shell: pwsh
+        run: |
+          $VERSION = "${{ inputs.version }}"
+          $RELEASE_DIR = "data-ops-workbench-v${VERSION}-win-x64"
+          New-Item -ItemType Directory -Force -Path "$RELEASE_DIR/server"
+          New-Item -ItemType Directory -Force -Path "$RELEASE_DIR/web"
+          New-Item -ItemType Directory -Force -Path "$RELEASE_DIR/data"
+          New-Item -ItemType Directory -Force -Path "$RELEASE_DIR/logs"
+          New-Item -ItemType Directory -Force -Path "$RELEASE_DIR/backups"
+
+          # Backend binary
+          $appExe = Get-ChildItem -Recurse -Filter "app.exe" | Select-Object -First 1
+          if ($appExe) { Copy-Item $appExe.FullName "$RELEASE_DIR/server/app.exe" }
+
+          # Launcher
+          $launcherExe = Get-ChildItem -Recurse -Filter "DataOpsWorkbench.exe" | Select-Object -First 1
+          if ($launcherExe) { Copy-Item $launcherExe.FullName "$RELEASE_DIR/DataOpsWorkbench.exe" }
+
+          # Frontend
+          Copy-Item -Recurse backend/web/* "$RELEASE_DIR/web/"
+
+          # Config & scripts
+          Copy-Item start.bat "$RELEASE_DIR/"
+          Copy-Item version.txt "$RELEASE_DIR/"
+
+          # Activation public key
+          if (Test-Path "data/activation_public.pem") {
+            Copy-Item "data/activation_public.pem" "$RELEASE_DIR/data/"
+          }
+
+          # Package zip
+          Compress-Archive -Path $RELEASE_DIR -DestinationPath "${RELEASE_DIR}.zip"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: data-ops-workbench-v${{ inputs.version }}-win-x64.zip
+          retention-days: 30
+
+  create-release:
+    needs: [build-linux, build-windows]
+    if: always() && (needs.build-linux.result == 'success' || needs.build-windows.result == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: v${{ inputs.version }}
+          body: |
+            ## 数据运维工作台 v${{ inputs.version }}
+
+            ### 下载
+            - **Linux**: `data-ops-workbench-v${{ inputs.version }}-linux-x64.tar.gz`
+            - **Windows**: `data-ops-workbench-v${{ inputs.version }}-win-x64.zip`
+
+            ### 安装
+            - Linux: 解压后运行 `./start.sh`
+            - Windows: 解压后运行 `DataOpsWorkbench.exe` 或 `start.bat`
+            - 访问 `http://localhost:9590`
+            - 默认账号: admin / dalimaoya
+          files: |
+            linux-release/*
+            windows-release/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
