@@ -183,15 +183,15 @@ export default function Login() {
             </div>
           ) : (
             <>
-              <div style={{ color: '#999', fontSize: 13, marginBottom: 4 }}>
-                请使用微信扫描二维码登录
-              </div>
               <div
                 id="wechat-qr-container"
                 ref={qrContainerRef}
-                style={{ width: '100%', height: 239, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}
+                style={{ width: '100%', height: 215, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}
               >
                 <Spin size="large" tip="正在加载微信二维码..." style={{ marginTop: 80 }} />
+              </div>
+              <div style={{ color: '#666', fontSize: 15, marginTop: 4 }}>
+                请使用微信扫描二维码登录
               </div>
             </>
           )}
