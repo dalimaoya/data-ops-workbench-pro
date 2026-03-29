@@ -123,28 +123,6 @@ class ActivationRecordResponse(BaseModel):
     activated_at: str
 
 
-def _ensure_trial_on_activation(db: Session) -> None:
-    """Create a 30-day trial activation on first activation code use, if none exists."""
-    from datetime import timedelta
-    try:
-        now = _now_bjt()
-        now_naive = now.replace(tzinfo=None)
-        existing = db.query(TrialActivation).filter(
-            TrialActivation.expires_at > now_naive
-        ).first()
-        if not existing:
-            trial = TrialActivation(
-                activation_type="activation_code",
-                activated_at=now_naive,
-                expires_at=now_naive + timedelta(days=30),
-                account_id=None,
-            )
-            db.add(trial)
-            db.commit()
-    except Exception:
-        pass
-
-
 # ── Endpoints ────────────────────────────────────────────────────
 
 @router.post("/activate", response_model=ActivateResponse)
