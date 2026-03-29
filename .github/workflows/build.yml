@@ -56,7 +56,7 @@ jobs:
       - name: Build backend with PyInstaller
         run: |
           cd backend
-          pyinstaller --onefile \
+          pyinstaller --onedir \
             --name app \
             --add-data "web:web" \
             --add-data "app/i18n:app/i18n" \
@@ -88,8 +88,9 @@ jobs:
           RELEASE_DIR="data-ops-workbench-v${VERSION}-linux-x64"
           mkdir -p ${RELEASE_DIR}/{server,web,data,logs,backups}
 
-          cp backend/dist/app ${RELEASE_DIR}/server/app
-          chmod +x ${RELEASE_DIR}/server/app
+          # --onedir produces dist/app/ folder
+          cp -r backend/dist/app ${RELEASE_DIR}/server/app
+          chmod +x ${RELEASE_DIR}/server/app/app
 
           cp -r backend/web/* ${RELEASE_DIR}/web/
           cp start.sh ${RELEASE_DIR}/
@@ -146,7 +147,8 @@ jobs:
         shell: pwsh
         run: |
           cd backend
-          pyinstaller --onefile `
+          # Use --onedir for reliability (--onefile can be blocked by antivirus)
+          pyinstaller --onedir `
             --name app `
             --add-data "web;web" `
             --add-data "app/i18n;app/i18n" `
@@ -207,7 +209,8 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$RELEASE_DIR/logs"
           New-Item -ItemType Directory -Force -Path "$RELEASE_DIR/backups"
 
-          Copy-Item "backend/dist/app.exe" "$RELEASE_DIR/server/app.exe"
+          # --onedir produces dist/app/ folder, copy entire folder as server/app/
+          Copy-Item -Recurse "backend/dist/app" "$RELEASE_DIR/server/app"
           Copy-Item "dist/DataOpsWorkbench.exe" "$RELEASE_DIR/DataOpsWorkbench.exe"
           Copy-Item -Recurse "backend/web/*" "$RELEASE_DIR/web/"
           Copy-Item "start.bat" "$RELEASE_DIR/"
