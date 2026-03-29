@@ -38,6 +38,16 @@ Thumbs.db
 *.key
 .env
 .env.*
+*.pem
+.fernet_key
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+backend/data/
+backend/dataops.db
+.env.*
 
 # GitHub workflows - now tracked for CI/CD
 release/
