@@ -154,6 +154,29 @@ def decode_token(token: str) -> dict:
     raise HTTPException(status_code=401, detail=t("auth.token_invalid_expired"))
 
 
+def _ensure_trial_activation_on_wechat_bind(db: Session, account_id: str | None) -> None:
+    """Create a 30-day trial activation on first WeChat bind, if none exists."""
+    from app.models import TrialActivation, _now_bjt
+    from datetime import timedelta
+    try:
+        now = _now_bjt()
+        now_naive = now.replace(tzinfo=None)
+        existing = db.query(TrialActivation).filter(
+            TrialActivation.expires_at > now_naive
+        ).first()
+        if not existing:
+            trial = TrialActivation(
+                activation_type="wechat",
+                activated_at=now_naive,
+                expires_at=now_naive + timedelta(days=30),
+                account_id=str(account_id) if account_id else None,
+            )
+            db.add(trial)
+            db.commit()
+    except Exception:
+        pass
+
+
 def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db),
@@ -165,24 +188,26 @@ def get_current_user(
     auth_source = payload.get("_auth_source", "local")
 
     if auth_source == "unified-auth":
-        # Unified auth token: bind first WeChat scan to admin, then verify subsequent scans
+        # Unified auth token: bind first WeChat scan to superadmin, then verify subsequent scans
         unionid = payload.get("unionid")
-        admin = db.query(UserAccount).filter(
-            UserAccount.username == "admin",
+        account_id = payload.get("account_id") or payload.get("sub") or payload.get("openid") or payload.get("user_id")
+        superadmin = db.query(UserAccount).filter(
+            UserAccount.role == "superadmin",
             UserAccount.status == "enabled",
         ).first()
-        if not admin:
+        if not superadmin:
             raise HTTPException(status_code=401, detail=t("auth.user_not_found_disabled"))
 
-        if not admin.wechat_unionid:
-            # First scan: bind this WeChat to admin
-            admin.wechat_unionid = unionid
+        if not superadmin.wechat_unionid:
+            # First scan: bind this WeChat to superadmin and trigger trial
+            superadmin.wechat_unionid = unionid
             db.commit()
-        elif unionid and admin.wechat_unionid != unionid:
-            # Different WeChat trying to login as admin
+            _ensure_trial_activation_on_wechat_bind(db, account_id)
+        elif unionid and superadmin.wechat_unionid != unionid:
+            # Different WeChat trying to login as superadmin
             raise HTTPException(status_code=403, detail="此微信账号未绑定为管理员")
 
-        return admin
+        return superadmin
 
     # Local token
     username = payload.get("sub")
@@ -198,8 +223,11 @@ def get_current_user(
 
 
 def require_role(*roles: str):
-    """Dependency: require user has one of the given roles."""
+    """Dependency: require user has one of the given roles.
+    superadmin passes any role check automatically."""
     def checker(user: UserAccount = Depends(get_current_user)):
+        if user.role == "superadmin":
+            return user
         if user.role not in roles:
             raise HTTPException(status_code=403, detail=t("auth.insufficient_role", roles=', '.join(roles)))
         return user
@@ -220,15 +248,19 @@ def get_optional_user(
 
 
 def init_default_admin(db: Session):
-    """Create default admin user if not exists."""
+    """Create default superadmin user if not exists. Migrate existing admin→superadmin."""
     existing = db.query(UserAccount).filter(UserAccount.username == "admin").first()
     if not existing:
         admin = UserAccount(
             username="admin",
             password_hash=hash_password("dalimaoya"),
-            role="admin",
-            display_name="管理员",
+            role="superadmin",
+            display_name="超级管理员",
             status="enabled",
         )
         db.add(admin)
+        db.commit()
+    elif existing.role == "admin":
+        # Migrate existing admin to superadmin
+        existing.role = "superadmin"
         db.commit()

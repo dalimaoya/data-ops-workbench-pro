@@ -53,7 +53,7 @@ function RequireAuth({ children }: { children: React.JSX.Element }) {
 
 function RequireRole({ roles, children }: { roles: string[]; children: React.JSX.Element }) {
   const { user } = useAuth();
-  if (!user || !roles.includes(user.role)) {
+  if (!user || (user.role !== 'superadmin' && !roles.includes(user.role))) {
     return <Navigate to="/" replace />;
   }
   return children;

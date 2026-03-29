@@ -49,7 +49,13 @@ class UserOut(BaseModel):
         from_attributes = True
 
 
-VALID_ROLES = ("admin", "operator", "viewer")
+VALID_ROLES = ("superadmin", "admin", "operator", "viewer")
+
+# Role hierarchy: which roles can a given role create/manage?
+_MANAGEABLE_ROLES = {
+    "superadmin": {"admin", "operator", "viewer"},
+    "admin": {"operator", "viewer"},
+}
 
 
 class UserCreate(BaseModel):
@@ -116,6 +122,10 @@ def create_user(
 ):
     if body.role not in VALID_ROLES:
         raise HTTPException(400, t("user.role_invalid"))
+    # Enforce role hierarchy: can only create roles you're allowed to manage
+    allowed = _MANAGEABLE_ROLES.get(user.role, set())
+    if body.role not in allowed:
+        raise HTTPException(403, f"权限不足：{user.role} 不能创建 {body.role} 用户")
     # v3.6: Validate username format
     if not re.match(r'^[a-zA-Z0-9_]{4,32}$', body.username):
         raise HTTPException(400, "用户名必须为4-32位英文字母、数字或下划线")
@@ -168,7 +178,14 @@ def update_user(
     if body.role is not None:
         if body.role not in VALID_ROLES:
             raise HTTPException(400, t("user.role_invalid"))
-        # v3.6: Prevent demoting the last admin
+        # superadmin cannot be demoted
+        if target.role == "superadmin":
+            raise HTTPException(400, "超级管理员角色不可修改")
+        # Enforce role hierarchy
+        allowed = _MANAGEABLE_ROLES.get(user.role, set())
+        if body.role not in allowed:
+            raise HTTPException(403, f"权限不足：{user.role} 不能设置 {body.role} 角色")
+        # Prevent demoting the last admin
         if target.role == "admin" and body.role != "admin":
             admin_count = db.query(UserAccount).filter(
                 UserAccount.role == "admin",
@@ -208,6 +225,9 @@ def update_user_status(
     target = db.query(UserAccount).filter(UserAccount.id == user_id).first()
     if not target:
         raise HTTPException(404, t("user.not_found"))
+    # Cannot disable superadmin
+    if target.role == "superadmin" and body.status == "disabled":
+        raise HTTPException(400, "超级管理员不可被禁用")
     # v3.6: Cannot disable yourself
     if target.id == user.id and body.status == "disabled":
         raise HTTPException(400, "不可禁用自己的账号")

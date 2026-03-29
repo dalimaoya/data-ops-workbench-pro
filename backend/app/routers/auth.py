@@ -6,7 +6,7 @@ from typing import Optional
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db, SessionLocal
+from app.database import get_db
 from app.models import UserAccount
 from app.utils.auth import (
     verify_password, create_access_token, get_current_user,
@@ -156,49 +156,18 @@ async def check_update():
         }
 
 
-def _ensure_trial_activation(account_id: str | None) -> None:
-    """Create a 30-day trial activation if none exists yet."""
-    from app.models import TrialActivation, _now_bjt, _BJT
-    from datetime import timedelta
-    try:
-        db = SessionLocal()
-        try:
-            now = _now_bjt()
-            now_naive = now.replace(tzinfo=None)
-            existing = db.query(TrialActivation).filter(
-                TrialActivation.expires_at > now_naive
-            ).first()
-            if not existing:
-                trial = TrialActivation(
-                    activation_type="wechat_login",
-                    activated_at=now_naive,
-                    expires_at=now_naive + timedelta(days=30),
-                    account_id=account_id,
-                )
-                db.add(trial)
-                db.commit()
-        finally:
-            db.close()
-    except Exception:
-        pass
-
-
 @router.get("/verify")
 async def remote_verify(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer)):
     if not credentials:
         raise HTTPException(status_code=401, detail="缺少 token")
-    result = await verify_token_online(credentials.credentials)
-    _ensure_trial_activation(result.get("account_id"))
-    return result
+    return await verify_token_online(credentials.credentials)
 
 
 @router.get("/offline-verify")
 async def offline_verify(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer)):
     if not credentials:
         raise HTTPException(status_code=401, detail="缺少 token")
-    result = await verify_token_offline(credentials.credentials)
-    _ensure_trial_activation(result.get("account_id"))
-    return result
+    return await verify_token_offline(credentials.credentials)
 
 
 @router.post("/public-key/refresh")

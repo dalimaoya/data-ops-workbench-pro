@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db, DATA_DIR
-from app.models import ActivationRecord
+from app.models import ActivationRecord, TrialActivation, _now_bjt
 from app.i18n import t
 
 router = APIRouter(prefix="/api/activation", tags=["激活码"])
@@ -73,6 +73,28 @@ def _verify_activation_code(payload: dict) -> bool:
         return False
 
 
+def _ensure_trial_on_activation(db: Session) -> None:
+    """Create a 30-day trial if none exists, triggered by activation code."""
+    from app.models import TrialActivation, _now_bjt
+    from datetime import timedelta
+    try:
+        now = _now_bjt()
+        now_naive = now.replace(tzinfo=None)
+        existing = db.query(TrialActivation).filter(
+            TrialActivation.expires_at > now_naive
+        ).first()
+        if not existing:
+            trial = TrialActivation(
+                activation_type="activation_code",
+                activated_at=now_naive,
+                expires_at=now_naive + timedelta(days=30),
+            )
+            db.add(trial)
+            db.commit()
+    except Exception:
+        pass
+
+
 # ── Request / Response models ────────────────────────────────────
 
 class ActivateRequest(BaseModel):
@@ -99,6 +121,28 @@ class ActivationRecordResponse(BaseModel):
     plugin_keys: list[str]
     expires_at: Optional[str] = None
     activated_at: str
+
+
+def _ensure_trial_on_activation(db: Session) -> None:
+    """Create a 30-day trial activation on first activation code use, if none exists."""
+    from datetime import timedelta
+    try:
+        now = _now_bjt()
+        now_naive = now.replace(tzinfo=None)
+        existing = db.query(TrialActivation).filter(
+            TrialActivation.expires_at > now_naive
+        ).first()
+        if not existing:
+            trial = TrialActivation(
+                activation_type="activation_code",
+                activated_at=now_naive,
+                expires_at=now_naive + timedelta(days=30),
+                account_id=None,
+            )
+            db.add(trial)
+            db.commit()
+    except Exception:
+        pass
 
 
 # ── Endpoints ────────────────────────────────────────────────────
@@ -145,6 +189,9 @@ def activate(req: ActivateRequest, db: Session = Depends(get_db)):
     )
     db.add(record)
     db.commit()
+
+    # 7. Trigger trial activation on first activation code
+    _ensure_trial_on_activation(db)
 
     return ActivateResponse(
         success=True,

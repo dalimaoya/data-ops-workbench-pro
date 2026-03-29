@@ -14,17 +14,26 @@ import {
 import type { UserItem } from '../../api/users';
 import { formatBeijingTime } from '../../utils/formatTime';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../context/AuthContext';
 
 export default function UserManagement() {
   const { t } = useTranslation();
+  const { user: currentUser } = useAuth();
 
-  const roleOptions = [
-    { label: t('role.admin'), value: 'admin' },
-    { label: t('role.operator'), value: 'operator' },
-    { label: t('role.viewer'), value: 'viewer' },
-  ];
+  // superadmin can create admin; admin can only create operator/viewer
+  const roleOptions = currentUser?.role === 'superadmin'
+    ? [
+        { label: t('role.admin'), value: 'admin' },
+        { label: t('role.operator'), value: 'operator' },
+        { label: t('role.viewer'), value: 'viewer' },
+      ]
+    : [
+        { label: t('role.operator'), value: 'operator' },
+        { label: t('role.viewer'), value: 'viewer' },
+      ];
 
   const roleLabels: Record<string, string> = {
+    superadmin: t('role.superadmin'),
     admin: t('role.admin'),
     operator: t('role.operator'),
     viewer: t('role.viewer'),
@@ -32,6 +41,7 @@ export default function UserManagement() {
   };
 
   const roleColors: Record<string, string> = {
+    superadmin: 'purple',
     admin: 'red',
     operator: 'blue',
     viewer: 'default',

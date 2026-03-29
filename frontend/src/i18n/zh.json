@@ -117,6 +117,7 @@
     "testFailed": "连接失败"
   },
   "role": {
+    "superadmin": "超级管理员",
     "admin": "管理员",
     "operator": "操作员",
     "readonly": "只读用户",

@@ -519,7 +519,7 @@ export default function MainLayout() {
     const isDisabled = !!(item.disabled);
 
     // Role filtering
-    if (item.roles && !item.roles.includes(userRole)) return null;
+    if (item.roles && userRole !== 'superadmin' && !item.roles.includes(userRole)) return null;
 
     // Hide children of collapsed groups
     if (isChild && parentKey && !expandedGroups[parentKey] && !collapsed) {
@@ -715,7 +715,7 @@ export default function MainLayout() {
 
               {/* Group items */}
               {group.items.map(item => {
-                if (item.roles && !item.roles.includes(userRole)) return null;
+                if (item.roles && userRole !== 'superadmin' && !item.roles.includes(userRole)) return null;
 
                 if (item.children) {
                   // Render group header + children

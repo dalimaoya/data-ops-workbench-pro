@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
             if "last_login_at" not in _cols:
                 _cur.execute("ALTER TABLE user_account ADD COLUMN last_login_at DATETIME")
             _cur.execute("UPDATE user_account SET role = 'viewer' WHERE role = 'readonly'")
-            _cur.execute("UPDATE user_account SET role = 'admin' WHERE username = 'admin' AND role != 'admin'")
+            _cur.execute("UPDATE user_account SET role = 'superadmin' WHERE username = 'admin' AND role = 'admin'")
             _conn.commit()
             _conn.close()
     except Exception as _e:

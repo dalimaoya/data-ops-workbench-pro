@@ -117,6 +117,7 @@
     "testFailed": "Connection failed"
   },
   "role": {
+    "superadmin": "Super Admin",
     "admin": "Admin",
     "operator": "Operator",
     "readonly": "Readonly",
