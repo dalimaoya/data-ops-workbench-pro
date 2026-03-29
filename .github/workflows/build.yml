@@ -170,7 +170,6 @@ jobs:
             --collect-submodules passlib `
             --collect-submodules fastapi `
             --collect-submodules pydantic `
-            --noconsole `
             app/main.py
 
       - name: Build launcher with PyInstaller
