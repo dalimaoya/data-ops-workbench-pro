@@ -411,14 +411,11 @@ export default function About() {
   ];
 
   const [updateChecking, setUpdateChecking] = useState(false);
-  const [updateResult, setUpdateResult] = useState<any>(null);
 
   const handleCheckUpdate = async () => {
     setUpdateChecking(true);
-    setUpdateResult(null);
     try {
       const res = await api.get('/auth/check-update');
-      setUpdateResult(res.data);
       if (res.data.has_update) {
         Modal.info({
           title: '发现新版本',
