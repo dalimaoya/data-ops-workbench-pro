@@ -123,9 +123,9 @@ if exist "%WEB_DIR%\index.html" (
     )
 )
 
-:: ========== Step 4: PyInstaller ==========
+:: ========== Step 4: PyInstaller — 后端服务 ==========
 echo.
-echo [Step 4/5] Running PyInstaller...
+echo [Step 4/7] Building backend server (PyInstaller)...
 cd /d "%BACKEND_DIR%"
 
 :: Clean previous build artifacts
@@ -138,53 +138,94 @@ if !errorlevel! neq 0 (
     pause
     exit /b 1
 )
-echo [OK] PyInstaller build complete
+echo [OK] Backend server build complete
 
-:: ========== Step 5: Assemble release directory ==========
+:: ========== Step 5: PyInstaller — 桌面启动器 ==========
 echo.
-echo [Step 5/5] Assembling release directory...
+echo [Step 5/7] Building desktop launcher (PyInstaller)...
 cd /d "%SCRIPT_DIR%"
 
-if exist "%DIST_DIR%" rmdir /s /q "%DIST_DIR%"
-mkdir "%DIST_DIR%\server"
+echo [INFO] Installing launcher dependencies...
+python -m pip install -q pywebview pystray Pillow psutil
 
-:: Copy PyInstaller output (onedir mode)
-xcopy /E /I /Q "%BACKEND_DIR%\dist\app" "%DIST_DIR%\server\app"
+set "LAUNCHER_DIST=%SCRIPT_DIR%dist\DataOpsWorkbench"
+if exist "%LAUNCHER_DIST%" rmdir /s /q "%LAUNCHER_DIST%"
+
+set "ICO_OPT="
+if exist "%SCRIPT_DIR%icon.ico" set "ICO_OPT=--icon=%SCRIPT_DIR%icon.ico"
+
+pyinstaller --noconfirm --windowed --name DataOpsWorkbench %ICO_OPT% --distpath "%SCRIPT_DIR%dist" launcher.py
 if !errorlevel! neq 0 (
-    echo [ERROR] Failed to copy PyInstaller output
+    echo [ERROR] Launcher PyInstaller build failed
+    pause
+    exit /b 1
+)
+echo [OK] Desktop launcher build complete
+
+:: ========== Step 6: Assemble release directory ==========
+echo.
+echo [Step 6/7] Assembling release directory...
+cd /d "%SCRIPT_DIR%"
+
+set "RELEASE_DIR=%LAUNCHER_DIST%"
+
+:: Copy backend server into release
+mkdir "%RELEASE_DIR%\server" 2>nul
+xcopy /E /I /Q "%BACKEND_DIR%\dist\app" "%RELEASE_DIR%\server\app"
+if !errorlevel! neq 0 (
+    echo [ERROR] Failed to copy backend server
     pause
     exit /b 1
 )
 
-:: Copy start scripts
-copy "%SCRIPT_DIR%start.sh" "%DIST_DIR%\start.sh" >nul
-copy "%SCRIPT_DIR%start.bat" "%DIST_DIR%\start.bat" >nul
+:: Copy start scripts (fallback for non-GUI usage)
+copy "%SCRIPT_DIR%start.sh" "%RELEASE_DIR%\start.sh" >nul
+copy "%SCRIPT_DIR%start.bat" "%RELEASE_DIR%\start.bat" >nul
+
+:: Copy icon and version
+if exist "%SCRIPT_DIR%icon.ico" copy "%SCRIPT_DIR%icon.ico" "%RELEASE_DIR%\icon.ico" >nul
+if exist "%SCRIPT_DIR%version.txt" copy "%SCRIPT_DIR%version.txt" "%RELEASE_DIR%\version.txt" >nul
 
 :: Copy README
-copy "%SCRIPT_DIR%README.md" "%DIST_DIR%\README.md" >nul
+copy "%SCRIPT_DIR%README.md" "%RELEASE_DIR%\README.md" >nul
 
 :: Create runtime directories
-mkdir "%DIST_DIR%\data" 2>nul
-mkdir "%DIST_DIR%\backups" 2>nul
-mkdir "%DIST_DIR%\logs" 2>nul
+mkdir "%RELEASE_DIR%\data" 2>nul
+mkdir "%RELEASE_DIR%\backups" 2>nul
+mkdir "%RELEASE_DIR%\logs" 2>nul
 
+echo [OK] Release directory assembled
+
+:: ========== Step 7: Code signing + Defender scan ==========
+echo.
+echo [Step 7/7] Code signing and antivirus scan...
+if exist "%SCRIPT_DIR%deploy\sign-and-scan.ps1" (
+    powershell -ExecutionPolicy Bypass -File "%SCRIPT_DIR%deploy\sign-and-scan.ps1"
+    echo [OK] Signing and scanning complete
+) else (
+    echo [SKIP] deploy\sign-and-scan.ps1 not found, skipping
+)
+
+:: ========== Done ==========
 echo.
 echo ============================================
 echo   [OK] Build complete!
 echo.
-echo   Output: %DIST_DIR%
+echo   Output: %RELEASE_DIR%
 echo.
 echo   Directory structure:
-echo   data-ops-workbench\
-echo     start.bat          Launch script
-echo     server\app\        Executable and deps
-echo     data\              Runtime data
-echo     backups\           Backup storage
-echo     logs\              Log files
-echo     README.md
+echo   DataOpsWorkbench\
+echo     DataOpsWorkbench.exe   Desktop launcher (pywebview)
+echo     server\app\            Backend server
+echo     icon.ico               Application icon
+echo     version.txt            Version info
+echo     data\                  Runtime data
+echo     backups\               Backup storage
+echo     logs\                  Log files
 echo.
-echo   Usage:
-echo     cd dist\data-ops-workbench
-echo     start.bat
+echo   Next steps:
+echo     1. Run DataOpsWorkbench.exe to test
+echo     2. Run: iscc setup.iss  to create installer
+echo     3. Run: deploy\sign-and-scan.ps1  to sign installer
 echo ============================================
 pause

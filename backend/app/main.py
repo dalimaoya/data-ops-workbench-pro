@@ -21,6 +21,7 @@ from app.i18n import parse_accept_language, set_lang
 from app.plugin_loader import load_plugins, get_loaded_plugins, get_all_plugin_status
 from app.startup_state import startup_state
 from app.routers import network_status as network_status_router
+from app.routers import activation as activation_router
 
 
 @asynccontextmanager
@@ -199,6 +200,7 @@ app.include_router(logs.router)
 app.include_router(users_router.router)
 app.include_router(plugins_router.router)
 app.include_router(network_status_router.router)
+app.include_router(activation_router.router)
 
 # Plugin routers are registered via plugin_loader during lifespan startup
 

@@ -1,8 +1,8 @@
 ; Inno Setup Script for 数据运维工作台
-; Compile with: iscc /DMyAppVersion=v3.7.0 setup.iss
+; Compile with: iscc /DMyAppVersion=v5.0.0 setup.iss
 
 #ifndef MyAppVersion
-  #define MyAppVersion "v4.9.0"
+  #define MyAppVersion "v5.0.0"
 #endif
 
 [Setup]
@@ -10,17 +10,22 @@ AppId={{E8F3A1B2-5C6D-4E7F-8A9B-0C1D2E3F4A5B}
 AppName=数据运维工作台
 AppVersion={#MyAppVersion}
 AppPublisher=DataOps Team
+AppContact=ops@aiusing.net
+AppSupportURL=https://github.com/dalimaoya/data-ops-workbench-pro
 DefaultDirName={autopf}\DataOpsWorkbench
 DefaultGroupName=数据运维工作台
 AllowNoIcons=yes
 OutputDir=dist
-OutputBaseFilename=data-ops-workbench-{#MyAppVersion}-win-x64-setup
+OutputBaseFilename=DataOpsWorkbench-{#MyAppVersion}-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=admin
-UninstallDisplayName=数据运维工作台
+UninstallDisplayName=数据运维工作台 {#MyAppVersion}
+UninstallDisplayIcon={app}\DataOpsWorkbench.exe
 ArchitecturesInstallIn64BitMode=x64compatible
+SetupIconFile=icon.ico
+MinVersion=10.0
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
@@ -31,7 +36,10 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 Name: "startupicon"; Description: "开机自动启动"; GroupDescription: "系统设置:"; Flags: unchecked
 
 [Files]
-Source: "dist\data-ops-workbench\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 主入口（pywebview + 控制面板）
+Source: "dist\DataOpsWorkbench\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 版本文件
+Source: "version.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
 Name: "{app}\data"; Permissions: users-full
@@ -39,22 +47,46 @@ Name: "{app}\backups"; Permissions: users-full
 Name: "{app}\logs"; Permissions: users-full
 
 [Icons]
-; 优先使用 exe 启动器，如无则用 start.bat
-Name: "{group}\数据运维工作台"; Filename: "{app}\数据运维工作台.exe"; Check: FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
-Name: "{group}\数据运维工作台"; Filename: "{app}\start.bat"; Check: not FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
+; 开始菜单
+Name: "{group}\数据运维工作台"; Filename: "{app}\DataOpsWorkbench.exe"; IconFilename: "{app}\icon.ico"
 Name: "{group}\卸载数据运维工作台"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\数据运维工作台"; Filename: "{app}\数据运维工作台.exe"; Tasks: desktopicon; Check: FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
-Name: "{autodesktop}\数据运维工作台"; Filename: "{app}\start.bat"; Tasks: desktopicon; Check: not FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
+; 桌面快捷方式
+Name: "{autodesktop}\数据运维工作台"; Filename: "{app}\DataOpsWorkbench.exe"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "DataOpsWorkbench"; ValueData: """{app}\数据运维工作台.exe"""; Flags: uninsdeletevalue; Tasks: startupicon; Check: FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "DataOpsWorkbench"; ValueData: """{app}\start.bat"""; Flags: uninsdeletevalue; Tasks: startupicon; Check: not FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
+; 应用信息
+Root: HKCU; Subkey: "Software\DataOpsWorkbench"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\DataOpsWorkbench"; ValueType: string; ValueName: "Version"; ValueData: "{#MyAppVersion}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\DataOpsWorkbench"; ValueType: dword; ValueName: "Port"; ValueData: "9590"; Flags: uninsdeletekey
+; 开机自启（仅用户勾选时）
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "DataOpsWorkbench"; ValueData: """{app}\DataOpsWorkbench.exe"""; Flags: uninsdeletevalue; Tasks: startupicon
 
 [Run]
-Filename: "{app}\数据运维工作台.exe"; Description: "立即启动数据运维工作台"; Flags: nowait postinstall skipifsilent; Check: FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
-Filename: "{app}\start.bat"; Description: "立即启动数据运维工作台"; Flags: nowait postinstall skipifsilent; Check: not FileExists(ExpandConstant('{app}\数据运维工作台.exe'))
+Filename: "{app}\DataOpsWorkbench.exe"; Description: "立即启动数据运维工作台"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
+; 清理日志和备份（始终删除）
 Type: filesandirs; Name: "{app}\logs"
-Type: filesandirs; Name: "{app}\data"
 Type: filesandirs; Name: "{app}\backups"
+Type: filesandirs; Name: "{app}\__pycache__"
+
+[Code]
+// 卸载时询问用户是否保留 data/ 目录
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    if DirExists(ExpandConstant('{app}\data')) then
+    begin
+      if MsgBox('是否保留用户数据目录（data/）？' + #13#10 +
+                '其中包含数据库配置、数据源信息等。' + #13#10 + #13#10 +
+                '选择"是"保留数据，选择"否"彻底删除。',
+                mbConfirmation, MB_YESNO) = IDNO then
+      begin
+        DelTree(ExpandConstant('{app}\data'), True, True, True);
+      end;
+    end;
+    // 如果整个安装目录为空，删除它
+    RemoveDir(ExpandConstant('{app}'));
+  end;
+end;

@@ -1,10 +1,12 @@
-import { Card, Descriptions, Typography, Space, Tag, Divider, Tabs, Alert } from 'antd';
-import { GithubOutlined, LinkOutlined, BookOutlined, InfoCircleOutlined, DatabaseOutlined, SafetyCertificateOutlined, HomeOutlined } from '@ant-design/icons';
+import { useCallback, useEffect, useState } from 'react';
+import { Card, Descriptions, Typography, Space, Tag, Divider, Tabs, Alert, Button, Modal, Input, List, message } from 'antd';
+import { GithubOutlined, LinkOutlined, BookOutlined, InfoCircleOutlined, DatabaseOutlined, SafetyCertificateOutlined, HomeOutlined, KeyOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import userManualContent from '../content/userManualContent';
 import systemInfoContent from '../content/systemInfoContent';
+import { api } from '../api/request';
 import type { Components } from 'react-markdown';
 
 const { Title, Paragraph, Link, Text } = Typography;
@@ -193,6 +195,148 @@ function OverviewTab({ isZh }: { isZh: boolean }) {
   );
 }
 
+interface ActivationRecordItem {
+  id: number;
+  code: string;
+  product: string;
+  plugin_keys: string[];
+  expires_at: string | null;
+  activated_at: string;
+}
+
+const PLUGIN_LABELS: Record<string, string> = {
+  plugin_ai_assistant: 'AI 智能助手',
+  plugin_data_mask: '数据脱敏导出',
+  plugin_batch_fill: '批量填充',
+  plugin_smart_import: '智能导入',
+  plugin_health_check: '健康巡检',
+};
+
+function ActivationTab() {
+  const [records, setRecords] = useState<ActivationRecordItem[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [codeInput, setCodeInput] = useState('');
+  const [activating, setActivating] = useState(false);
+
+  const loadRecords = useCallback(async () => {
+    try {
+      const res = await api.get('/activation/records');
+      setRecords(res.data);
+    } catch {
+      // silent
+    }
+  }, []);
+
+  useEffect(() => {
+    loadRecords();
+  }, [loadRecords]);
+
+  const handleActivate = async () => {
+    const trimmed = codeInput.trim();
+    if (!trimmed) return;
+
+    // The activation code input could be the raw code string or a JSON payload
+    // Try to parse as JSON first (full signed payload from auth platform)
+    let payload: any;
+    try {
+      payload = JSON.parse(trimmed);
+    } catch {
+      message.error('请粘贴完整的激活码内容（JSON 格式）');
+      return;
+    }
+
+    if (!payload.code || !payload.signature) {
+      message.error('激活码格式无效，缺少 code 或 signature 字段');
+      return;
+    }
+
+    setActivating(true);
+    try {
+      const res = await api.post('/activation/activate', payload);
+      message.success(res.data.message || '激活成功');
+      setCodeInput('');
+      setModalOpen(false);
+      loadRecords();
+    } catch (err: any) {
+      message.error(err?.response?.data?.detail || '激活失败');
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  const formatExpiry = (expiresAt: string | null) => {
+    if (!expiresAt) return '永久';
+    const d = new Date(expiresAt);
+    const now = new Date();
+    const label = d.toLocaleDateString('zh-CN');
+    return d < now ? `已过期 (${label})` : `至 ${label}`;
+  };
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Typography.Title level={5} style={{ margin: 0 }}>已激活插件</Typography.Title>
+        <Button type="primary" icon={<KeyOutlined />} onClick={() => setModalOpen(true)}>
+          输入激活码
+        </Button>
+      </div>
+
+      {records.length === 0 ? (
+        <Alert message="暂无已激活的插件" description="请点击右上方按钮输入激活码以解锁插件功能。" type="info" showIcon />
+      ) : (
+        <List
+          bordered
+          dataSource={records}
+          renderItem={(item) => (
+            <List.Item>
+              <List.Item.Meta
+                avatar={<CheckCircleOutlined style={{ fontSize: 20, color: '#52c41a' }} />}
+                title={
+                  <Space>
+                    {item.plugin_keys.map((k) => (
+                      <Tag key={k} color="blue">{PLUGIN_LABELS[k] || k}</Tag>
+                    ))}
+                  </Space>
+                }
+                description={
+                  <Space split={<Divider type="vertical" />}>
+                    <span>有效期：{formatExpiry(item.expires_at)}</span>
+                    <span>激活时间：{new Date(item.activated_at).toLocaleDateString('zh-CN')}</span>
+                    <Typography.Text type="secondary" copyable={{ text: item.code }} style={{ fontSize: 12 }}>
+                      {item.code.substring(0, 12)}...
+                    </Typography.Text>
+                  </Space>
+                }
+              />
+            </List.Item>
+          )}
+        />
+      )}
+
+      <Modal
+        title="插件激活"
+        open={modalOpen}
+        onCancel={() => setModalOpen(false)}
+        onOk={handleActivate}
+        okText="激活"
+        cancelText="取消"
+        confirmLoading={activating}
+        width={520}
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+          请粘贴从管理员处获取的激活码内容（JSON 格式）。
+        </Typography.Paragraph>
+        <Input.TextArea
+          rows={6}
+          placeholder={'{\n  "code": "ACT:XXXX-XXXX-XXXX-XXXX",\n  "product": "data-ops-workbench",\n  "plugin_keys": ["plugin_ai_assistant"],\n  "signature": "..."\n}'}
+          value={codeInput}
+          onChange={(e) => setCodeInput(e.target.value)}
+        />
+      </Modal>
+    </>
+  );
+}
+
 export default function About() {
   const { t, i18n } = useTranslation();
   const isZh = i18n.language === 'zh';
@@ -253,6 +397,16 @@ export default function About() {
           <MarkdownViewer content={systemInfoContent} />
         </>
       ),
+    },
+    {
+      key: 'activation',
+      label: (
+        <Space>
+          <KeyOutlined />
+          {isZh ? '插件激活' : 'Activation'}
+        </Space>
+      ),
+      children: <ActivationTab />,
     },
   ];
 

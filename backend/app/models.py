@@ -450,3 +450,16 @@ class PluginStatus(Base):
     enabled_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, nullable=False, default=_now_bjt)
     updated_at = Column(DateTime, nullable=False, default=_now_bjt, onupdate=_now_bjt)
+
+
+# ── 22. activation_record (v5.0) ──
+class ActivationRecord(Base):
+    __tablename__ = "activation_record"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    code = Column(String(64), unique=True, nullable=False)
+    product = Column(String(64), nullable=False)
+    plugin_keys = Column(Text, nullable=False)  # JSON array string
+    expires_at = Column(DateTime, nullable=True)  # null = permanent
+    activated_at = Column(DateTime, nullable=False, default=_now_bjt)
+    signature = Column(Text, nullable=False)
