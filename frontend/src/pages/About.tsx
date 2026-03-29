@@ -206,14 +206,22 @@ interface ActivationRecordItem {
 
 const PLUGIN_LABELS: Record<string, string> = {
   plugin_ai_assistant: 'AI 智能助手',
+  plugin_ai_predict: 'AI 数据预填',
+  plugin_approval: '审批流',
+  plugin_audit_export: '审计报告导出',
+  plugin_data_compare: '跨库数据对比',
   plugin_data_mask: '数据脱敏导出',
-  plugin_batch_fill: '批量填充',
-  plugin_smart_import: '智能导入',
-  plugin_health_check: '健康巡检',
+  plugin_data_trend: '数据变更趋势',
+  plugin_notify_push: '外部通知推送',
+  plugin_report: '数据对比报告',
+  plugin_smart_import: '智能数据导入',
+  plugin_template_market: '模板市场',
+  plugin_webhook: 'Webhook 集成',
 };
 
 function ActivationTab() {
   const [records, setRecords] = useState<ActivationRecordItem[]>([]);
+  const [trialStatus, setTrialStatus] = useState<{ active: boolean; expires_at: string | null; days_remaining: number } | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [codeInput, setCodeInput] = useState('');
   const [activating, setActivating] = useState(false);
@@ -227,27 +235,36 @@ function ActivationTab() {
     }
   }, []);
 
+  const loadTrialStatus = useCallback(async () => {
+    try {
+      const res = await api.get('/plugins/trial-status');
+      setTrialStatus(res.data);
+    } catch {
+      // silent
+    }
+  }, []);
+
   useEffect(() => {
     loadRecords();
-  }, [loadRecords]);
+    loadTrialStatus();
+  }, [loadRecords, loadTrialStatus]);
 
   const handleActivate = async () => {
     const trimmed = codeInput.trim();
     if (!trimmed) return;
 
-    // The activation code input could be the raw code string or a JSON payload
-    // Try to parse as JSON first (full signed payload from auth platform)
+    // Support both simple code string (ACT:XXXX-XXXX-XXXX) and JSON payload
     let payload: any;
-    try {
-      payload = JSON.parse(trimmed);
-    } catch {
-      message.error('请粘贴完整的激活码内容（JSON 格式）');
-      return;
-    }
-
-    if (!payload.code || !payload.signature) {
-      message.error('激活码格式无效，缺少 code 或 signature 字段');
-      return;
+    if (trimmed.startsWith('{')) {
+      try {
+        payload = JSON.parse(trimmed);
+      } catch {
+        message.error('JSON 格式无效');
+        return;
+      }
+    } else {
+      // Simple activation code string — send as code field
+      payload = { code: trimmed };
     }
 
     setActivating(true);
@@ -257,6 +274,7 @@ function ActivationTab() {
       setCodeInput('');
       setModalOpen(false);
       loadRecords();
+      loadTrialStatus();
     } catch (err: any) {
       message.error(err?.response?.data?.detail || '激活失败');
     } finally {
@@ -268,12 +286,25 @@ function ActivationTab() {
     if (!expiresAt) return '永久';
     const d = new Date(expiresAt);
     const now = new Date();
-    const label = d.toLocaleDateString('zh-CN');
+    const label = d.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' });
     return d < now ? `已过期 (${label})` : `至 ${label}`;
   };
 
   return (
     <>
+      {/* Trial status */}
+      {trialStatus && (
+        <Alert
+          style={{ marginBottom: 16 }}
+          type={trialStatus.active ? 'success' : 'warning'}
+          showIcon
+          message={trialStatus.active
+            ? `全插件试用中 — 剩余 ${trialStatus.days_remaining} 天（到期：${formatExpiry(trialStatus.expires_at)}）`
+            : '试用已过期，请输入激活码解锁插件功能'
+          }
+        />
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Typography.Title level={5} style={{ margin: 0 }}>已激活插件</Typography.Title>
         <Button type="primary" icon={<KeyOutlined />} onClick={() => setModalOpen(true)}>
@@ -282,7 +313,7 @@ function ActivationTab() {
       </div>
 
       {records.length === 0 ? (
-        <Alert message="暂无已激活的插件" description="请点击右上方按钮输入激活码以解锁插件功能。" type="info" showIcon />
+        <Alert message="暂无通过激活码激活的插件" description={trialStatus?.active ? '当前处于试用期，所有扩展插件已自动开放。' : '请点击右上方按钮输入激活码以解锁插件功能。'} type="info" showIcon />
       ) : (
         <List
           bordered
@@ -321,16 +352,18 @@ function ActivationTab() {
         okText="激活"
         cancelText="取消"
         confirmLoading={activating}
-        width={520}
+        width={420}
       >
         <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-          请粘贴从管理员处获取的激活码内容（JSON 格式）。
+          请输入从管理员处获取的激活码。
         </Typography.Paragraph>
-        <Input.TextArea
-          rows={6}
-          placeholder={'{\n  "code": "ACT:XXXX-XXXX-XXXX-XXXX",\n  "product": "data-ops-workbench",\n  "plugin_keys": ["plugin_ai_assistant"],\n  "signature": "..."\n}'}
+        <Input
+          size="large"
+          placeholder="ACT:XXXX-XXXX-XXXX-XXXX"
           value={codeInput}
           onChange={(e) => setCodeInput(e.target.value)}
+          onPressEnter={handleActivate}
+          style={{ fontFamily: 'monospace', letterSpacing: 1 }}
         />
       </Modal>
     </>
