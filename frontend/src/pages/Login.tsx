@@ -78,7 +78,7 @@ export default function Login() {
             redirect_uri: data.redirect_uri,
             state: data.state,
             style: 'black',
-            href: 'data:text/css;base64,' + btoa('.impowerBox .qrcode {width: 200px;} .impowerBox .title {display: none;} .impowerBox .info {display: none;} .impowerBox .status {text-align: center;}'),
+            href: 'data:text/css;base64,' + btoa('.impowerBox .qrcode {width: 200px; margin: 0 auto;} .impowerBox .title {display: none;} .impowerBox .info {display: none;} .impowerBox .status {text-align: center;} .impowerBox {padding: 0;} .wrp_code {margin: 0;}'),
           });
           qrLoadedRef.current = true;
         }
@@ -175,23 +175,23 @@ export default function Login() {
       label: '联网登录',
       disabled: !networkOnline,
       children: (
-        <div style={{ textAlign: 'center', padding: '8px 0', height: 280, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
           {!networkOnline ? (
-            <div style={{ color: '#999' }}>
+            <div style={{ padding: '40px 0', color: '#999' }}>
               <GlobalOutlined style={{ fontSize: 32, marginBottom: 12, display: 'block' }} />
               当前网络不可用，请使用离线登录
             </div>
           ) : (
             <>
+              <div style={{ color: '#999', fontSize: 13, marginBottom: 4 }}>
+                请使用微信扫描二维码登录
+              </div>
               <div
                 id="wechat-qr-container"
                 ref={qrContainerRef}
-                style={{ width: '100%', height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}
+                style={{ width: '100%', height: 260, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}
               >
-                <Spin size="large" tip="正在加载微信二维码..." />
-              </div>
-              <div style={{ marginTop: 4, color: '#999', fontSize: 13 }}>
-                请使用微信扫描二维码登录
+                <Spin size="large" tip="正在加载微信二维码..." style={{ marginTop: 80 }} />
               </div>
             </>
           )}
