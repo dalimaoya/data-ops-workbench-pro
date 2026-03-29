@@ -150,10 +150,16 @@ interface PluginStatus {
   loaded: boolean;
   layer?: string;
   category?: string;
+  authorized?: boolean;
 }
 
 function buildMenuGroups(loadedPlugins: PluginStatus[], _t: (key: string) => string): MenuGroup[] {
-  const loadedSet = new Set(loadedPlugins.filter(p => p.loaded).map(p => p.name));
+  // Extension plugins must be both loaded AND authorized to appear in menu
+  const loadedSet = new Set(
+    loadedPlugins
+      .filter(p => p.loaded && (p.layer === 'builtin' || p.authorized !== false))
+      .map(p => p.name)
+  );
   const groups: MenuGroup[] = [];
 
   // ── Group 1: 底座 (Base) ──

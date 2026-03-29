@@ -463,3 +463,14 @@ class ActivationRecord(Base):
     expires_at = Column(DateTime, nullable=True)  # null = permanent
     activated_at = Column(DateTime, nullable=False, default=_now_bjt)
     signature = Column(Text, nullable=False)
+
+
+# ── 23. trial_activation (v5.1) ──
+class TrialActivation(Base):
+    __tablename__ = "trial_activation"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    activation_type = Column(String(32), nullable=False, default="wechat_login")  # wechat_login / manual
+    activated_at = Column(DateTime, nullable=False, default=_now_bjt)
+    expires_at = Column(DateTime, nullable=False)
+    account_id = Column(String(128), nullable=True, index=True)  # unified auth account id

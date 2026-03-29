@@ -169,6 +169,7 @@ export default function PluginCenterPage() {
         {filteredPlugins.map(plugin => {
           const catInfo = getCategoryInfo(plugin.category);
           const isLicenseRequired = plugin.license === 'required';
+          const isUnauthorized = plugin.authorized === false;
 
           return (
             <Col key={plugin.name} xs={24} sm={12} md={8} lg={6}>
@@ -177,8 +178,9 @@ export default function PluginCenterPage() {
                 onClick={() => setDetailPlugin(plugin)}
                 style={{
                   borderRadius: 12,
-                  border: plugin.enabled ? `1px solid ${catInfo.color}33` : '1px solid #f0f0f0',
-                  background: plugin.enabled ? `${catInfo.color}05` : '#fff',
+                  border: plugin.enabled && !isUnauthorized ? `1px solid ${catInfo.color}33` : '1px solid #f0f0f0',
+                  background: plugin.enabled && !isUnauthorized ? `${catInfo.color}05` : '#fff',
+                  opacity: isUnauthorized ? 0.75 : 1,
                   height: '100%',
                   cursor: 'pointer',
                 }}
@@ -201,17 +203,17 @@ export default function PluginCenterPage() {
                     {catInfo.icon}
                   </div>
                   <Space size={4}>
-                    {isLicenseRequired && (
-                      <Tooltip title={isZh ? '需要授权' : 'License required'}>
+                    {(isLicenseRequired || isUnauthorized) && (
+                      <Tooltip title={isZh ? '需要授权' : 'Authorization required'}>
                         <LockOutlined style={{ color: '#faad14', fontSize: 16 }} />
                       </Tooltip>
                     )}
-                    <Tooltip title={isAdmin ? '' : (isZh ? '仅管理员可操作' : 'Admin only')}>
+                    <Tooltip title={isUnauthorized ? (isZh ? '需要授权' : 'Authorization required') : (!isAdmin ? (isZh ? '仅管理员可操作' : 'Admin only') : '')}>
                       <span onClick={e => e.stopPropagation()}>
                         <Switch
                           checked={plugin.enabled}
                           loading={toggling === plugin.name}
-                          disabled={!isAdmin}
+                          disabled={!isAdmin || isUnauthorized}
                           onChange={checked => handleToggle(plugin, checked)}
                           size="small"
                         />
@@ -304,11 +306,14 @@ export default function PluginCenterPage() {
               </div>
               <div style={{ textAlign: 'right' }}>
                 <Space>
+                  {detailPlugin.authorized === false && (
+                    <Tag color="warning" icon={<LockOutlined />}>{isZh ? '需要授权' : 'Authorization required'}</Tag>
+                  )}
                   <Text type="secondary" style={{ fontSize: 12 }}>{isZh ? '启用/停用：' : 'Enable/Disable:'}</Text>
                   <Switch
                     checked={detailPlugin.enabled}
                     loading={toggling === detailPlugin.name}
-                    disabled={!isAdmin}
+                    disabled={!isAdmin || detailPlugin.authorized === false}
                     onChange={checked => {
                       handleToggle(detailPlugin, checked);
                       setDetailPlugin({ ...detailPlugin, enabled: checked });

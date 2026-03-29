@@ -12,6 +12,7 @@ export interface PluginInfo {
   category: string;
   enabled: boolean;
   loaded: boolean;
+  authorized?: boolean;
   frontend: Record<string, any>;
 }
 

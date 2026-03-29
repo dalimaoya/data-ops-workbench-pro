@@ -220,7 +220,31 @@ def get_startup_progress():
 @app.get("/api/plugins/loaded")
 def list_loaded_plugins():
     """Return all known plugins with loaded/unloaded status for frontend menu rendering."""
-    return {"plugins": get_all_plugin_status()}
+    from app.models import TrialActivation, _now_bjt
+    plugins = get_all_plugin_status()
+
+    # Check trial activation for extension plugin authorization
+    has_active_trial = False
+    try:
+        db = SessionLocal()
+        try:
+            now = _now_bjt()
+            trial = db.query(TrialActivation).filter(
+                TrialActivation.expires_at > now
+            ).first()
+            has_active_trial = trial is not None
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+    for p in plugins:
+        if p.get("layer") == "builtin":
+            p["authorized"] = True
+        else:
+            p["authorized"] = has_active_trial
+
+    return {"plugins": plugins}
 
 
 # Mount frontend static files (production)

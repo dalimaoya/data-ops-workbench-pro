@@ -3,8 +3,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+from sqlalchemy.orm import Session
 
 from app.utils.auth import get_current_user, require_role
+from app.database import get_db
 
 from app.plugin_loader import get_all_plugins_full, toggle_plugin
 from app.i18n import t
@@ -23,9 +25,29 @@ class ToggleResponse(BaseModel):
 
 
 @router.get("/all")
-def list_all_plugins(current_user=Depends(get_current_user)):
+def list_all_plugins(current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     """Return all plugins with layer/category/enabled status (for plugin center)."""
+    from app.models import TrialActivation, _now_bjt
+
     plugins = get_all_plugins_full()
+
+    # Check trial activation for extension authorization
+    has_active_trial = False
+    try:
+        now = _now_bjt()
+        trial = db.query(TrialActivation).filter(
+            TrialActivation.expires_at > now
+        ).first()
+        has_active_trial = trial is not None
+    except Exception:
+        pass
+
+    for p in plugins:
+        if p.get("layer") == "builtin":
+            p["authorized"] = True
+        else:
+            p["authorized"] = has_active_trial
+
     return {"plugins": plugins}
 
 
@@ -50,3 +72,33 @@ def toggle_plugin_status(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/trial-status")
+def get_trial_status(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return current trial activation status."""
+    from app.models import TrialActivation, _now_bjt
+    from math import ceil
+
+    now = _now_bjt()
+    trial = db.query(TrialActivation).filter(
+        TrialActivation.expires_at > now
+    ).order_by(TrialActivation.expires_at.desc()).first()
+
+    if trial:
+        remaining = (trial.expires_at - now).total_seconds()
+        days_remaining = max(0, ceil(remaining / 86400))
+        return {
+            "active": True,
+            "expires_at": trial.expires_at.isoformat(),
+            "days_remaining": days_remaining,
+        }
+
+    return {
+        "active": False,
+        "expires_at": None,
+        "days_remaining": 0,
+    }
