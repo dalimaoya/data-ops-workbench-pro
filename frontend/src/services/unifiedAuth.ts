@@ -45,8 +45,8 @@ export function saveSession(session: UnifiedAuthSession) {
   const nickname = session.nickname || payload.nickname || null;
   localStorage.setItem('user', JSON.stringify({
     username: nickname || session.account_id,
-    role: 'admin',
-    display_name: nickname || '微信用户',
+    role: 'superadmin',
+    display_name: nickname || '超级管理员',
     account_id: session.account_id,
     auth_source: '统一认证平台',
     expires_at: session.expires_at,
