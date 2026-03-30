@@ -481,27 +481,23 @@ export default function AIConfigPage() {
 
                 {/* Model Name */}
                 <Form.Item name="cloud_model_name" label={t('aiConfig.modelName')}>
-                  <Select
-                    showSearch
+                  <Input
+                    placeholder={isZh ? '输入模型名称，如 gpt-4o、deepseek-chat、qwen-plus' : 'Enter model name, e.g. gpt-4o, deepseek-chat'}
                     allowClear
-                    placeholder={t('aiConfig.modelPlaceholder')}
-                    options={
-                      selectedPlatform?.models.length
-                        ? selectedPlatform.models.map(m => ({ value: m, label: m }))
-                        : []
-                    }
-                    mode={undefined}
-                    dropdownRender={menu => (
-                      <>
-                        {menu}
-                        <Divider style={{ margin: '4px 0' }} />
-                        <Text type="secondary" style={{ padding: '4px 12px', fontSize: 12 }}>
-                          {t('aiConfig.modelManualHint')}
-                        </Text>
-                      </>
-                    )}
                   />
                 </Form.Item>
+                {selectedPlatform?.models && selectedPlatform.models.length > 0 && (
+                  <div style={{ marginTop: -12, marginBottom: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>{isZh ? '推荐模型：' : 'Suggested: '}</Text>
+                    {selectedPlatform.models.map(m => (
+                      <Tag
+                        key={m}
+                        style={{ cursor: 'pointer', marginBottom: 4 }}
+                        onClick={() => cloudForm.setFieldsValue({ cloud_model_name: m })}
+                      >{m}</Tag>
+                    ))}
+                  </div>
+                )}
 
                 {/* Max Tokens */}
                 <Form.Item name="cloud_max_tokens" label={t('aiConfig.maxTokens')}>
