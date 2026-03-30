@@ -18,6 +18,7 @@ from app.database import get_db, DATA_DIR, DATABASE_URL
 from app.models import (
     DatasourceConfig, TableConfig, FieldConfig, UserAccount,
     SystemSetting, AIConfig, SystemOperationLog,
+    TrialActivation, ActivationRecord, PluginStatus,
 )
 from app.utils.auth import get_current_user, require_role
 from app.utils.crypto import decrypt_password
@@ -32,10 +33,10 @@ os.makedirs(BACKUP_DIR, exist_ok=True)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # Current app version – keep in sync with main.py
-APP_VERSION = "3.0.0"
+APP_VERSION = "5.0.0"
 MANIFEST_SCHEMA_VERSION = "1.0"
 # Minimum app version that can import backups created by this version
-COMPATIBLE_VERSIONS = {"3.0.0", "2.6.0", "2.5.0", "2.4.0", "2.3.0", "2.2.0", "2.1.0", "2.0.0", "1.0"}
+COMPATIBLE_VERSIONS = {"5.0.0", "3.0.0", "2.6.0", "2.5.0", "2.4.0", "2.3.0", "2.2.0", "2.1.0", "2.0.0", "1.0"}
 
 
 def _now_bjt():
@@ -187,6 +188,7 @@ def create_backup(
                 "role": u.role,
                 "display_name": u.display_name,
                 "status": u.status,
+                "wechat_unionid": u.wechat_unionid,
             })
         with open(os.path.join(config_dir, "users.json"), "w", encoding="utf-8") as f:
             json.dump(usr_list, f, ensure_ascii=False, indent=2, default=str)
@@ -227,6 +229,48 @@ def create_backup(
         }
         with open(os.path.join(config_dir, "settings.json"), "w", encoding="utf-8") as f:
             json.dump(combined_settings, f, ensure_ascii=False, indent=2, default=str)
+
+        # v5.0 tables: trial_activation, activation_record, plugin_status
+        trial_rows = db.query(TrialActivation).all()
+        trial_list = []
+        for t_row in trial_rows:
+            trial_list.append({
+                "id": t_row.id,
+                "activation_type": t_row.activation_type,
+                "activated_at": str(t_row.activated_at) if t_row.activated_at else None,
+                "expires_at": str(t_row.expires_at) if t_row.expires_at else None,
+                "account_id": t_row.account_id,
+            })
+        with open(os.path.join(config_dir, "trial_activation.json"), "w", encoding="utf-8") as f:
+            json.dump(trial_list, f, ensure_ascii=False, indent=2, default=str)
+
+        act_rows = db.query(ActivationRecord).all()
+        act_list = []
+        for a_row in act_rows:
+            act_list.append({
+                "id": a_row.id,
+                "code": a_row.code,
+                "product": a_row.product,
+                "plugin_keys": a_row.plugin_keys,
+                "expires_at": str(a_row.expires_at) if a_row.expires_at else None,
+                "activated_at": str(a_row.activated_at) if a_row.activated_at else None,
+                "signature": a_row.signature,
+            })
+        with open(os.path.join(config_dir, "activation_record.json"), "w", encoding="utf-8") as f:
+            json.dump(act_list, f, ensure_ascii=False, indent=2, default=str)
+
+        ps_rows = db.query(PluginStatus).all()
+        ps_list = []
+        for ps in ps_rows:
+            ps_list.append({
+                "id": ps.id,
+                "plugin_id": ps.plugin_id,
+                "enabled": ps.enabled,
+                "enabled_by": ps.enabled_by,
+                "enabled_at": str(ps.enabled_at) if ps.enabled_at else None,
+            })
+        with open(os.path.join(config_dir, "plugin_status.json"), "w", encoding="utf-8") as f:
+            json.dump(ps_list, f, ensure_ascii=False, indent=2, default=str)
 
         # 2. Copy platform.db
         db_src = os.path.join(DATA_DIR, "platform.db")
@@ -279,6 +323,9 @@ def create_backup(
                 "tables": len(tbl_list),
                 "fields": len(fld_list),
                 "users": len(usr_list),
+                "trial_activations": len(trial_list),
+                "activation_records": len(act_list),
+                "plugin_statuses": len(ps_list),
                 "log_entries": len(log_list) if req.include_logs else 0,
             },
             "checksums": {},
@@ -588,20 +635,40 @@ def _restore_overwrite(db: Session, extract_dir: str, contents: dict):
     if not os.path.isdir(config_dir):
         return
 
-    # Import users
+    # Import users (protect existing superadmin)
     users_file = os.path.join(config_dir, "users.json")
     if os.path.isfile(users_file):
         with open(users_file, "r", encoding="utf-8") as f:
             users_data = json.load(f)
+        # Remember existing superadmins to protect their role and wechat_unionid
+        existing_superadmins = {
+            sa.username: sa for sa in
+            db.query(UserAccount).filter(UserAccount.role == "superadmin").all()
+        }
         db.query(UserAccount).delete()
         for u in users_data:
+            username = u["username"]
+            sa = existing_superadmins.get(username)
             db.add(UserAccount(
-                username=u["username"],
+                username=username,
                 password_hash=u["password_hash"],
-                role=u.get("role", "readonly"),
+                role=sa.role if sa else u.get("role", "readonly"),
                 display_name=u.get("display_name"),
-                status=u.get("status", "enabled"),
+                status=sa.status if sa else u.get("status", "enabled"),
+                wechat_unionid=sa.wechat_unionid if sa else u.get("wechat_unionid"),
             ))
+        # Re-add superadmins that weren't in backup
+        backup_usernames = {u["username"] for u in users_data}
+        for username, sa in existing_superadmins.items():
+            if username not in backup_usernames:
+                db.add(UserAccount(
+                    username=sa.username,
+                    password_hash=sa.password_hash,
+                    role=sa.role,
+                    display_name=sa.display_name,
+                    status=sa.status,
+                    wechat_unionid=sa.wechat_unionid,
+                ))
         db.commit()
 
     # Import datasources (passwords will be ***)
@@ -728,6 +795,53 @@ def _restore_overwrite(db: Session, extract_dir: str, contents: dict):
                 ))
             db.commit()
 
+    # v5.0: Restore trial_activation
+    trial_file = os.path.join(config_dir, "trial_activation.json")
+    if os.path.isfile(trial_file):
+        with open(trial_file, "r", encoding="utf-8") as f:
+            trial_data = json.load(f)
+        db.query(TrialActivation).delete()
+        for tr in trial_data:
+            db.add(TrialActivation(
+                activation_type=tr.get("activation_type", "wechat_login"),
+                activated_at=tr.get("activated_at"),
+                expires_at=tr.get("expires_at"),
+                account_id=tr.get("account_id"),
+            ))
+        db.commit()
+
+    # v5.0: Restore activation_record
+    act_file = os.path.join(config_dir, "activation_record.json")
+    if os.path.isfile(act_file):
+        with open(act_file, "r", encoding="utf-8") as f:
+            act_data = json.load(f)
+        db.query(ActivationRecord).delete()
+        for ar in act_data:
+            db.add(ActivationRecord(
+                code=ar["code"],
+                product=ar["product"],
+                plugin_keys=ar["plugin_keys"],
+                expires_at=ar.get("expires_at"),
+                activated_at=ar.get("activated_at"),
+                signature=ar["signature"],
+            ))
+        db.commit()
+
+    # v5.0: Restore plugin_status
+    ps_file = os.path.join(config_dir, "plugin_status.json")
+    if os.path.isfile(ps_file):
+        with open(ps_file, "r", encoding="utf-8") as f:
+            ps_data = json.load(f)
+        db.query(PluginStatus).delete()
+        for ps in ps_data:
+            db.add(PluginStatus(
+                plugin_id=ps["plugin_id"],
+                enabled=ps.get("enabled", False),
+                enabled_by=ps.get("enabled_by"),
+                enabled_at=ps.get("enabled_at"),
+            ))
+        db.commit()
+
 
 def _restore_merge(db: Session, extract_dir: str, contents: dict):
     """Merge mode: import without clearing, conflict resolution favours backup."""
@@ -735,7 +849,7 @@ def _restore_merge(db: Session, extract_dir: str, contents: dict):
     if not os.path.isdir(config_dir):
         return
 
-    # Merge users (by username)
+    # Merge users (by username, protect superadmin)
     users_file = os.path.join(config_dir, "users.json")
     if os.path.isfile(users_file):
         with open(users_file, "r", encoding="utf-8") as f:
@@ -744,9 +858,15 @@ def _restore_merge(db: Session, extract_dir: str, contents: dict):
             existing = db.query(UserAccount).filter(UserAccount.username == u["username"]).first()
             if existing:
                 existing.password_hash = u["password_hash"]
-                existing.role = u.get("role", existing.role)
+                # Don't downgrade superadmin
+                if existing.role != "superadmin":
+                    existing.role = u.get("role", existing.role)
                 existing.display_name = u.get("display_name", existing.display_name)
-                existing.status = u.get("status", existing.status)
+                if existing.role != "superadmin":
+                    existing.status = u.get("status", existing.status)
+                # Don't overwrite existing wechat_unionid
+                if not existing.wechat_unionid and u.get("wechat_unionid"):
+                    existing.wechat_unionid = u["wechat_unionid"]
             else:
                 db.add(UserAccount(
                     username=u["username"],
@@ -754,6 +874,7 @@ def _restore_merge(db: Session, extract_dir: str, contents: dict):
                     role=u.get("role", "readonly"),
                     display_name=u.get("display_name"),
                     status=u.get("status", "enabled"),
+                    wechat_unionid=u.get("wechat_unionid"),
                 ))
         db.commit()
 
@@ -870,5 +991,66 @@ def _restore_merge(db: Session, extract_dir: str, contents: dict):
                     remark=fld.get("remark"),
                     created_by="restore",
                     updated_by="restore",
+                ))
+        db.commit()
+
+    # v5.0: Merge trial_activation (by account_id + activation_type)
+    trial_file = os.path.join(config_dir, "trial_activation.json")
+    if os.path.isfile(trial_file):
+        with open(trial_file, "r", encoding="utf-8") as f:
+            trial_data = json.load(f)
+        for tr in trial_data:
+            existing = db.query(TrialActivation).filter(
+                TrialActivation.account_id == tr.get("account_id"),
+                TrialActivation.activation_type == tr.get("activation_type"),
+            ).first()
+            if not existing:
+                db.add(TrialActivation(
+                    activation_type=tr.get("activation_type", "wechat_login"),
+                    activated_at=tr.get("activated_at"),
+                    expires_at=tr.get("expires_at"),
+                    account_id=tr.get("account_id"),
+                ))
+        db.commit()
+
+    # v5.0: Merge activation_record (by code)
+    act_file = os.path.join(config_dir, "activation_record.json")
+    if os.path.isfile(act_file):
+        with open(act_file, "r", encoding="utf-8") as f:
+            act_data = json.load(f)
+        for ar in act_data:
+            existing = db.query(ActivationRecord).filter(
+                ActivationRecord.code == ar["code"],
+            ).first()
+            if not existing:
+                db.add(ActivationRecord(
+                    code=ar["code"],
+                    product=ar["product"],
+                    plugin_keys=ar["plugin_keys"],
+                    expires_at=ar.get("expires_at"),
+                    activated_at=ar.get("activated_at"),
+                    signature=ar["signature"],
+                ))
+        db.commit()
+
+    # v5.0: Merge plugin_status (by plugin_id)
+    ps_file = os.path.join(config_dir, "plugin_status.json")
+    if os.path.isfile(ps_file):
+        with open(ps_file, "r", encoding="utf-8") as f:
+            ps_data = json.load(f)
+        for ps in ps_data:
+            existing = db.query(PluginStatus).filter(
+                PluginStatus.plugin_id == ps["plugin_id"],
+            ).first()
+            if existing:
+                existing.enabled = ps.get("enabled", False)
+                existing.enabled_by = ps.get("enabled_by")
+                existing.enabled_at = ps.get("enabled_at")
+            else:
+                db.add(PluginStatus(
+                    plugin_id=ps["plugin_id"],
+                    enabled=ps.get("enabled", False),
+                    enabled_by=ps.get("enabled_by"),
+                    enabled_at=ps.get("enabled_at"),
                 ))
         db.commit()
