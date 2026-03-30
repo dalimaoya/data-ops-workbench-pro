@@ -118,8 +118,20 @@ def preview_remote_table(
         )
     except Exception:
         col_names, sample_rows = [], []
+    # Normalize column field names for frontend (column_name, data_type)
+    normalized_columns = []
+    for c in columns:
+        normalized_columns.append({
+            "column_name": c.get("field_name") or c.get("column_name", ""),
+            "data_type": c.get("db_data_type") or c.get("data_type", ""),
+            "column_type": c.get("db_data_type") or c.get("column_type", ""),
+            "is_nullable": c.get("is_nullable", True),
+            "column_default": c.get("column_default"),
+            "ordinal_position": c.get("ordinal_position", 0),
+            "is_primary_key": c.get("is_primary_key", False),
+        })
     return {
-        "columns": columns,
+        "columns": normalized_columns,
         "sample_columns": col_names,
         "sample_rows": sample_rows,
     }
