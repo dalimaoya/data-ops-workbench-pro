@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Table, Card, Input, Button, Space, message, Select, Row, Col, Descriptions, Tag, Modal, Radio,
+  Table, Card, Input, Button, Space, message, Select, Row, Col, Descriptions, Tag, Modal, Radio, Checkbox,
 } from 'antd';
 import {
   SearchOutlined, DownloadOutlined, UploadOutlined, ReloadOutlined, ArrowLeftOutlined,
@@ -46,6 +46,7 @@ export default function DataBrowse() {
   // Export modal
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportType, setExportType] = useState<'all' | 'current'>('all');
+  const [exportLocked, setExportLocked] = useState(true);
   const [exportInfo, setExportInfo] = useState<Record<string, unknown>>({});
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -444,6 +445,7 @@ export default function DataBrowse() {
           export_type: exportType,
           keyword: exportType === 'current' ? keyword || undefined : undefined,
           field_filters: exportType === 'current' && Object.keys(fieldFilters).length ? JSON.stringify(fieldFilters) : undefined,
+          unlocked: exportLocked ? undefined : '1',
         });
         message.success(t('dataBrowse.asyncExportCreated'));
         setExportModalOpen(false);
@@ -452,6 +454,7 @@ export default function DataBrowse() {
           export_type: exportType,
           keyword: exportType === 'current' ? keyword || undefined : undefined,
           field_filters: exportType === 'current' && Object.keys(fieldFilters).length ? JSON.stringify(fieldFilters) : undefined,
+          unlocked: exportLocked ? undefined : '1',
         });
         const url = window.URL.createObjectURL(new Blob([res.data]));
         const a = document.createElement('a');
@@ -725,6 +728,11 @@ export default function DataBrowse() {
             <Radio value="all">{t('dataBrowse.exportTypeAll')}</Radio>
             <Radio value="current">{t('dataBrowse.exportTypeCurrent')}</Radio>
           </Radio.Group>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <Checkbox checked={exportLocked} onChange={e => setExportLocked(e.target.checked)}>
+            {t('dataBrowse.exportLockCells')}
+          </Checkbox>
         </div>
         <Descriptions column={1} size="small" bordered>
           <Descriptions.Item label={t('dataBrowse.exportEstimatedRows')}>{String((exportInfo as { estimated_rows?: number }).estimated_rows ?? '-')}</Descriptions.Item>

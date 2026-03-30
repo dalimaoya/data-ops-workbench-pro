@@ -498,6 +498,7 @@ def export_template(
     export_type: str = Query("all", regex="^(current|all)$"),
     keyword: Optional[str] = None,
     field_filters: Optional[str] = None,
+    unlocked: Optional[str] = None,
     db: Session = Depends(get_db),
     user: UserAccount = Depends(require_role("admin", "operator")),
 ):
@@ -651,19 +652,22 @@ def export_template(
 
     # Enable worksheet protection — v3.5: with password, stricter settings
     # v3.9 fix: insertRows=True 允许用户在空白区域以外追加行
-    ws.protection = SheetProtection(
-        sheet=True,
-        password=_SHEET_PROTECTION_PASSWORD,
-        formatColumns=False,
-        formatRows=False,
-        formatCells=False,
-        insertRows=True,
-        deleteRows=True,
-        deleteColumns=True,
-        insertColumns=True,
-        sort=False,
-        autoFilter=False,
-    )
+    # v5.1.6: unlocked param skips protection
+    skip_protection = unlocked == "1"
+    if not skip_protection:
+        ws.protection = SheetProtection(
+            sheet=True,
+            password=_SHEET_PROTECTION_PASSWORD,
+            formatColumns=False,
+            formatRows=False,
+            formatCells=False,
+            insertRows=True,
+            deleteRows=True,
+            deleteColumns=True,
+            insertColumns=True,
+            sort=False,
+            autoFilter=False,
+        )
 
     # Hidden meta sheet — v2.0: 增加 data_row_count 和 blank_row_start 标记
     meta_ws = wb.create_sheet("_meta")
@@ -2959,7 +2963,7 @@ def batch_insert(
 
 def _run_async_export(task_id: str, table_config_id: int, export_type: str,
                       keyword: Optional[str], field_filters: Optional[str],
-                      operator_user: str):
+                      operator_user: str, unlocked: Optional[str] = None):
     """Background thread: execute export and update task status."""
     import openpyxl
     from openpyxl.utils import get_column_letter
@@ -3093,12 +3097,13 @@ def _run_async_export(task_id: str, table_config_id: int, export_type: str,
                 else:
                     cell.protection = locked_cell
 
-        ws.protection = SheetProtection(
-            sheet=True, password=_SHEET_PROTECTION_PASSWORD,
-            formatColumns=False, formatRows=False, formatCells=False,
-            insertRows=False, deleteRows=True, deleteColumns=True, insertColumns=True,
-            sort=False, autoFilter=False,
-        )
+        if unlocked != "1":
+            ws.protection = SheetProtection(
+                sheet=True, password=_SHEET_PROTECTION_PASSWORD,
+                formatColumns=False, formatRows=False, formatCells=False,
+                insertRows=False, deleteRows=True, deleteColumns=True, insertColumns=True,
+                sort=False, autoFilter=False,
+            )
 
         meta_ws = wb.create_sheet("_meta")
         meta_info = {
@@ -3188,6 +3193,7 @@ def async_export(
     export_type: str = Query("all", regex="^(current|all)$"),
     keyword: Optional[str] = None,
     field_filters: Optional[str] = None,
+    unlocked: Optional[str] = None,
     db: Session = Depends(get_db),
     user: UserAccount = Depends(get_current_user),
 ):
@@ -3202,8 +3208,8 @@ def async_export(
         datasource_id=tc.datasource_id,
         export_type=export_type,
         export_filters_json=json.dumps(
-            {"keyword": keyword, "field_filters": field_filters}, ensure_ascii=False
-        ) if keyword or field_filters else None,
+            {"keyword": keyword, "field_filters": field_filters, "unlocked": unlocked}, ensure_ascii=False
+        ) if keyword or field_filters or unlocked else None,
         status="processing",
         operator_user=_get_username(user),
     )
@@ -3213,7 +3219,7 @@ def async_export(
     # Start background thread
     t = threading.Thread(
         target=_run_async_export,
-        args=(task_id, table_config_id, export_type, keyword, field_filters, _get_username(user)),
+        args=(task_id, table_config_id, export_type, keyword, field_filters, _get_username(user), unlocked),
         daemon=True,
     )
     t.start()

@@ -258,7 +258,7 @@
     "dbTypeSQLite": "SQLite"
   },
   "tableConfig": {
-    "title": "表配置管理",
+    "title": "单表配置",
     "createNew": "新增纳管表",
     "createStep1": "新增纳管表 - 第一步：选择数据源和表",
     "createStep2": "第二步：配置基本信息",
@@ -354,7 +354,7 @@
     "sensitivityHigh": "高敏感"
   },
   "maintenance": {
-    "title": "数据表维护",
+    "title": "数据维护",
     "enterMaintenance": "进入维护",
     "tableAlias": "表别名",
     "dbSchema": "库/Schema",
@@ -415,6 +415,7 @@
     "exportConfigVersion": "配置版本",
     "confirmExport": "确认导出",
     "exportLargeHint": "⚠ 数据量较大（超过 5000 行），将在后台生成，完成后可在导出记录中下载。",
+    "exportLockCells": "锁定单元格（保护非编辑字段）",
     "exportNote": "说明：仅支持使用平台导出的模板回传，请勿修改模板中字段顺序与隐藏信息。",
     "exportSuccess": "导出成功",
     "exportFailed": "导出失败",
@@ -816,7 +817,7 @@
     "goRelogin": "重新登录"
   },
   "dbMaintenance": {
-    "title": "数据库维护",
+    "title": "库表配置",
     "batchManage": "批量纳管",
     "managedTables": "已纳管表",
     "fieldCount": "字段数",
@@ -853,6 +854,11 @@
     "errorDetails": "失败详情",
     "exportFormat": "导出方式",
     "multiSheet": "多 Sheet",
+    "exportLocked": "锁定单元格",
+    "exportLockedHint": "勾选后非编辑字段将被锁定保护，取消则所有单元格可自由编辑",
+    "exportTableCount": "导出表数",
+    "eachTableOneFile": "每张表一个文件",
+    "allTablesOneFile": "所有表合并一个文件",
     "batchExport": "📥 批量导出（{{count}}）"
   },
   "aiLog": {

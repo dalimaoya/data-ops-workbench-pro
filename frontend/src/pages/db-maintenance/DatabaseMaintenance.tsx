@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Card, Select, Table, Input, Button, Checkbox, Space, Progress, Tag, message,
-  Typography, Tooltip, Steps, Divider, Radio, Result, Spin,
+  Typography, Tooltip, Steps, Divider, Radio, Result, Spin, Modal, Descriptions,
   Alert,
 } from 'antd';
 import {
@@ -98,6 +98,8 @@ export default function DatabaseMaintenance() {
   const [managedTables, setManagedTables] = useState<TableConfig[]>([]);
   const [managedSelectedIds, setManagedSelectedIds] = useState<number[]>([]);
   const [exportFormat, setExportFormat] = useState<string>('zip');
+  const [exportLocked, setExportLocked] = useState(true);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   // Load datasources and restore from URL params
@@ -132,7 +134,8 @@ export default function DatabaseMaintenance() {
       (managedRes.data as TableConfig[]).forEach(tc => {
         managedMap.set(tc.table_name, tc);
       });
-      setManagedTables(managedRes.data as TableConfig[]);
+      const allManaged = managedRes.data as TableConfig[];
+      setManagedTables(allManaged);
 
       const items: TableSelectItem[] = remoteRes.data.tables.map(rt => {
         const managed = managedMap.get(rt.table_name);
@@ -388,7 +391,7 @@ export default function DatabaseMaintenance() {
       const res = await batchExport({
         datasource_id: selectedDsId,
         table_ids: managedSelectedIds,
-        format: exportFormat,
+        format: exportLocked ? exportFormat : exportFormat + '_unlocked',
       });
       // Download blob
       const blob = new Blob([res.data as any]);
@@ -1027,34 +1030,72 @@ export default function DatabaseMaintenance() {
           )}
 
           {/* Managed Tables Tab */}
-          {activeTab === 'managed' && (
+          {activeTab === 'managed' && (() => {
+            const filteredManaged = selectedDb
+              ? managedTables.filter(t => t.db_name === selectedDb)
+              : managedTables;
+            return (
             <>
-              <Space style={{ marginBottom: 16 }}>
+              <Space style={{ marginBottom: 16 }} wrap>
                 <Button
                   icon={<ReloadOutlined />}
-                  onClick={() => selectedDsId && loadTables(selectedDsId)}
+                  onClick={() => selectedDsId && loadTables(selectedDsId, selectedDb)}
                 >
                   {t('common.refresh')}
                 </Button>
                 <Divider type="vertical" />
-                <Text>{t('dbMaintenance.exportFormat')}:</Text>
-                <Radio.Group value={exportFormat} onChange={e => setExportFormat(e.target.value)}>
-                  <Radio.Button value="zip">ZIP</Radio.Button>
-                  <Radio.Button value="multi_sheet">{t('dbMaintenance.multiSheet')}</Radio.Button>
-                </Radio.Group>
+                <Button size="small" onClick={() => setManagedSelectedIds(filteredManaged.map(t => t.id))}>
+                  {t('dbMaintenance.selectAll')}
+                </Button>
+                <Button size="small" onClick={() => setManagedSelectedIds([])}>
+                  {t('dbMaintenance.deselectAll')}
+                </Button>
+                <Text type="secondary">
+                  {t('dbMaintenance.selectedCount', { selected: managedSelectedIds.length, total: filteredManaged.length })}
+                </Text>
+                <Divider type="vertical" />
                 <Button
                   type="primary"
                   icon={<DownloadOutlined />}
                   disabled={managedSelectedIds.length === 0}
-                  loading={exporting}
-                  onClick={handleBatchExport}
+                  onClick={() => setExportModalOpen(true)}
                 >
                   {t('dbMaintenance.batchExport', { count: managedSelectedIds.length })}
                 </Button>
               </Space>
 
+              {/* Batch Export Modal */}
+              <Modal
+                title={t('dbMaintenance.batchExport', { count: managedSelectedIds.length })}
+                open={exportModalOpen}
+                onCancel={() => setExportModalOpen(false)}
+                onOk={() => { setExportModalOpen(false); handleBatchExport(); }}
+                confirmLoading={exporting}
+                okText={t('dataBrowse.confirmExport')}
+              >
+                <div style={{ marginBottom: 16 }}>
+                  <p><strong>{t('dbMaintenance.exportFormat')}</strong></p>
+                  <Radio.Group value={exportFormat} onChange={e => setExportFormat(e.target.value)}>
+                    <Radio value="zip">ZIP（{t('dbMaintenance.eachTableOneFile')}）</Radio>
+                    <Radio value="multi_sheet">{t('dbMaintenance.multiSheet')}（{t('dbMaintenance.allTablesOneFile')}）</Radio>
+                  </Radio.Group>
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <Checkbox checked={exportLocked} onChange={e => setExportLocked(e.target.checked)}>
+                    {t('dbMaintenance.exportLocked')}
+                  </Checkbox>
+                  <div style={{ color: '#999', fontSize: 12, marginTop: 4 }}>
+                    {t('dbMaintenance.exportLockedHint')}
+                  </div>
+                </div>
+                <Descriptions column={1} size="small" bordered>
+                  <Descriptions.Item label={t('dbMaintenance.exportTableCount')}>{managedSelectedIds.length}</Descriptions.Item>
+                  <Descriptions.Item label={t('dbMaintenance.exportFormat')}>{exportFormat === 'zip' ? 'ZIP' : t('dbMaintenance.multiSheet')}</Descriptions.Item>
+                </Descriptions>
+              </Modal>
+
               <Table
-                dataSource={managedTables}
+                dataSource={filteredManaged}
                 columns={managedColumns}
                 rowKey="id"
                 size="small"
@@ -1065,7 +1106,8 @@ export default function DatabaseMaintenance() {
                 }}
               />
             </>
-          )}
+            );
+          })()}
         </>
       )}
     </Card>

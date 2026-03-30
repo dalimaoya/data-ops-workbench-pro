@@ -258,7 +258,7 @@
     "dbTypeSQLite": "SQLite"
   },
   "tableConfig": {
-    "title": "Table Config Management",
+    "title": "Single Table Config",
     "createNew": "New Managed Table",
     "createStep1": "New Managed Table - Step 1: Select Datasource & Table",
     "createStep2": "Step 2: Configure Basic Info",
@@ -354,7 +354,7 @@
     "sensitivityHigh": "High Sensitive"
   },
   "maintenance": {
-    "title": "Table Maintenance",
+    "title": "Data Maintenance",
     "enterMaintenance": "Maintain",
     "tableAlias": "Table Alias",
     "dbSchema": "DB/Schema",
@@ -415,6 +415,7 @@
     "exportConfigVersion": "Config Version",
     "confirmExport": "Confirm Export",
     "exportLargeHint": "⚠ Large dataset (over 5000 rows). Export will run in background. Download from export log when done.",
+    "exportLockCells": "Lock cells (protect non-editable fields)",
     "exportNote": "Note: Only platform-exported templates are accepted. Do not modify field order or hidden metadata.",
     "exportSuccess": "Export successful",
     "exportFailed": "Export failed",
@@ -816,7 +817,7 @@
     "goRelogin": "Re-login"
   },
   "dbMaintenance": {
-    "title": "Database Maintenance",
+    "title": "Batch Table Config",
     "batchManage": "Batch Manage",
     "managedTables": "Managed Tables",
     "fieldCount": "Fields",
@@ -853,6 +854,11 @@
     "errorDetails": "Error Details",
     "exportFormat": "Export Format",
     "multiSheet": "Multi Sheet",
+    "exportLocked": "Lock cells",
+    "exportLockedHint": "When checked, non-editable fields are protected; uncheck to allow free editing of all cells",
+    "exportTableCount": "Tables to export",
+    "eachTableOneFile": "One file per table",
+    "allTablesOneFile": "All tables in one file",
     "batchExport": "📥 Batch Export ({{count}})"
   },
   "aiLog": {

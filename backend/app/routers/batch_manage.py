@@ -105,7 +105,7 @@ class BatchConfirmRequest(BaseModel):
 class BatchExportRequest(BaseModel):
     datasource_id: int
     table_ids: List[int]
-    format: str = "zip"  # "zip" or "multi_sheet"
+    format: str = "zip"  # "zip", "multi_sheet", append "_unlocked" to skip protection
 
 
 # ── Helpers ──
@@ -620,6 +620,10 @@ def batch_export(
     ds = _get_ds(db, body.datasource_id, user)
     pwd = decrypt_password(ds.password_encrypted)
 
+    # Parse format: "zip", "multi_sheet", with optional "_unlocked" suffix
+    fmt = body.format.replace("_unlocked", "")
+    skip_protection = "_unlocked" in body.format
+
     table_configs = []
     for tid in body.table_ids:
         tc = db.query(TableConfig).filter(
@@ -632,7 +636,50 @@ def batch_export(
     if not table_configs:
         raise HTTPException(400, t("batch_manage.no_tables"))
 
-    if body.format == "multi_sheet":
+    from openpyxl.styles import Protection as CellProtection, PatternFill, Font as XlFont
+    from openpyxl.worksheet.protection import SheetProtection as _SheetProtection
+    _locked = CellProtection(locked=True)
+    _unlocked_cell = CellProtection(locked=False)
+    _header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    _header_font = XlFont(bold=True, color="FFFFFF", size=11)
+    _readonly_fill = PatternFill(start_color="F0F0F0", end_color="F0F0F0", fill_type="solid")
+    _editable_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+    _PROTECTION_PWD = "DOW_tpl_v35_sec"
+
+    def _apply_sheet_style(ws, fields, data_row_count, tc, apply_protection):
+        """Apply header style, cell lock/unlock, and optional sheet protection."""
+        pk_set = set(f.strip() for f in (tc.primary_key_fields or "").split(",") if f.strip())
+        editable_names = {f.field_name for f in fields if f.is_editable}
+
+        # Header style
+        for ci in range(1, len(fields) + 1):
+            cell = ws.cell(row=1, column=ci)
+            cell.font = _header_font
+            cell.fill = _header_fill
+            if apply_protection:
+                cell.protection = _locked
+
+        # Data rows style
+        for ri in range(2, 2 + data_row_count):
+            for ci, f in enumerate(fields, 1):
+                cell = ws.cell(row=ri, column=ci)
+                if apply_protection:
+                    if f.field_name in pk_set or f.field_name not in editable_names:
+                        cell.protection = _locked
+                        cell.fill = _readonly_fill
+                    else:
+                        cell.protection = _unlocked_cell
+                        cell.fill = _editable_fill
+
+        if apply_protection:
+            ws.protection = _SheetProtection(
+                sheet=True, password=_PROTECTION_PWD,
+                formatColumns=False, formatRows=False, formatCells=False,
+                insertRows=True, deleteRows=True, deleteColumns=True, insertColumns=True,
+                sort=False, autoFilter=False,
+            )
+
+    if fmt == "multi_sheet":
         # Single xlsx with multiple sheets
         wb = openpyxl.Workbook()
         wb.remove(wb.active)
@@ -648,7 +695,7 @@ def batch_export(
                 .order_by(FieldConfig.field_order_no)
                 .all()
             )
-            sheet_name = (tc.table_alias or tc.table_name)[:31]  # Excel sheet name limit
+            sheet_name = (tc.table_alias or tc.table_name)[:31]
             ws = wb.create_sheet(title=sheet_name)
 
             # Header row
@@ -656,6 +703,7 @@ def batch_export(
                 ws.cell(row=1, column=ci, value=f.field_alias or f.field_name)
 
             # Data rows
+            data_row_count = 0
             try:
                 col_names, rows = fetch_sample_data(
                     db_type=ds.db_type, host=ds.host, port=ds.port,
@@ -676,8 +724,11 @@ def batch_export(
                         if idx is not None:
                             val = row_data[idx]
                             ws.cell(row=ri, column=ci, value=str(val) if val is not None else "")
+                data_row_count = len(rows)
             except Exception:
                 ws.cell(row=2, column=1, value="数据获取失败")
+
+            _apply_sheet_style(ws, fields, data_row_count, tc, not skip_protection)
 
         buf = io.BytesIO()
         wb.save(buf)
@@ -741,8 +792,12 @@ def batch_export(
                             if idx is not None:
                                 val = row_data[idx]
                                 ws.cell(row=ri, column=ci, value=str(val) if val is not None else "")
+                    data_row_count = len(rows)
                 except Exception:
                     ws.cell(row=2, column=1, value="数据获取失败")
+                    data_row_count = 0
+
+                _apply_sheet_style(ws, fields, data_row_count, tc, not skip_protection)
 
                 xlsx_buf = io.BytesIO()
                 wb.save(xlsx_buf)
