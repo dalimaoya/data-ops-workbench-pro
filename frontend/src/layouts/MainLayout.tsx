@@ -149,7 +149,7 @@ const integrationPluginDefs: PluginMenuDef[] = [
 const systemMenuItems: MenuItem[] = [
   { key: '/log-center', icon: <FileTextOutlined />, labelKey: 'menu.logCenter' },
   { key: '/version-rollback', icon: <HistoryOutlined />, labelKey: 'menu.versionRollback', roles: ['admin'] },
-  { key: '/user-management', icon: <TeamOutlined />, labelKey: 'menu.userManagement', roles: ['superadmin'] },
+  { key: '/user-management', icon: <TeamOutlined />, labelKey: 'menu.userManagement', roles: ['admin'] },
   { key: '/plugin-center', icon: <AppstoreOutlined />, labelKey: 'menu.pluginCenter', roles: ['superadmin'] },
   { key: '/about', icon: <SettingOutlined />, labelKey: 'menu.about' },
 ];

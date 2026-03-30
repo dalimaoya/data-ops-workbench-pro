@@ -98,7 +98,7 @@ function App() {
           <Route path="/log-center" element={<LogCenter />} />
           <Route path="/version-rollback" element={<RequireRole roles={['admin']}><VersionRollback /></RequireRole>} />
           <Route path="/approval-center" element={<RequireRole roles={['admin']}><PluginGuard pluginId="plugin-approval"><ApprovalCenter /></PluginGuard></RequireRole>} />
-          <Route path="/user-management" element={<RequireRole roles={['superadmin']}><UserManagement /></RequireRole>} />
+          <Route path="/user-management" element={<RequireRole roles={['admin']}><UserManagement /></RequireRole>} />
           <Route path="/ai-config" element={<RequireRole roles={['admin']}><PluginGuard pluginId="plugin-ai-assistant"><AIConfigPage /></PluginGuard></RequireRole>} />
           <Route path="/health-check" element={<RequireRole roles={['admin']}><HealthCheckPage /></RequireRole>} />
           <Route path="/platform-backup" element={<RequireRole roles={['admin']}><PlatformBackup /></RequireRole>} />
