@@ -100,6 +100,7 @@ export default function DatabaseMaintenance() {
   const [exportFormat, setExportFormat] = useState<string>('zip');
   const [exportLocked, setExportLocked] = useState(true);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [managedSearch, setManagedSearch] = useState('');
   const [exporting, setExporting] = useState(false);
 
   // Load datasources and restore from URL params
@@ -783,7 +784,7 @@ export default function DatabaseMaintenance() {
                       }
                     />
                   )}
-                  <Space style={{ marginBottom: 12 }}>
+                  <Space style={{ marginBottom: 12 }} wrap>
                     <Input
                       placeholder={t('tableConfig.searchTable')}
                       prefix={<SearchOutlined />}
@@ -792,15 +793,23 @@ export default function DatabaseMaintenance() {
                       style={{ width: 280 }}
                       allowClear
                     />
-                    <Button onClick={handleSelectAll}>{t('dbMaintenance.selectAll')}</Button>
-                    <Button onClick={handleInvertSelection}>{t('dbMaintenance.invertSelection')}</Button>
-                    <Button onClick={handleDeselectAll}>{t('dbMaintenance.deselectAll')}</Button>
+                    <Button size="small" onClick={handleSelectAll}>{t('dbMaintenance.selectAll')}</Button>
+                    <Button size="small" onClick={handleInvertSelection}>{t('dbMaintenance.invertSelection')}</Button>
+                    <Button size="small" onClick={handleDeselectAll}>{t('dbMaintenance.deselectAll')}</Button>
                     <Text type="secondary">
                       {t('dbMaintenance.selectedCount', {
                         selected: selectedTableNames.length,
                         total: remoteTables.length,
                       })}
                     </Text>
+                    <Button
+                      icon={<ReloadOutlined />}
+                      size="small"
+                      loading={loadingTables}
+                      onClick={() => selectedDsId && loadTables(selectedDsId, selectedDb)}
+                    >
+                      {t('common.refresh')}
+                    </Button>
                   </Space>
 
                   <Table
@@ -1031,21 +1040,36 @@ export default function DatabaseMaintenance() {
 
           {/* Managed Tables Tab */}
           {activeTab === 'managed' && (() => {
-            const filteredManaged = selectedDb
+            const dbFiltered = selectedDb
               ? managedTables.filter(t => t.db_name === selectedDb)
               : managedTables;
+            const filteredManaged = managedSearch
+              ? dbFiltered.filter(t =>
+                  t.table_name.toLowerCase().includes(managedSearch.toLowerCase())
+                  || (t.table_alias && t.table_alias.toLowerCase().includes(managedSearch.toLowerCase()))
+                )
+              : dbFiltered;
             return (
             <>
-              <Space style={{ marginBottom: 16 }} wrap>
-                <Button
-                  icon={<ReloadOutlined />}
-                  onClick={() => selectedDsId && loadTables(selectedDsId, selectedDb)}
-                >
-                  {t('common.refresh')}
-                </Button>
-                <Divider type="vertical" />
+              <Space style={{ marginBottom: 12 }} wrap>
+                <Input
+                  placeholder={t('tableConfig.searchTable')}
+                  prefix={<SearchOutlined />}
+                  value={managedSearch}
+                  onChange={e => setManagedSearch(e.target.value)}
+                  style={{ width: 280 }}
+                  allowClear
+                />
                 <Button size="small" onClick={() => setManagedSelectedIds(filteredManaged.map(t => t.id))}>
                   {t('dbMaintenance.selectAll')}
+                </Button>
+                <Button size="small" onClick={() => {
+                  const currentSet = new Set(managedSelectedIds);
+                  const filteredIds = filteredManaged.map(t => t.id);
+                  const inverted = filteredIds.filter(id => !currentSet.has(id));
+                  setManagedSelectedIds(inverted);
+                }}>
+                  {t('dbMaintenance.invertSelection')}
                 </Button>
                 <Button size="small" onClick={() => setManagedSelectedIds([])}>
                   {t('dbMaintenance.deselectAll')}
@@ -1054,6 +1078,13 @@ export default function DatabaseMaintenance() {
                   {t('dbMaintenance.selectedCount', { selected: managedSelectedIds.length, total: filteredManaged.length })}
                 </Text>
                 <Divider type="vertical" />
+                <Button
+                  icon={<ReloadOutlined />}
+                  size="small"
+                  onClick={() => selectedDsId && loadTables(selectedDsId, selectedDb)}
+                >
+                  {t('common.refresh')}
+                </Button>
                 <Button
                   type="primary"
                   icon={<DownloadOutlined />}

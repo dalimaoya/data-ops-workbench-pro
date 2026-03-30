@@ -234,12 +234,13 @@ def _drop_table_if_exists(cur, db_type: str, table_qt: str) -> None:
 def list_maintenance_tables(
     keyword: Optional[str] = None,
     datasource_id: Optional[int] = None,
+    db_name: Optional[str] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     user: UserAccount = Depends(get_current_user),
 ):
-    """可维护表列表，支持按数据源和关键词筛选。"""
+    """可维护表列表，支持按数据源、数据库和关键词筛选。"""
     q = db.query(TableConfig).filter(
         TableConfig.is_deleted == 0, TableConfig.status == "enabled"
     )
@@ -251,6 +252,8 @@ def list_maintenance_tables(
         q = q.filter(TableConfig.datasource_id.in_(permitted_ids))
     if datasource_id:
         q = q.filter(TableConfig.datasource_id == datasource_id)
+    if db_name:
+        q = q.filter(TableConfig.db_name == db_name)
     if keyword:
         q = q.filter(
             (TableConfig.table_name.contains(keyword)) |

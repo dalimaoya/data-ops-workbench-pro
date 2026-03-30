@@ -4,7 +4,7 @@ import { SearchOutlined, ReloadOutlined, DownloadOutlined } from '@ant-design/ic
 import { useNavigate } from 'react-router-dom';
 import { listMaintenanceTables, batchExportTables } from '../../api/dataMaintenance';
 import type { MaintenanceTable } from '../../api/dataMaintenance';
-import { listDatasources } from '../../api/datasource';
+import { listDatasources, getDatasourceDatabases } from '../../api/datasource';
 import type { Datasource } from '../../api/datasource';
 import { formatBeijingTime } from '../../utils/formatTime';
 import { useTranslation } from 'react-i18next';
@@ -22,6 +22,8 @@ export default function MaintenanceList() {
   const [pageSize, setPageSize] = useState(20);
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [batchExporting, setBatchExporting] = useState(false);
+  const [databases, setDatabases] = useState<string[]>([]);
+  const [dbName, setDbName] = useState<string | undefined>(undefined);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,12 +38,24 @@ export default function MaintenanceList() {
     }).catch(() => {});
   }, []);
 
+  // Fetch databases when datasource changes
+  useEffect(() => {
+    setDatabases([]);
+    setDbName(undefined);
+    if (datasourceId) {
+      getDatasourceDatabases(datasourceId)
+        .then(res => setDatabases(res.data.databases || []))
+        .catch(() => {});
+    }
+  }, [datasourceId]);
+
   const fetchData = async () => {
     setLoading(true);
     try {
       const res = await listMaintenanceTables({
         keyword: keyword || undefined,
         datasource_id: datasourceId,
+        db_name: dbName || undefined,
         page,
         page_size: pageSize,
       });
@@ -54,13 +68,14 @@ export default function MaintenanceList() {
     }
   };
 
-  useEffect(() => { fetchData(); }, [page, pageSize, datasourceId]);
+  useEffect(() => { fetchData(); }, [page, pageSize, datasourceId, dbName]);
 
   const handleSearch = () => { setPage(1); fetchData(); };
 
   const handleReset = () => {
     setKeyword('');
     setDatasourceId(undefined);
+    setDbName(undefined);
     setPage(1);
     setTimeout(() => fetchData(), 0);
   };
@@ -144,10 +159,21 @@ export default function MaintenanceList() {
           placeholder={t('maintenance.selectDatasource')}
           allowClear
           value={datasourceId}
-          onChange={(v) => setDatasourceId(v)}
+          onChange={(v) => { setDatasourceId(v); setDbName(undefined); }}
           style={{ width: 200 }}
           options={datasources.map(ds => ({ label: ds.datasource_name, value: ds.id }))}
         />
+        {datasourceId && databases.length > 0 && (
+          <Select
+            placeholder={t('tableConfig.selectDatabase')}
+            allowClear
+            showSearch
+            value={dbName}
+            onChange={setDbName}
+            style={{ width: 180 }}
+            options={databases.map(d => ({ label: d, value: d }))}
+          />
+        )}
         <Input
           placeholder={t('maintenance.searchPlaceholder')}
           prefix={<SearchOutlined />}

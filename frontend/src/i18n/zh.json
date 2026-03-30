@@ -659,7 +659,7 @@
     "resetSuccess": "密码已重置",
     "datasourcePermission": "数据源权限",
     "datasourcePermissionTitle": "数据源权限",
-    "adminPermHint": "管理员默认可访问所有数据源，无需单独授权。",
+    "adminPermHint": "超级管理员和管理员默认拥有全部数据源访问权限，无需单独配置。",
     "noDatasource": "暂无数据源",
     "permUpdateSuccess": "数据源权限已更新",
     "permLoadFailed": "获取权限信息失败",

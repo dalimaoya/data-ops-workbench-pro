@@ -659,7 +659,7 @@
     "resetSuccess": "Password reset",
     "datasourcePermission": "DS Permission",
     "datasourcePermissionTitle": "Datasource Permission",
-    "adminPermHint": "Admins have access to all datasources by default.",
+    "adminPermHint": "Superadmin and Admin have access to all datasources by default. No configuration needed.",
     "noDatasource": "No datasources",
     "permUpdateSuccess": "Datasource permissions updated",
     "permLoadFailed": "Failed to load permissions",

@@ -448,20 +448,22 @@ export default function UserManagement() {
         onOk={handleSavePermissions}
         onCancel={() => { setPermOpen(false); setPermUser(null); }}
         confirmLoading={permSaveLoading}
+        okButtonProps={{ disabled: permUser?.role === 'superadmin' || permUser?.role === 'admin' }}
         destroyOnClose
       >
         {permLoading ? (
           <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
         ) : (
           <div>
-            {permUser?.role === 'admin' && (
-              <div style={{ marginBottom: 12, color: '#999' }}>
+            {(permUser?.role === 'superadmin' || permUser?.role === 'admin') && (
+              <div style={{ marginBottom: 12, color: '#1890ff', background: '#e6f7ff', padding: '8px 12px', borderRadius: 4 }}>
                 {t('userManagement.adminPermHint')}
               </div>
             )}
             <Checkbox.Group
-              value={selectedDsIds}
+              value={permUser?.role === 'superadmin' || permUser?.role === 'admin' ? allDatasources.map(d => d.id) : selectedDsIds}
               onChange={(vals) => setSelectedDsIds(vals as number[])}
+              disabled={permUser?.role === 'superadmin' || permUser?.role === 'admin'}
               style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
             >
               {allDatasources.map((ds) => (
