@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g. 5.0.0)'
-        required: true
-        default: '5.0.0'
+        description: 'Version (leave empty to read from version.txt)'
+        required: false
+        default: ''
       build_linux:
         description: 'Build Linux'
         type: boolean
@@ -20,6 +20,8 @@ jobs:
   build-linux:
     if: ${{ inputs.build_linux }}
     runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.version.outputs.VER }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,8 +40,16 @@ jobs:
         with:
           version: 9
 
-      - name: Sync version
-        run: echo "${{ inputs.version }}" > version.txt
+      - name: Resolve version
+        id: version
+        run: |
+          VER="${{ inputs.version }}"
+          if [ -z "$VER" ]; then
+            VER=$(cat version.txt | tr -d '[:space:]')
+          fi
+          echo "VER=$VER" >> $GITHUB_OUTPUT
+          echo "$VER" > version.txt
+          echo "Building version: $VER"
 
       - name: Install backend dependencies
         run: |
@@ -87,7 +97,7 @@ jobs:
 
       - name: Package Linux release
         run: |
-          VERSION=${{ inputs.version }}
+          VERSION=${{ steps.version.outputs.VER }}
           RELEASE_DIR="data-ops-workbench-v${VERSION}-linux-x64"
           mkdir -p ${RELEASE_DIR}/{server,web,data,logs,backups}
 
@@ -107,12 +117,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-release
-          path: data-ops-workbench-v${{ inputs.version }}-linux-x64.tar.gz
+          path: data-ops-workbench-v${{ steps.version.outputs.VER }}-linux-x64.tar.gz
           retention-days: 30
 
   build-windows:
     if: ${{ inputs.build_windows }}
     runs-on: windows-2022
+    outputs:
+      version: ${{ steps.version.outputs.VER }}
     steps:
       - uses: actions/checkout@v4
 
@@ -131,8 +143,17 @@ jobs:
         with:
           version: 9
 
-      - name: Sync version
-        run: echo "${{ inputs.version }}" > version.txt
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $VER = "${{ inputs.version }}"
+          if (-not $VER) {
+            $VER = (Get-Content version.txt -Raw).Trim()
+          }
+          echo "VER=$VER" >> $env:GITHUB_OUTPUT
+          Set-Content -Path version.txt -Value $VER
+          Write-Host "Building version: $VER"
 
       - name: Install backend dependencies
         run: |
@@ -205,7 +226,7 @@ jobs:
       - name: Package Windows release
         shell: pwsh
         run: |
-          $VERSION = "${{ inputs.version }}"
+          $VERSION = "${{ steps.version.outputs.VER }}"
           $RELEASE_DIR = "data-ops-workbench-v${VERSION}-win-x64"
           New-Item -ItemType Directory -Force -Path "$RELEASE_DIR/server"
           New-Item -ItemType Directory -Force -Path "$RELEASE_DIR/web"
@@ -229,7 +250,7 @@ jobs:
       - name: Build Inno Setup installer
         shell: pwsh
         run: |
-          $VERSION = "${{ inputs.version }}"
+          $VERSION = "${{ steps.version.outputs.VER }}"
           $RELEASE_DIR = "data-ops-workbench-v${VERSION}-win-x64"
 
           # Install Inno Setup
@@ -281,8 +302,8 @@ jobs:
         with:
           name: windows-release
           path: |
-            data-ops-workbench-v${{ inputs.version }}-win-x64.zip
-            DataOpsWorkbench-v${{ inputs.version }}-Setup.exe
+            data-ops-workbench-v${{ steps.version.outputs.VER }}-win-x64.zip
+            DataOpsWorkbench-v${{ steps.version.outputs.VER }}-Setup.exe
           retention-days: 30
 
   create-release:
@@ -290,20 +311,27 @@ jobs:
     if: always() && (needs.build-linux.result == 'success' || needs.build-windows.result == 'success')
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve version
+        id: version
+        run: |
+          VER="${{ needs.build-linux.outputs.version || needs.build-windows.outputs.version }}"
+          echo "VER=$VER" >> $GITHUB_OUTPUT
+          echo "Release version: $VER"
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ inputs.version }}
-          name: v${{ inputs.version }}
+          tag_name: v${{ steps.version.outputs.VER }}
+          name: v${{ steps.version.outputs.VER }}
           body: |
-            ## 数据运维工作台 v${{ inputs.version }}
+            ## 数据运维工作台 v${{ steps.version.outputs.VER }}
 
             ### 下载
-            - **Linux**: `data-ops-workbench-v${{ inputs.version }}-linux-x64.tar.gz`
-            - **Windows**: `data-ops-workbench-v${{ inputs.version }}-win-x64.zip`
+            - **Linux**: `data-ops-workbench-v${{ steps.version.outputs.VER }}-linux-x64.tar.gz`
+            - **Windows**: `data-ops-workbench-v${{ steps.version.outputs.VER }}-win-x64.zip`
 
             ### 安装
             - Linux: 解压后运行 `./start.sh`
@@ -319,7 +347,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   sync-version:
-    needs: [create-release]
+    needs: [create-release, build-linux, build-windows]
     if: always() && needs.create-release.result == 'success'
     runs-on: ubuntu-latest
     steps:
@@ -327,11 +355,12 @@ jobs:
 
       - name: Update version.txt and push back
         run: |
-          echo "${{ inputs.version }}" > version.txt
+          VER="${{ needs.build-linux.outputs.version || needs.build-windows.outputs.version }}"
+          echo "$VER" > version.txt
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add version.txt
-          git diff --cached --quiet || git commit -m "chore: bump version to ${{ inputs.version }}"
+          git diff --cached --quiet || git commit -m "chore: bump version to $VER"
           git push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
