@@ -14,6 +14,10 @@ v5.0: 集成 pywebview（WebView2）作为主窗口
 
 import os
 import sys
+
+# Debug: force stdout/stderr to console
+print(f"[launcher] starting... frozen={getattr(sys, 'frozen', False)}", flush=True)
+
 import subprocess
 import threading
 import webbrowser
@@ -66,15 +70,19 @@ try:
     import pystray
     from PIL import Image, ImageDraw, ImageFont
     HAS_TRAY = True
-except ImportError:
+    print(f"[launcher] pystray OK", flush=True)
+except ImportError as e:
     HAS_TRAY = False
+    print(f"[launcher] pystray FAILED: {e}", flush=True)
 
 # ── pywebview 可选 ──────────────────────────────────────────────
 try:
     import webview
     HAS_WEBVIEW = True
-except ImportError:
+    print(f"[launcher] webview OK: {webview.__version__}", flush=True)
+except ImportError as e:
     HAS_WEBVIEW = False
+    print(f"[launcher] webview FAILED: {e}", flush=True)
 
 
 # ── 定位可执行文件 ──────────────────────────────────────────────
@@ -175,6 +183,8 @@ class LauncherApp:
         self.webview_window = None
         self.server_state = "stopped"  # stopped / starting / running
         self.server_bin = _find_server_bin()
+        print(f"[launcher] server_bin={self.server_bin}", flush=True)
+        print(f"[launcher] HAS_WEBVIEW={HAS_WEBVIEW} HAS_TRAY={HAS_TRAY}", flush=True)
         self.start_time = None
         self._health_thread = None
         self._monitor_running = True
