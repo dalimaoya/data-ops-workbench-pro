@@ -58,13 +58,7 @@ jobs:
           cd backend
           pyinstaller --onedir \
             --name app \
-            --add-data "app/i18n:app/i18n" \
-            --add-data "app/plugins:app/plugins" \
-            --collect-submodules app \
-            --collect-submodules app.routers \
-            --collect-submodules app.utils \
-            --collect-submodules app.ai \
-            --collect-submodules app.services \
+            --add-data "app:app" \
             --hidden-import email.mime \
             --hidden-import email.mime.text \
             --hidden-import email.mime.multipart \
@@ -157,15 +151,10 @@ jobs:
           cd backend
           # Use --onedir for reliability (--onefile can be blocked by antivirus)
           # Entry point is app_entry.py (not app/main.py) - it starts uvicorn
+          # Package entire app/ directory as data so all routers/utils/ai modules are available
           pyinstaller --onedir `
             --name app `
-            --add-data "app/i18n;app/i18n" `
-            --add-data "app/plugins;app/plugins" `
-            --collect-submodules app `
-            --collect-submodules app.routers `
-            --collect-submodules app.utils `
-            --collect-submodules app.ai `
-            --collect-submodules app.services `
+            --add-data "app;app" `
             --hidden-import email.mime `
             --hidden-import email.mime.text `
             --hidden-import email.mime.multipart `

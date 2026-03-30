@@ -10,6 +10,14 @@ When running as a frozen executable, this script:
 import os
 import sys
 
+# PyInstaller --onedir puts data files in _internal/
+# We need _internal on sys.path so "from app.routers.xxx import ..." works
+if getattr(sys, 'frozen', False):
+    _internal = os.path.join(os.path.dirname(sys.executable), '_internal')
+    if os.path.isdir(_internal) and _internal not in sys.path:
+        sys.path.insert(0, _internal)
+
+
 def get_base_dir():
     """Get the base directory: parent of server/ in release mode."""
     if getattr(sys, 'frozen', False):
