@@ -492,14 +492,4 @@ class TrialActivation(Base):
     account_id = Column(String(128), nullable=True, index=True)  # unified auth account id
 
 
-# ── 24. user_plugin_permission (v5.2) ──
-class UserPluginPermission(Base):
-    __tablename__ = "user_plugin_permission"
-    __table_args__ = (
-        UniqueConstraint("user_id", "plugin_name", name="uq_user_plugin"),
-    )
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, nullable=False, index=True)
-    plugin_name = Column(String(100), nullable=False, index=True)
-    granted_at = Column(DateTime, nullable=False, default=_now_bjt)
+## UserPluginPermission already defined at line 257 (v5.1)
