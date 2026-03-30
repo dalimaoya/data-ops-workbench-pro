@@ -215,7 +215,12 @@ export default function TableConfigCreate() {
                   || (tbl.table_comment && tbl.table_comment.toLowerCase().includes(tableSearch.toLowerCase()))
                 )}
                 size="small"
-                pagination={{ pageSize: 10 }}
+                pagination={{
+                  defaultPageSize: 20,
+                  pageSizeOptions: ['10', '20', '50', '100'],
+                  showSizeChanger: true,
+                  showTotal: (total) => `共 ${total} 张表`,
+                }}
               />
             </Spin>
           )}
@@ -241,7 +246,6 @@ export default function TableConfigCreate() {
                     dataSource={previewColumns}
                     size="small"
                     pagination={false}
-                    scroll={{ y: 240 }}
                   />
                 </Card>
 
