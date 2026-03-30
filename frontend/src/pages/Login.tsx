@@ -190,8 +190,11 @@ export default function Login() {
               >
                 <Spin size="large" tip="正在加载微信二维码..." style={{ marginTop: 80 }} />
               </div>
-              <div style={{ color: '#666', fontSize: 15, marginTop: 4 }}>
+              <div style={{ color: '#666', fontSize: 15, marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
                 请使用微信扫描二维码登录
+                <Button size="small" type="link" onClick={() => { qrLoadedRef.current = false; loadWechatQR(); }}>
+                  刷新二维码
+                </Button>
               </div>
             </>
           )}
