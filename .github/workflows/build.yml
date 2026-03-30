@@ -59,6 +59,7 @@ jobs:
           pyinstaller --onedir \
             --name app \
             --add-data "app:app" \
+            --hidden-import pandas \
             --hidden-import email.mime \
             --hidden-import email.mime.text \
             --hidden-import email.mime.multipart \
@@ -155,6 +156,7 @@ jobs:
           pyinstaller --onedir `
             --name app `
             --add-data "app;app" `
+            --hidden-import pandas `
             --hidden-import email.mime `
             --hidden-import email.mime.text `
             --hidden-import email.mime.multipart `
