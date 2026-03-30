@@ -13,7 +13,7 @@ export default function DiffPreview() {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const canWriteback = user?.role === 'admin' || user?.role === 'operator';
+  const canWriteback = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'operator';
   const tid = Number(taskId);
 
   const [loading, setLoading] = useState(false);

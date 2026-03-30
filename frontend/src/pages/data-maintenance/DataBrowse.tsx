@@ -24,7 +24,7 @@ export default function DataBrowse() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { t } = useTranslation();
-  const canOperate = user?.role === 'admin' || user?.role === 'operator';
+  const canOperate = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'operator';
   const tableConfigId = Number(id);
 
   const [columns, setColumns] = useState<ColumnMeta[]>([]);
