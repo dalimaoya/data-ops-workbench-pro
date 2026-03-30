@@ -9,7 +9,9 @@ import {
   FileTextOutlined, CopyOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import Editor from 'react-simple-code-editor';
+import EditorImport from 'react-simple-code-editor';
+// Handle both ESM default and CJS module.exports.default
+const Editor = (EditorImport as any).default || EditorImport;
 // @ts-ignore
 import Prism from 'prismjs';
 import 'prismjs/components/prism-sql';
