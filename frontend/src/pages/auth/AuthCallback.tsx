@@ -17,13 +17,18 @@ export default function AuthCallback() {
     let mounted = true;
 
     const run = async () => {
+      // Try hash fragment first, then query params as fallback
       const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-      const token = fragment.get('token') || fragment.get('access_token');
+      const query = new URLSearchParams(window.location.search);
+      const token = fragment.get('token') || fragment.get('access_token')
+        || query.get('token') || query.get('access_token');
 
-      // Clear hash from URL immediately
+      // Clear hash/query from URL immediately
       window.history.replaceState({}, document.title, '/auth/callback');
 
       if (!token) {
+        console.error('[AuthCallback] no token found in hash or query params',
+          { hash: window.location.hash, search: window.location.search });
         if (mounted) setFailed(true);
         return;
       }

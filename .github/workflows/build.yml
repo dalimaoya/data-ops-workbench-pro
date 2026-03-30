@@ -59,6 +59,7 @@ jobs:
           pyinstaller --onedir \
             --name app \
             --add-data "app/i18n:app/i18n" \
+            --add-data "app/plugins:app/plugins" \
             --hidden-import uvicorn.logging \
             --hidden-import uvicorn.loops.auto \
             --hidden-import uvicorn.protocols.http.auto \
@@ -151,6 +152,7 @@ jobs:
           pyinstaller --onedir `
             --name app `
             --add-data "app/i18n;app/i18n" `
+            --add-data "app/plugins;app/plugins" `
             --hidden-import uvicorn.logging `
             --hidden-import uvicorn.loops.auto `
             --hidden-import uvicorn.protocols.http.auto `

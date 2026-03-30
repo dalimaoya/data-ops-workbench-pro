@@ -66,11 +66,14 @@ def generate_captcha():
     font = None
     font_size = 30
     try:
-        # Try common system fonts
+        # Try common system fonts (Linux + Windows)
         for font_path in [
             "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
             "/usr/share/fonts/TTF/DejaVuSansMono-Bold.ttf",
             "/usr/share/fonts/dejavu/DejaVuSansMono-Bold.ttf",
+            "C:/Windows/Fonts/consola.ttf",
+            "C:/Windows/Fonts/arial.ttf",
+            "C:/Windows/Fonts/cour.ttf",
         ]:
             try:
                 font = ImageFont.truetype(font_path, font_size)
@@ -81,21 +84,26 @@ def generate_captcha():
         pass
 
     if font is None:
+        # Pillow >= 10.0 load_default supports size; older versions do not.
         try:
+            font = ImageFont.load_default(size=font_size)
+        except TypeError:
             font = ImageFont.load_default()
-        except Exception:
-            font = None
 
-    # Draw each character with slight randomization
+    # Draw each character with slight randomization, vertically centered
     x_start = 10
     for i, ch in enumerate(code):
         x = x_start + i * 28
-        y = random.randint(4, 10)
         color = (random.randint(20, 100), random.randint(20, 100), random.randint(20, 100))
-        if font:
-            draw.text((x, y), ch, font=font, fill=color)
-        else:
-            draw.text((x, y), ch, fill=color)
+        # Calculate vertical position to center the character
+        try:
+            bbox = draw.textbbox((0, 0), ch, font=font)
+            ch_height = bbox[3] - bbox[1]
+            y_offset = bbox[1]  # top bearing offset
+            y = (height - ch_height) // 2 - y_offset + random.randint(-4, 4)
+        except Exception:
+            y = random.randint(4, 10)
+        draw.text((x, y), ch, font=font, fill=color)
 
     # Convert to base64 PNG
     buf = io.BytesIO()

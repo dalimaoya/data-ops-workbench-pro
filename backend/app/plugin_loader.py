@@ -1,6 +1,7 @@
 """Plugin loader — scan plugins/ directory, register plugins, manage layer/enabled state."""
 
 import os
+import sys
 import json
 import importlib
 import logging
@@ -11,7 +12,30 @@ from fastapi import FastAPI, Depends
 
 logger = logging.getLogger("plugin_loader")
 
-PLUGINS_DIR = os.path.join(os.path.dirname(__file__), "plugins")
+
+def _resolve_plugins_dir() -> str:
+    """Resolve plugins directory, handling both dev and PyInstaller frozen mode."""
+    # In frozen mode, __file__ may not point to the real source tree.
+    # PyInstaller --onedir puts bundled data under _internal/ (PyInstaller 6+) or the dist dir.
+    if getattr(sys, 'frozen', False):
+        # _MEIPASS is the temp/extract dir for --onefile, or _internal dir for --onedir
+        base = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+        candidate = os.path.join(base, "app", "plugins")
+        if os.path.isdir(candidate):
+            logger.info("Frozen mode: plugins dir = %s", candidate)
+            return candidate
+        # Fallback: try _internal/app/plugins (PyInstaller 6 --onedir)
+        candidate2 = os.path.join(os.path.dirname(sys.executable), "_internal", "app", "plugins")
+        if os.path.isdir(candidate2):
+            logger.info("Frozen mode: plugins dir = %s", candidate2)
+            return candidate2
+    # Dev mode: relative to this file
+    default = os.path.join(os.path.dirname(__file__), "plugins")
+    logger.info("Plugins dir = %s (exists=%s)", default, os.path.isdir(default))
+    return default
+
+
+PLUGINS_DIR = _resolve_plugins_dir()
 
 # Global registry: list of loaded plugin manifests
 _loaded_plugins: List[Dict[str, Any]] = []

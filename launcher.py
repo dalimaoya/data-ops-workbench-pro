@@ -25,10 +25,17 @@ import tkinter as tk
 # Setup file logging
 def _setup_logging():
     if getattr(sys, 'frozen', False):
+        # frozen exe is at release_root/DataOpsWorkbench.exe (or server/app/app.exe)
+        # Go up two levels from executable dir to reach release root
         base = os.path.dirname(sys.executable)
+        release_root = os.path.abspath(os.path.join(base, '..', '..'))
+        # If the exe is directly in release root (DataOpsWorkbench.exe), use that
+        if not os.path.isdir(os.path.join(release_root, 'server')):
+            release_root = base
+        log_dir = os.path.join(release_root, 'logs')
     else:
         base = os.path.dirname(os.path.abspath(__file__))
-    log_dir = os.path.join(base, '..', 'logs') if getattr(sys, 'frozen', False) else os.path.join(base, 'logs')
+        log_dir = os.path.join(base, 'logs')
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, 'launcher.log')
     logging.basicConfig(
@@ -209,6 +216,7 @@ class LauncherApp:
         self._monitor_running = True
         self._webview_failed = False
         self._quitting = False
+        self._webview_ready = False  # set True when health check passes
 
         # ── tkinter 控制面板（后台创建，按需显示）──
         self.root = tk.Tk()
@@ -429,6 +437,7 @@ class LauncherApp:
 
     # ── 服务启动 ─────────────────────────────────────────────────
     def _start_service(self):
+        log.info("_start_service called, server_bin=%s, state=%s", self.server_bin, self.server_state)
         if not self.server_bin:
             self._set_state("stopped")
             return
@@ -442,6 +451,7 @@ class LauncherApp:
         env = os.environ.copy()
         env["DATA_OPS_BASE_DIR"] = release_root
         env["DATA_OPS_DATA_DIR"] = os.path.join(release_root, "data")
+        log.info("release_root=%s", release_root)
 
         for d in ("data", "backups", "logs"):
             os.makedirs(os.path.join(release_root, d), exist_ok=True)
@@ -453,6 +463,7 @@ class LauncherApp:
         self._kill_port_occupier()
 
         try:
+            log.info("starting server process: %s --port %s", self.server_bin, PORT)
             self.process = subprocess.Popen(
                 [self.server_bin, "--port", str(PORT)],
                 env=env,
@@ -460,6 +471,7 @@ class LauncherApp:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+            log.info("server process started, pid=%s", self.process.pid)
             self.start_time = datetime.now()
             self.time_label.config(text=self.start_time.strftime("%Y-%m-%d %H:%M:%S"))
 
@@ -467,15 +479,18 @@ class LauncherApp:
             self._health_thread = threading.Thread(target=self._wait_for_ready, daemon=True)
             self._health_thread.start()
         except Exception as e:
+            log.error("_start_service failed: %s", e, exc_info=True)
             self._set_state("stopped")
             messagebox.showerror("启动失败", str(e))
 
     def _wait_for_ready(self):
         """轮询 /api/health，通过后打开 pywebview 窗口或降级到浏览器"""
+        log.info("_wait_for_ready: starting health check loop")
         max_wait = 60
         waited = 0
         while waited < max_wait and self.server_state == "starting":
             if self.process and self.process.poll() is not None:
+                log.warning("_wait_for_ready: server process exited with code %s", self.process.returncode)
                 self.root.after(0, lambda: self._set_state("stopped"))
                 return
             try:
@@ -483,14 +498,16 @@ class LauncherApp:
                               headers={"User-Agent": "DataOpsLauncher"})
                 with urlopen(req, timeout=2) as resp:
                     if resp.status == 200:
+                        log.info("_wait_for_ready: health check passed after %ds", waited)
                         self.root.after(0, lambda: self._set_state("running"))
                         self._open_main_window()
                         return
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug("_wait_for_ready: health check attempt at %ds failed: %s", waited, e)
             time.sleep(2)
             waited += 2
 
+        log.warning("_wait_for_ready: timed out after %ds", waited)
         if self.server_state == "starting":
             self.root.after(0, lambda: self._set_state("stopped"))
             self.root.after(0, lambda: messagebox.showwarning(
@@ -501,13 +518,16 @@ class LauncherApp:
     # ── pywebview 主窗口 ─────────────────────────────────────────
     def _open_main_window(self):
         """服务就绪后打开 pywebview 窗口，失败则降级到浏览器"""
+        log.info("_open_main_window called, HAS_WEBVIEW=%s, _webview_failed=%s", HAS_WEBVIEW, self._webview_failed)
         if HAS_WEBVIEW and not self._webview_failed:
-            threading.Thread(target=self._launch_webview, daemon=True).start()
+            # Schedule webview launch on main thread via pending flag
+            self._webview_ready = True
         else:
             webbrowser.open(URL)
 
     def _launch_webview(self):
-        """在独立线程中启动 pywebview 窗口"""
+        """Launch pywebview on the MAIN thread (required by pywebview/WebView2)."""
+        log.info("_launch_webview starting on main thread")
         try:
             self.webview_window = webview.create_window(
                 "数据运维工作台",
@@ -522,11 +542,14 @@ class LauncherApp:
             # closing event: return False to prevent close, hide instead
             self.webview_window.events.closing += self._on_webview_closing
 
+            log.info("calling webview.start()")
             webview.start(gui="edgechromium", debug=False)
 
             # webview.start() returned — window was closed/destroyed
+            log.info("webview.start() returned")
             self.webview_window = None
-        except Exception:
+        except Exception as e:
+            log.error("_launch_webview failed: %s", e, exc_info=True)
             self._webview_failed = True
             self.webview_window = None
             webbrowser.open(URL)
@@ -657,7 +680,37 @@ class LauncherApp:
 
     # ── 主循环 ───────────────────────────────────────────────────
     def run(self):
-        self.root.mainloop()
+        if HAS_WEBVIEW:
+            # pywebview requires main thread. Run tkinter in a background thread,
+            # poll for _webview_ready, then launch webview on main thread.
+            self._run_tkinter_in_thread()
+        else:
+            # No webview — tkinter on main thread as usual
+            self.root.mainloop()
+
+    def _run_tkinter_in_thread(self):
+        """Run tkinter mainloop in a daemon thread, wait for webview readiness on main thread."""
+        tk_thread = threading.Thread(target=self._tkinter_loop, daemon=True)
+        tk_thread.start()
+
+        # Main thread: poll until webview is ready or app is quitting
+        while not self._quitting:
+            if self._webview_ready:
+                self._launch_webview()
+                # After webview.start() returns, the window was closed
+                # If not quitting, keep polling (user might reopen via tray)
+                self._webview_ready = False
+                if self._quitting:
+                    break
+                continue
+            time.sleep(0.1)
+
+    def _tkinter_loop(self):
+        """Run tkinter mainloop in a background thread."""
+        try:
+            self.root.mainloop()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
