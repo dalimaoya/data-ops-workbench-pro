@@ -61,6 +61,13 @@ jobs:
             --add-data "app/i18n:app/i18n" \
             --add-data "app/plugins:app/plugins" \
             --collect-submodules app \
+            --collect-submodules app.routers \
+            --collect-submodules app.utils \
+            --collect-submodules app.ai \
+            --collect-submodules app.services \
+            --hidden-import email.mime \
+            --hidden-import email.mime.text \
+            --hidden-import email.mime.multipart \
             --hidden-import uvicorn.logging \
             --hidden-import uvicorn.loops.auto \
             --hidden-import uvicorn.protocols.http.auto \
@@ -155,6 +162,13 @@ jobs:
             --add-data "app/i18n;app/i18n" `
             --add-data "app/plugins;app/plugins" `
             --collect-submodules app `
+            --collect-submodules app.routers `
+            --collect-submodules app.utils `
+            --collect-submodules app.ai `
+            --collect-submodules app.services `
+            --hidden-import email.mime `
+            --hidden-import email.mime.text `
+            --hidden-import email.mime.multipart `
             --hidden-import uvicorn.logging `
             --hidden-import uvicorn.loops.auto `
             --hidden-import uvicorn.protocols.http.auto `
