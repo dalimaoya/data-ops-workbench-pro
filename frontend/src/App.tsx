@@ -36,6 +36,7 @@ import DataTrendPage from './pages/data-trend/DataTrendPage';
 import DataComparePage from './pages/data-compare/DataComparePage';
 import TemplateMarketPage from './pages/template-market/TemplateMarketPage';
 import WebhookConfigPage from './pages/webhook-config/WebhookConfigPage';
+import NotificationPushPage from './pages/notification-push/NotificationPushPage';
 import SqlConsolePage from './pages/sql-console/SqlConsolePage';
 import PluginCenterPage from './pages/plugin-center/PluginCenterPage';
 import PluginGuard from './components/PluginGuard';
@@ -109,6 +110,7 @@ function App() {
           <Route path="/data-compare" element={<PluginGuard pluginId="plugin-data-compare"><DataComparePage /></PluginGuard>} />
           <Route path="/template-market" element={<RequireRole roles={['admin']}><PluginGuard pluginId="plugin-template-market"><TemplateMarketPage /></PluginGuard></RequireRole>} />
           <Route path="/webhook-config" element={<RequireRole roles={['admin']}><PluginGuard pluginId="plugin-webhook"><WebhookConfigPage /></PluginGuard></RequireRole>} />
+          <Route path="/notification-push" element={<RequireRole roles={['admin']}><PluginGuard pluginId="plugin-notification-push"><NotificationPushPage /></PluginGuard></RequireRole>} />
           <Route path="/sql-console" element={<RequireRole roles={['admin']}><SqlConsolePage /></RequireRole>} />
           <Route path="/plugin-center" element={<RequireRole roles={['superadmin']}><PluginCenterPage /></RequireRole>} />
           <Route path="/about" element={<About />} />

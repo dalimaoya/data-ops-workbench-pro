@@ -65,6 +65,7 @@
     "dbManager": "DB Manager",
     "upgradeLock": "Upgrade",
     "notifyPush": "Notification Push",
+    "notificationPush": "Notification Center",
     "dataTrend": "Data Trends",
     "dataCompare": "Data Compare",
     "templateMarket": "Template Market",

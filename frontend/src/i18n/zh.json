@@ -65,6 +65,7 @@
     "dbManager": "库表管理",
     "upgradeLock": "升级解锁",
     "notifyPush": "通知推送配置",
+    "notificationPush": "通知推送中心",
     "dataTrend": "数据趋势",
     "dataCompare": "数据对比",
     "templateMarket": "模板市场",

@@ -23,5 +23,7 @@
     ]
   },
   "layer": "extension",
-  "category": "integration"
+  "category": "integration",
+  "deprecated": true,
+  "deprecated_by": "plugin-notification-push"
 }

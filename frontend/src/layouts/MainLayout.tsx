@@ -140,8 +140,7 @@ const monitorPluginDefs: PluginMenuDef[] = [
 
 // ── Group 5: 集成与通知 ──
 const integrationPluginDefs: PluginMenuDef[] = [
-  { pluginName: 'plugin-notify-push', menuItem: { key: '/notify-push-config', icon: <SendOutlined />, labelKey: 'menu.notifyPush', roles: ['admin'] } },
-  { pluginName: 'plugin-webhook', menuItem: { key: '/webhook-config', icon: <ApiOutlined />, labelKey: 'menu.webhookConfig', roles: ['admin'] } },
+  { pluginName: 'plugin-notification-push', menuItem: { key: '/notification-push', icon: <SendOutlined />, labelKey: 'menu.notificationPush', roles: ['admin'] } },
   { pluginName: 'plugin-template-market', menuItem: { key: '/template-market', icon: <ShopOutlined />, labelKey: 'menu.templateMarket', roles: ['admin'] } },
 ];
 
