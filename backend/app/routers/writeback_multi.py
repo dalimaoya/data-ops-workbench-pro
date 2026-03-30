@@ -145,6 +145,11 @@ def _writeback_single_table(
     if not tc:
         return {"table_id": table_id, "status": "error", "error": t("writeback_multi.table_not_found")}
 
+    # Check datasource-level permission
+    permitted_ids = get_permitted_datasource_ids(db, user)
+    if permitted_ids is not None and tc.datasource_id not in permitted_ids:
+        return {"table_id": table_id, "status": "error", "error": t("writeback_multi.table_not_found")}
+
     ds = db.query(DatasourceConfig).filter(
         DatasourceConfig.id == tc.datasource_id,
         DatasourceConfig.is_deleted == 0,

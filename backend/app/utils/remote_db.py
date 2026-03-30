@@ -95,6 +95,35 @@ def _connect(db_type, host, port, user, password, database=None, schema=None, ch
         raise ValueError(f"不支持的数据库类型: {db_type}")
 
 
+def list_databases(db_type: str, host: str, port: int, user: str, password: str,
+                   charset: str = "utf8", timeout: int = 10) -> List[str]:
+    """Return list of database/schema names available on the server."""
+    conn = _connect(db_type, host, port, user, password, None, None, charset, timeout)
+    try:
+        cur = conn.cursor()
+        if db_type == "mysql":
+            cur.execute("SELECT SCHEMA_NAME FROM information_schema.SCHEMATA ORDER BY SCHEMA_NAME")
+        elif db_type in ("postgresql", "kingbase"):
+            cur.execute("SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname")
+        elif db_type == "sqlserver":
+            cur.execute("SELECT name FROM sys.databases WHERE state_desc = 'ONLINE' ORDER BY name")
+        elif db_type == "oracle":
+            # Oracle: list schemas (users) with tables
+            cur.execute("SELECT DISTINCT owner FROM all_tables ORDER BY owner")
+        elif db_type == "dm":
+            try:
+                cur.execute("SELECT DISTINCT owner FROM ALL_TABLES ORDER BY owner")
+            except Exception:
+                cur.execute("SELECT name FROM sys.databases ORDER BY name")
+        elif db_type == "sqlite":
+            return []
+        else:
+            return []
+        return [r[0] for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
 def list_tables(db_type: str, host: str, port: int, user: str, password: str,
                 database: Optional[str] = None, schema: Optional[str] = None,
                 charset: str = "utf8", timeout: int = 10) -> List[Dict]:

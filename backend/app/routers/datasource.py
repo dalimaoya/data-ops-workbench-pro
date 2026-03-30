@@ -15,6 +15,7 @@ from app.schemas.datasource import (
 )
 from app.utils.crypto import encrypt_password, decrypt_password
 from app.utils.db_connector import test_connection
+from app.utils.remote_db import list_databases
 from app.utils.audit import log_operation
 from app.utils.auth import get_current_user, require_role
 from app.utils.permissions import get_permitted_datasource_ids
@@ -92,8 +93,16 @@ def count_datasources(
     return {"total": q.count()}
 
 
+def _check_ds_permission(db: Session, user: UserAccount, ds_id: int):
+    """Verify user has permission to access this datasource."""
+    permitted_ids = get_permitted_datasource_ids(db, user)
+    if permitted_ids is not None and ds_id not in permitted_ids:
+        raise HTTPException(403, t("datasource.not_found"))
+
+
 @router.get("/{ds_id}", response_model=DatasourceOut)
 def get_datasource(ds_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(get_current_user)):
+    _check_ds_permission(db, user, ds_id)
     row = db.query(DatasourceConfig).filter(
         DatasourceConfig.id == ds_id, DatasourceConfig.is_deleted == 0
     ).first()
@@ -108,7 +117,7 @@ def create_datasource(body: DatasourceCreate, db: Session = Depends(get_db), use
         datasource_code=_gen_code(db),
         datasource_name=body.datasource_name,
         db_type=body.db_type,
-        host=body.host,
+        host=body.host.strip(),
         port=body.port,
         database_name=body.database_name,
         schema_name=body.schema_name,
@@ -142,7 +151,11 @@ def update_datasource(ds_id: int, body: DatasourceUpdate, db: Session = Depends(
         raise HTTPException(404, t("datasource.not_found"))
     updates = body.model_dump(exclude_unset=True)
     if "password" in updates:
-        updates["password_encrypted"] = encrypt_password(updates.pop("password"))
+        pwd_val = updates.pop("password")
+        if pwd_val:  # Only update password if non-empty
+            updates["password_encrypted"] = encrypt_password(pwd_val)
+    if "host" in updates and updates["host"]:
+        updates["host"] = updates["host"].strip()
     for k, v in updates.items():
         setattr(row, k, v)
     row.updated_by = user.username
@@ -173,6 +186,27 @@ def delete_datasource(ds_id: int, db: Session = Depends(get_db), user: UserAccou
                   operator=user.username)
     db.commit()
     return {"detail": t("datasource.deleted")}
+
+
+@router.get("/{ds_id}/databases")
+def get_datasource_databases(ds_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(get_current_user)):
+    """列出数据源服务器上的所有可用数据库/Schema。"""
+    _check_ds_permission(db, user, ds_id)
+    row = db.query(DatasourceConfig).filter(
+        DatasourceConfig.id == ds_id, DatasourceConfig.is_deleted == 0
+    ).first()
+    if not row:
+        raise HTTPException(404, t("datasource.not_found"))
+    pwd = decrypt_password(row.password_encrypted)
+    try:
+        dbs = list_databases(
+            db_type=row.db_type, host=row.host, port=row.port,
+            user=row.username, password=pwd,
+            charset=row.charset, timeout=row.connect_timeout_seconds or 10,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"获取数据库列表失败: {e}")
+    return {"databases": dbs}
 
 
 @router.post("/test-connection", response_model=TestConnectionResponse)

@@ -46,6 +46,7 @@ export interface BatchManageTablesResponse {
 
 export interface BatchManageTablesRequest {
   datasource_id: number;
+  db_name?: string;
   table_names: string[];
   auto_ai_suggest?: boolean;
   sample_count?: number;
@@ -78,6 +79,7 @@ export interface TableConfirmItem {
 
 export interface BatchConfirmRequest {
   datasource_id: number;
+  db_name?: string;
   tables: TableConfirmItem[];
 }
 

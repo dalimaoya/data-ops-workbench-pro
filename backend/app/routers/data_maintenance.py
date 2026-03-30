@@ -98,12 +98,17 @@ def _gen_batch(prefix: str) -> str:
     return f"{prefix}_{ts}_{rand}"
 
 
-def _get_tc(db: Session, tc_id: int) -> TableConfig:
+def _get_tc(db: Session, tc_id: int, user: UserAccount = None) -> TableConfig:
     tc = db.query(TableConfig).filter(
         TableConfig.id == tc_id, TableConfig.is_deleted == 0, TableConfig.status == "enabled"
     ).first()
     if not tc:
         raise HTTPException(404, t("data_maintenance.table_not_found"))
+    # Check datasource-level permission
+    if user is not None:
+        permitted_ids = get_permitted_datasource_ids(db, user)
+        if permitted_ids is not None and tc.datasource_id not in permitted_ids:
+            raise HTTPException(403, t("data_maintenance.table_not_found"))
     return tc
 
 
@@ -293,7 +298,7 @@ def browse_table_data(
     user: UserAccount = Depends(get_current_user),
 ):
     """分页读取业务表数据，所有字段值按文本返回。"""
-    tc = _get_tc(db, table_config_id)
+    tc = _get_tc(db, table_config_id, user)
     ds = _get_ds(db, tc.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
     fields = _get_fields(db, table_config_id)
@@ -500,7 +505,7 @@ def export_template(
     import openpyxl
     from openpyxl.utils import get_column_letter
 
-    tc = _get_tc(db, table_config_id)
+    tc = _get_tc(db, table_config_id, user)
     ds = _get_ds(db, tc.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
     fields = _get_fields(db, table_config_id)
@@ -724,7 +729,7 @@ def export_template(
 @router.get("/{table_config_id}/export-info")
 def get_export_info(table_config_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(require_role("admin", "operator"))):
     """获取导出前的预估信息。"""
-    tc = _get_tc(db, table_config_id)
+    tc = _get_tc(db, table_config_id, user)
     ds = _get_ds(db, tc.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
     fields = _get_fields(db, table_config_id)
@@ -768,7 +773,7 @@ async def import_template(
     """上传平台模板，解析校验，生成差异数据。不直接写库。"""
     import openpyxl
 
-    tc = _get_tc(db, table_config_id)
+    tc = _get_tc(db, table_config_id, user)
     ds = _get_ds(db, tc.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
     fields = _get_fields(db, table_config_id)
@@ -1766,7 +1771,7 @@ def writeback(task_id: int, db: Session = Depends(get_db), user: UserAccount = D
             import_task_id=task_id,
         )
 
-    tc = _get_tc(db, task.table_config_id)
+    tc = _get_tc(db, task.table_config_id, user)
     ds = _get_ds(db, tc.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
     fields = _get_fields(db, tc.id)
@@ -2146,7 +2151,7 @@ def inline_update(
             request_data_json=json.dumps({"changes": changes_data}, ensure_ascii=False),
         )
 
-    tc = _get_tc(db, table_config_id)
+    tc = _get_tc(db, table_config_id, user)
     ds = _get_ds(db, tc.datasource_id)
     pwd = decrypt_password(ds.password_encrypted)
     fields = _get_fields(db, tc.id)
@@ -2369,7 +2374,7 @@ def inline_insert(
             request_data_json=json.dumps({"row_data": body.row_data}, ensure_ascii=False),
         )
 
-    tc = _get_tc(db, table_config_id)
+    tc = _get_tc(db, table_config_id, user)
     if not tc.allow_insert_rows:
         raise HTTPException(403, t("data_maintenance.insert_not_enabled"))
 
@@ -2551,7 +2556,7 @@ def delete_rows(
             request_data_json=json.dumps({"pk_values": body.pk_values}, ensure_ascii=False),
         )
 
-    tc = _get_tc(db, table_config_id)
+    tc = _get_tc(db, table_config_id, user)
     if not tc.allow_delete_rows:
         raise HTTPException(403, t("data_maintenance.delete_not_enabled"))
 
@@ -2755,7 +2760,7 @@ def batch_insert(
             request_data_json=json.dumps({"rows": body.rows}, ensure_ascii=False),
         )
 
-    tc = _get_tc(db, table_config_id)
+    tc = _get_tc(db, table_config_id, user)
     if not tc.allow_insert_rows:
         raise HTTPException(403, t("data_maintenance.insert_not_enabled"))
 
@@ -3187,7 +3192,7 @@ def async_export(
     user: UserAccount = Depends(get_current_user),
 ):
     """Create async export task for large tables."""
-    tc = _get_tc(db, table_config_id)
+    tc = _get_tc(db, table_config_id, user)
     ds = _get_ds(db, tc.datasource_id)
 
     task_id = uuid.uuid4().hex[:16].upper()

@@ -81,22 +81,27 @@ export default function DatasourceForm() {
     try {
       const vals = await form.validateFields();
       setLoading(true);
-      const payload = {
+      const payload: Record<string, unknown> = {
         datasource_name: vals.datasource_name,
         db_type: vals.db_type,
         host: vals.host,
         port: vals.port,
-        database_name: vals.database_name || undefined,
-        schema_name: vals.schema_name || undefined,
+        database_name: vals.database_name || null,
+        schema_name: vals.schema_name || null,
         username: vals.username,
-        password: vals.password,
         charset: vals.charset || 'utf8',
         connect_timeout_seconds: vals.connect_timeout_seconds || 10,
         status: vals.status_switch ? 'enabled' : 'disabled',
-        remark: vals.remark || undefined,
+        remark: vals.remark || null,
       };
+      // Only include password if it's not empty (on edit, empty means "keep unchanged")
+      if (vals.password) {
+        payload.password = vals.password;
+      } else if (!isEdit) {
+        payload.password = vals.password;
+      }
       if (isEdit) {
-        await updateDatasource(Number(id), payload);
+        await updateDatasource(Number(id), payload as any);
         message.success(t('datasource.updateSuccess'));
       } else {
         await createDatasource(payload);
@@ -127,7 +132,19 @@ export default function DatasourceForm() {
         </Form.Item>
 
         <Space style={{ width: '100%' }}>
-          <Form.Item name="host" label={t('datasource.host')} rules={[{ required: true }]} style={{ flex: 1 }}>
+          <Form.Item
+            name="host"
+            label={t('datasource.host')}
+            normalize={(v: string) => v?.trim()}
+            rules={[
+              { required: true },
+              {
+                pattern: /^[a-zA-Z0-9]([a-zA-Z0-9\-_.]*[a-zA-Z0-9])?$/,
+                message: t('datasource.hostFormatError'),
+              },
+            ]}
+            style={{ flex: 1 }}
+          >
             <Input placeholder="127.0.0.1" />
           </Form.Item>
           <Form.Item name="port" label={t('datasource.port')} rules={[{ required: true }]} style={{ width: 120 }}>

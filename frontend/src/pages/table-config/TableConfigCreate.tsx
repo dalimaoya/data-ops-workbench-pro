@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Form, Select, Button, Input, Space, Table, message, Spin, Tag, Descriptions } from 'antd';
 import { SearchOutlined, KeyOutlined } from '@ant-design/icons';
-import { listDatasources, type Datasource } from '../../api/datasource';
+import { listDatasources, getDatasourceDatabases, type Datasource } from '../../api/datasource';
 import { getRemoteTables, createTableConfig, type RemoteTableInfo } from '../../api/tableConfig';
 import { findFirstHealthyDs } from '../../utils/datasourceHelper';
 import { api } from '../../api/request';
@@ -26,6 +26,9 @@ export default function TableConfigCreate() {
   const [tableSearch, setTableSearch] = useState('');
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  const [databases, setDatabases] = useState<string[]>([]);
+  const [selectedDb, setSelectedDb] = useState<string | undefined>();
+  const [loadingDbs, setLoadingDbs] = useState(false);
 
   // Preview: columns + sample data
   const [previewColumns, setPreviewColumns] = useState<RemoteColumn[]>([]);
@@ -47,13 +50,46 @@ export default function TableConfigCreate() {
 
   const handleDsChange = async (dsId: number) => {
     setSelectedDs(dsId);
+    setSelectedDb(undefined);
     setSelectedTable(undefined);
     setRemoteTables([]);
     setPreviewColumns([]);
     setSampleRows([]);
+    setDatabases([]);
+
+    // Fetch available databases
+    setLoadingDbs(true);
+    try {
+      const dbRes = await getDatasourceDatabases(dsId);
+      setDatabases(dbRes.data.databases || []);
+    } catch {
+      // Ignore — some db types may not support listing databases
+    } finally {
+      setLoadingDbs(false);
+    }
+
+    // Also fetch tables using datasource default database
     setLoadingTables(true);
     try {
       const res = await getRemoteTables(dsId);
+      setRemoteTables(res.data.tables);
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || t('tableConfig.getTablesFailed'));
+    } finally {
+      setLoadingTables(false);
+    }
+  };
+
+  const handleDbChange = async (dbName: string | undefined) => {
+    setSelectedDb(dbName);
+    setSelectedTable(undefined);
+    setRemoteTables([]);
+    setPreviewColumns([]);
+    setSampleRows([]);
+    if (!selectedDs) return;
+    setLoadingTables(true);
+    try {
+      const res = await getRemoteTables(selectedDs, dbName ? { db_name: dbName } : undefined);
       setRemoteTables(res.data.tables);
     } catch (e: any) {
       message.error(e?.response?.data?.detail || t('tableConfig.getTablesFailed'));
@@ -76,7 +112,7 @@ export default function TableConfigCreate() {
       setLoadingPreview(true);
       try {
         const res = await api.get(`/table-config/remote-preview/${selectedDs}`, {
-          params: { table_name: tbl.table_name, sample_limit: 5 },
+          params: { table_name: tbl.table_name, sample_limit: 5, ...(selectedDb ? { db_name: selectedDb } : {}) },
         });
         const cols: RemoteColumn[] = res.data.columns || [];
         setPreviewColumns(cols);
@@ -107,6 +143,7 @@ export default function TableConfigCreate() {
         : values.primary_key_fields;
       const res = await createTableConfig({
         datasource_id: selectedDs,
+        db_name: selectedDb || undefined,
         table_name: values.table_name,
         table_alias: values.table_alias,
         table_comment: values.table_comment,
@@ -192,11 +229,26 @@ export default function TableConfigCreate() {
     <div>
       <Card title={t('tableConfig.createStep1')} style={{ marginBottom: 16 }}>
         <Space direction="vertical" style={{ width: '100%' }}>
-          <Select
-            placeholder={t('tableConfig.selectDatasource')} style={{ width: 400 }}
-            options={datasources.map(d => ({ label: `${d.datasource_name} (${d.db_type})`, value: d.id }))}
-            onChange={handleDsChange}
-          />
+          <Space>
+            <Select
+              placeholder={t('tableConfig.selectDatasource')} style={{ width: 400 }}
+              value={selectedDs}
+              options={datasources.map(d => ({ label: `${d.datasource_name} (${d.db_type})`, value: d.id }))}
+              onChange={handleDsChange}
+            />
+            {selectedDs && databases.length > 0 && (
+              <Select
+                placeholder={t('tableConfig.selectDatabase')}
+                style={{ width: 240 }}
+                allowClear
+                loading={loadingDbs}
+                value={selectedDb}
+                onChange={handleDbChange}
+                showSearch
+                options={databases.map(d => ({ label: d, value: d }))}
+              />
+            )}
+          </Space>
           {selectedDs && (
             <Spin spinning={loadingTables}>
               <Input

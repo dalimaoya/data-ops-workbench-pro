@@ -65,6 +65,7 @@ def _is_auto_increment(db_data_type: str, column_default: Optional[str] = None) 
 
 class BatchManageTablesRequest(BaseModel):
     datasource_id: int
+    db_name: Optional[str] = None
     table_names: List[str]
     auto_ai_suggest: bool = True
     sample_count: int = 50
@@ -97,6 +98,7 @@ class TableConfirmItem(BaseModel):
 
 class BatchConfirmRequest(BaseModel):
     datasource_id: int
+    db_name: Optional[str] = None
     tables: List[TableConfirmItem]
 
 
@@ -108,7 +110,11 @@ class BatchExportRequest(BaseModel):
 
 # ── Helpers ──
 
-def _get_ds(db: Session, ds_id: int) -> DatasourceConfig:
+def _get_ds(db: Session, ds_id: int, user: UserAccount = None) -> DatasourceConfig:
+    if user is not None:
+        permitted_ids = get_permitted_datasource_ids(db, user)
+        if permitted_ids is not None and ds_id not in permitted_ids:
+            raise HTTPException(403, t("batch_manage.datasource_not_found"))
     ds = db.query(DatasourceConfig).filter(
         DatasourceConfig.id == ds_id, DatasourceConfig.is_deleted == 0
     ).first()
@@ -205,10 +211,11 @@ async def _process_single_table(
     db: Session,
     auto_ai: bool,
     managed_tables: set,
+    override_db: Optional[str] = None,
 ):
     """Process a single table: fetch columns, sample data, AI suggest."""
     pwd = decrypt_password(ds.password_encrypted)
-    use_db = ds.database_name
+    use_db = override_db or ds.database_name
     use_schema = ds.schema_name
 
     is_managed = table_name in managed_tables
@@ -444,7 +451,7 @@ async def batch_manage_tables(
 ):
     """Batch table onboarding with AI field suggestions."""
     start = time.time()
-    ds = _get_ds(db, body.datasource_id)
+    ds = _get_ds(db, body.datasource_id, user)
 
     # Find already-managed tables for this datasource
     managed = db.query(TableConfig.table_name).filter(
@@ -459,9 +466,10 @@ async def batch_manage_tables(
         raise HTTPException(400, t("batch_manage.all_managed"))
 
     results = []
+    use_db = body.db_name or ds.database_name
     for table_name in tables_to_process:
         result = await _process_single_table(
-            ds, table_name, body.sample_count, db, body.auto_ai_suggest, managed_tables,
+            ds, table_name, body.sample_count, db, body.auto_ai_suggest, managed_tables, use_db,
         )
         results.append(result)
 
@@ -483,9 +491,9 @@ def batch_confirm(
     user: UserAccount = Depends(require_role("admin")),
 ):
     """Batch save table configs and field configs."""
-    ds = _get_ds(db, body.datasource_id)
+    ds = _get_ds(db, body.datasource_id, user)
     pwd = decrypt_password(ds.password_encrypted)
-    use_db = ds.database_name
+    use_db = body.db_name or ds.database_name
     use_schema = ds.schema_name
 
     created_tables = []
@@ -609,7 +617,7 @@ def batch_export(
     except ImportError:
         raise HTTPException(500, t("batch_manage.openpyxl_missing"))
 
-    ds = _get_ds(db, body.datasource_id)
+    ds = _get_ds(db, body.datasource_id, user)
     pwd = decrypt_password(ds.password_encrypted)
 
     table_configs = []

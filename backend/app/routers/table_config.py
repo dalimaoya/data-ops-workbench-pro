@@ -43,7 +43,12 @@ def _gen_code(db: Session) -> str:
     return f"{prefix}{seq:03d}"
 
 
-def _get_ds(db: Session, ds_id: int) -> DatasourceConfig:
+def _get_ds(db: Session, ds_id: int, user: UserAccount = None) -> DatasourceConfig:
+    # Check datasource-level permission if user provided
+    if user is not None:
+        permitted_ids = get_permitted_datasource_ids(db, user)
+        if permitted_ids is not None and ds_id not in permitted_ids:
+            raise HTTPException(403, t("datasource.not_found"))
     ds = db.query(DatasourceConfig).filter(
         DatasourceConfig.id == ds_id, DatasourceConfig.is_deleted == 0
     ).first()
@@ -62,7 +67,7 @@ def get_remote_tables(
     user: UserAccount = Depends(get_current_user),
 ):
     """获取远程数据库的库表清单。"""
-    ds = _get_ds(db, ds_id)
+    ds = _get_ds(db, ds_id, user)
     pwd = decrypt_password(ds.password_encrypted)
     use_db = db_name or ds.database_name
     use_schema = schema_name or ds.schema_name
@@ -88,15 +93,17 @@ def get_remote_tables(
 def preview_remote_table(
     ds_id: int,
     table_name: str = Query(...),
+    db_name: Optional[str] = None,
+    schema_name: Optional[str] = None,
     sample_limit: int = Query(5, ge=1, le=20),
     db: Session = Depends(get_db),
     user: UserAccount = Depends(get_current_user),
 ):
     """获取远程表的字段列表和示例数据（用于新增纳管表向导）。"""
-    ds = _get_ds(db, ds_id)
+    ds = _get_ds(db, ds_id, user)
     pwd = decrypt_password(ds.password_encrypted)
-    use_db = ds.database_name
-    use_schema = ds.schema_name
+    use_db = db_name or ds.database_name
+    use_schema = schema_name or ds.schema_name
     try:
         columns = list_columns(
             db_type=ds.db_type, host=ds.host, port=ds.port,
@@ -230,7 +237,7 @@ def get_table_config(tc_id: int, db: Session = Depends(get_db), user: UserAccoun
 # ── Create table config ──
 @router.post("", response_model=TableConfigOut)
 def create_table_config(body: TableConfigCreate, db: Session = Depends(get_db), user: UserAccount = Depends(require_role("admin"))):
-    ds = _get_ds(db, body.datasource_id)
+    ds = _get_ds(db, body.datasource_id, user)
 
     # Check duplicate
     existing = db.query(TableConfig).filter(
@@ -475,7 +482,7 @@ def check_structure(tc_id: int, db: Session = Depends(get_db), user: UserAccount
     ).first()
     if not row:
         raise HTTPException(404, t("table_config.not_found"))
-    ds = _get_ds(db, row.datasource_id)
+    ds = _get_ds(db, row.datasource_id, user)
     pwd = decrypt_password(ds.password_encrypted)
     try:
         columns = list_columns(
@@ -532,7 +539,7 @@ def sync_fields(tc_id: int, db: Session = Depends(get_db), user: UserAccount = D
     ).first()
     if not row:
         raise HTTPException(404, t("table_config.not_found"))
-    ds = _get_ds(db, row.datasource_id)
+    ds = _get_ds(db, row.datasource_id, user)
     pwd = decrypt_password(ds.password_encrypted)
     try:
         columns = list_columns(
@@ -598,7 +605,7 @@ def get_sample_data(
     ).first()
     if not row:
         raise HTTPException(404, t("table_config.not_found"))
-    ds = _get_ds(db, row.datasource_id)
+    ds = _get_ds(db, row.datasource_id, user)
     pwd = decrypt_password(ds.password_encrypted)
     try:
         columns, rows = fetch_sample_data(

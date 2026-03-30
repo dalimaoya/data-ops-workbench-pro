@@ -98,20 +98,21 @@ interface PluginMenuDef {
 const dataOpsStaticItems: MenuItem[] = [
   { key: '/', icon: <HomeOutlined />, labelKey: 'menu.dashboard' },
   { key: '/datasource', icon: <DatabaseOutlined />, labelKey: 'menu.datasource', roles: ['admin'] },
-  { key: '/table-config', icon: <TableOutlined />, labelKey: 'menu.tableConfig', roles: ['admin'] },
   {
-    key: '/data-maintenance-group',
-    icon: <ToolOutlined />,
-    labelKey: 'menu.dataMaintenance',
+    key: '/data-config-group',
+    icon: <TableOutlined />,
+    labelKey: 'menu.dataConfig',
+    roles: ['admin'],
     children: [],
   },
+  { key: '/data-maintenance', icon: <ToolOutlined />, labelKey: 'menu.dataMaintenance' },
 ];
 
 // Plugin items in 数据运维 group
 const dataOpsPluginDefs: PluginMenuDef[] = [
-  // 数据维护子菜单
-  { pluginName: 'plugin-batch-ops', menuItem: { key: '/db-maintenance', icon: <DatabaseOutlined />, labelKey: 'menu.dbMaintenance' }, parentGroup: '/data-maintenance-group' },
-  { pluginName: '__static_data_maintenance__', menuItem: { key: '/data-maintenance', icon: <EyeOutlined />, labelKey: 'menu.tableMaintenance' }, parentGroup: '/data-maintenance-group' },
+  // 数据配置子菜单
+  { pluginName: '__static_table_config__', menuItem: { key: '/table-config', icon: <TableOutlined />, labelKey: 'menu.singleTableConfig', roles: ['admin'] }, parentGroup: '/data-config-group' },
+  { pluginName: 'plugin-batch-ops', menuItem: { key: '/db-maintenance', icon: <DatabaseOutlined />, labelKey: 'menu.batchTableConfig' }, parentGroup: '/data-config-group' },
   // Top-level items in 数据运维
   { pluginName: 'plugin-data-compare', menuItem: { key: '/data-compare', icon: <SwapOutlined />, labelKey: 'menu.dataCompare', roles: ['admin', 'operator'] } },
   { pluginName: 'plugin-approval', menuItem: { key: '/approval-center', icon: <AuditOutlined />, labelKey: 'menu.approvalCenter', roles: ['admin'] } },

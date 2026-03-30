@@ -71,3 +71,6 @@ export const testConnection = (data: TestConnectionReq) =>
 
 export const testExistingDatasource = (id: number) =>
   api.post<{ success: boolean; message: string }>(`/datasource/${id}/test`);
+
+export const getDatasourceDatabases = (id: number) =>
+  api.get<{ databases: string[] }>(`/datasource/${id}/databases`);

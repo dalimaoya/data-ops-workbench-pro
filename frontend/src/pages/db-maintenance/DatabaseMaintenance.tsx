@@ -12,7 +12,7 @@ import {
   ImportOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
-import { listDatasources, type Datasource } from '../../api/datasource';
+import { listDatasources, getDatasourceDatabases, type Datasource } from '../../api/datasource';
 import { getRemoteTables, listTableConfigs, type RemoteTableInfo, type TableConfig } from '../../api/tableConfig';
 import { findFirstHealthyDs } from '../../utils/datasourceHelper';
 import {
@@ -64,9 +64,12 @@ export default function DatabaseMaintenance() {
   // Step management
   const [currentStep, setCurrentStep] = useState(0);
 
-  // Step 1: datasource + table selection
+  // Step 1: datasource + database + table selection
   const [datasources, setDatasources] = useState<Datasource[]>([]);
   const [selectedDsId, setSelectedDsId] = useState<number | undefined>();
+  const [databases, setDatabases] = useState<string[]>([]);
+  const [selectedDb, setSelectedDb] = useState<string | undefined>();
+  const [loadingDbs, setLoadingDbs] = useState(false);
   const [remoteTables, setRemoteTables] = useState<TableSelectItem[]>([]);
   const [loadingTables, setLoadingTables] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -114,14 +117,14 @@ export default function DatabaseMaintenance() {
   }, []);
 
   // Load remote tables + managed info when datasource changes
-  const loadTables = useCallback(async (dsId: number) => {
+  const loadTables = useCallback(async (dsId: number, dbName?: string) => {
     setLoadingTables(true);
     setRemoteTables([]);
     setSelectedTableNames([]);
     setTableLoadError(null);
     try {
       const [remoteRes, managedRes] = await Promise.all([
-        getRemoteTables(dsId),
+        getRemoteTables(dsId, dbName ? { db_name: dbName } : undefined),
         listTableConfigs({ datasource_id: dsId, page_size: 500 }),
       ]);
 
@@ -152,6 +155,15 @@ export default function DatabaseMaintenance() {
 
   useEffect(() => {
     if (selectedDsId) {
+      // Fetch available databases for this datasource
+      setDatabases([]);
+      setSelectedDb(undefined);
+      setLoadingDbs(true);
+      getDatasourceDatabases(selectedDsId)
+        .then(res => setDatabases(res.data.databases || []))
+        .catch(() => {})
+        .finally(() => setLoadingDbs(false));
+      // Load tables using datasource default
       loadTables(selectedDsId);
     }
   }, [selectedDsId, loadTables]);
@@ -196,6 +208,7 @@ export default function DatabaseMaintenance() {
       // Process in one API call (backend handles all tables)
       const res = await batchManageTables({
         datasource_id: selectedDsId,
+        db_name: selectedDb,
         table_names: selectedTableNames,
         auto_ai_suggest: true,
         sample_count: 50,
@@ -316,6 +329,7 @@ export default function DatabaseMaintenance() {
     try {
       const res = await batchConfirm({
         datasource_id: selectedDsId,
+        db_name: selectedDb,
         tables,
       });
       const data = (res.data as any).data || res.data;
@@ -672,6 +686,21 @@ export default function DatabaseMaintenance() {
             label: `${ds.datasource_name} (${ds.db_type})`,
           }))}
         />
+        {selectedDsId && databases.length > 0 && (
+          <Select
+            placeholder={t('tableConfig.selectDatabase')}
+            style={{ width: 200 }}
+            allowClear
+            loading={loadingDbs}
+            value={selectedDb}
+            showSearch
+            onChange={(val) => {
+              setSelectedDb(val);
+              if (selectedDsId) loadTables(selectedDsId, val);
+            }}
+            options={databases.map(d => ({ label: d, value: d }))}
+          />
+        )}
         {selectedDsId && (
           <>
             <Button
