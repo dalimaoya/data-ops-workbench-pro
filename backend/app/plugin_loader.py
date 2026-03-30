@@ -56,13 +56,12 @@ ALL_KNOWN_PLUGINS = [
     "plugin-ai-assistant",
     "plugin-db-manager",
     "plugin-data-mask",
-    "plugin-notify-push",
+    "plugin-notification-push",
     "plugin-data-trend",
     "plugin-audit-export",
     "plugin-data-compare",
     "plugin-template-market",
     "plugin-ai-predict",
-    "plugin-webhook",
     "plugin-sql-console",
 ]
 
@@ -123,6 +122,12 @@ def load_plugins(app: FastAPI) -> List[str]:
         plugin_name = manifest.get("_dir_name", "")
         layer = manifest.get("layer", "builtin")
         plugin_id = manifest.get("name", plugin_name)
+
+        # Skip deprecated plugins (merged into another plugin)
+        if manifest.get("deprecated"):
+            logger.info("[PLUGIN] %s is deprecated (replaced by %s), skipping",
+                        plugin_id, manifest.get("deprecated_by", "?"))
+            continue
 
         # For extension plugins, intercept include_router to inject the guard dependency
         if layer == "extension":
@@ -224,6 +229,10 @@ def get_all_plugins_full() -> List[Dict[str, Any]]:
         name = manifest.get("name")
         layer = manifest.get("layer", "builtin")
         is_loaded = name in loaded_names
+
+        # Skip deprecated plugins
+        if manifest.get("deprecated"):
+            continue
 
         if layer == "builtin":
             enabled = True
