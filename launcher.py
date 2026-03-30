@@ -14,16 +14,35 @@ v5.0: 集成 pywebview（WebView2）作为主窗口
 
 import os
 import sys
-
-# Debug: force stdout/stderr to console
-print(f"[launcher] starting... frozen={getattr(sys, 'frozen', False)}", flush=True)
-
 import subprocess
 import threading
 import webbrowser
 import time
 import json
+import logging
 import tkinter as tk
+
+# Setup file logging
+def _setup_logging():
+    if getattr(sys, 'frozen', False):
+        base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+    log_dir = os.path.join(base, '..', 'logs') if getattr(sys, 'frozen', False) else os.path.join(base, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, 'launcher.log')
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(levelname)s] %(message)s',
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler(sys.stdout),
+        ],
+    )
+    return logging.getLogger('launcher')
+
+log = _setup_logging()
+log.info(f"launcher starting, frozen={getattr(sys, 'frozen', False)}")
 from tkinter import ttk, messagebox
 from urllib.request import urlopen, Request
 from urllib.error import URLError
@@ -70,19 +89,19 @@ try:
     import pystray
     from PIL import Image, ImageDraw, ImageFont
     HAS_TRAY = True
-    print(f"[launcher] pystray OK", flush=True)
+    log.info("pystray OK")
 except ImportError as e:
     HAS_TRAY = False
-    print(f"[launcher] pystray FAILED: {e}", flush=True)
+    log.warning(f"pystray not available: {e}")
 
 # ── pywebview 可选 ──────────────────────────────────────────────
 try:
     import webview
     HAS_WEBVIEW = True
-    print(f"[launcher] webview OK: {webview.__version__}", flush=True)
+    log.info("webview OK")
 except ImportError as e:
     HAS_WEBVIEW = False
-    print(f"[launcher] webview FAILED: {e}", flush=True)
+    log.warning(f"webview not available: {e}")
 
 
 # ── 定位可执行文件 ──────────────────────────────────────────────
@@ -183,8 +202,8 @@ class LauncherApp:
         self.webview_window = None
         self.server_state = "stopped"  # stopped / starting / running
         self.server_bin = _find_server_bin()
-        print(f"[launcher] server_bin={self.server_bin}", flush=True)
-        print(f"[launcher] HAS_WEBVIEW={HAS_WEBVIEW} HAS_TRAY={HAS_TRAY}", flush=True)
+        log.info(f"server_bin={self.server_bin}")
+        log.info(f"HAS_WEBVIEW={HAS_WEBVIEW} HAS_TRAY={HAS_TRAY}")
         self.start_time = None
         self._health_thread = None
         self._monitor_running = True
