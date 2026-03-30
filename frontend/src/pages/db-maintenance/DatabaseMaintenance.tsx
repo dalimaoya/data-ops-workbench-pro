@@ -194,72 +194,76 @@ export default function DatabaseMaintenance() {
     });
   };
 
-  // Step 2: Start batch processing
+  // Convert a BatchTableResult to EditableTableConfig
+  const toEditable = (r: BatchTableResult): EditableTableConfig => {
+    const fields: EditableFieldConfig[] = r.fields.map(f => {
+      let alias = f.field_name;
+      let aiSource = '';
+      const suggestions = r.ai_suggestions?.[f.field_name] || [];
+      const dnSuggestion = suggestions.find((s: any) => s.property === 'display_name');
+      if (dnSuggestion) {
+        alias = dnSuggestion.value;
+        aiSource = '🤖AI';
+      }
+      return {
+        field_name: f.field_name,
+        field_alias: alias,
+        db_data_type: f.db_data_type,
+        field_order_no: f.field_order_no,
+        is_primary_key: f.is_primary_key,
+        is_editable: f.is_editable,
+        is_required: f.is_required,
+        is_system_field: f.is_system_field,
+        is_displayed: f.is_displayed,
+        include_in_export: f.include_in_export,
+        include_in_import: f.include_in_import,
+        sample_value: f.sample_value,
+        ai_source: aiSource,
+      };
+    });
+    return {
+      table_name: r.table_name,
+      display_name: r.table_display_name || r.table_name,
+      primary_key: r.primary_key || '',
+      confirmed: false,
+      fields,
+      ai_suggestions: r.ai_suggestions || {},
+    };
+  };
+
+  // Step 2: Start batch processing — process tables one by one for real-time progress
   const handleStartBatch = async () => {
     if (!selectedDsId || selectedTableNames.length === 0) return;
 
     setCurrentStep(1);
     setProcessing(true);
-    setTotalToProcess(selectedTableNames.length);
+    const total = selectedTableNames.length;
+    setTotalToProcess(total);
     setProcessedCount(0);
     setBatchResults([]);
 
+    const allResults: BatchTableResult[] = [];
+
     try {
-      // Process in one API call (backend handles all tables)
-      const res = await batchManageTables({
-        datasource_id: selectedDsId,
-        db_name: selectedDb,
-        table_names: selectedTableNames,
-        auto_ai_suggest: true,
-        sample_count: 50,
-      });
-
-      const data = (res.data as any).data || res.data;
-      const results = data.results || [];
-      setBatchResults(results);
-      setProcessedCount(results.length);
-
-      // Convert to editable configs
-      const editables: EditableTableConfig[] = results
-        .filter((r: BatchTableResult) => r.status === 'success')
-        .map((r: BatchTableResult) => {
-          const fields: EditableFieldConfig[] = r.fields.map(f => {
-            // Apply AI suggestions for field alias
-            let alias = f.field_name;
-            let aiSource = '';
-            const suggestions = r.ai_suggestions?.[f.field_name] || [];
-            const dnSuggestion = suggestions.find((s: any) => s.property === 'display_name');
-            if (dnSuggestion) {
-              alias = dnSuggestion.value;
-              aiSource = '🤖AI';
-            }
-
-            return {
-              field_name: f.field_name,
-              field_alias: alias,
-              db_data_type: f.db_data_type,
-              field_order_no: f.field_order_no,
-              is_primary_key: f.is_primary_key,
-              is_editable: f.is_editable,
-              is_required: f.is_required,
-              is_system_field: f.is_system_field,
-              is_displayed: f.is_displayed,
-              include_in_export: f.include_in_export,
-              include_in_import: f.include_in_import,
-              sample_value: f.sample_value,
-              ai_source: aiSource,
-            };
-          });
-
-          return {
-            table_name: r.table_name,
-            display_name: r.table_display_name || r.table_name,
-            primary_key: r.primary_key || '',
-            confirmed: false,
-            fields,
-            ai_suggestions: r.ai_suggestions || {},
-          };
+      for (let i = 0; i < total; i++) {
+        const res = await batchManageTables({
+          datasource_id: selectedDsId,
+          db_name: selectedDb,
+          table_names: [selectedTableNames[i]],
+          auto_ai_suggest: true,
+          sample_count: 50,
         });
+
+        const data = (res.data as any).data || res.data;
+        const results: BatchTableResult[] = data.results || [];
+        allResults.push(...results);
+        setBatchResults([...allResults]);
+        setProcessedCount(i + 1);
+      }
+
+      const editables = allResults
+        .filter((r: BatchTableResult) => r.status === 'success')
+        .map(toEditable);
 
       setEditableTables(editables);
       setCurrentTableIdx(0);
@@ -270,11 +274,27 @@ export default function DatabaseMaintenance() {
         setProcessing(false);
         if (editables.length > 0) {
           setCurrentStep(2);
+        } else {
+          message.warning(t('dbMaintenance.noSuccessTable'));
+          setCurrentStep(0);
         }
       }, 500);
     } catch (err: any) {
       message.error(err?.response?.data?.detail || '批量纳管失败');
       setProcessing(false);
+      // If we have partial results, still show them
+      if (allResults.length > 0) {
+        const editables = allResults
+          .filter((r: BatchTableResult) => r.status === 'success')
+          .map(toEditable);
+        if (editables.length > 0) {
+          setEditableTables(editables);
+          setCurrentTableIdx(0);
+          setConfirmedCount(0);
+          setCurrentStep(2);
+          return;
+        }
+      }
       setCurrentStep(0);
     }
   };

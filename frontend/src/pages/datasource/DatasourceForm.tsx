@@ -4,7 +4,7 @@ import {
   Form, Input, InputNumber, Select, Button, Card, Space, message, Switch,
 } from 'antd';
 import {
-  getDatasource, createDatasource, updateDatasource, testConnection,
+  getDatasource, createDatasource, updateDatasource, testConnection, testExistingDatasource,
 } from '../../api/datasource';
 import { useTranslation } from 'react-i18next';
 
@@ -54,17 +54,23 @@ export default function DatasourceForm() {
     try {
       const vals = await form.validateFields();
       setTesting(true);
-      const res = await testConnection({
-        db_type: vals.db_type,
-        host: vals.host,
-        port: vals.port,
-        database_name: vals.database_name,
-        schema_name: vals.schema_name,
-        username: vals.username,
-        password: vals.password,
-        charset: vals.charset,
-        connect_timeout_seconds: vals.connect_timeout_seconds,
-      });
+      let res;
+      if (isEdit && !vals.password) {
+        // Password empty on edit → use saved password via existing datasource test
+        res = await testExistingDatasource(Number(id));
+      } else {
+        res = await testConnection({
+          db_type: vals.db_type,
+          host: vals.host,
+          port: vals.port,
+          database_name: vals.database_name,
+          schema_name: vals.schema_name,
+          username: vals.username,
+          password: vals.password,
+          charset: vals.charset,
+          connect_timeout_seconds: vals.connect_timeout_seconds,
+        });
+      }
       if (res.data.success) {
         message.success(res.data.message);
       } else {
