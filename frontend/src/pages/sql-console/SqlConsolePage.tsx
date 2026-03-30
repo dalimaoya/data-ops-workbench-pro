@@ -4,7 +4,7 @@ import {
   Checkbox, Input, Collapse, Dropdown, InputNumber, Tooltip, Spin,
 } from 'antd';
 import {
-  PlayCircleOutlined, DownloadOutlined, DeleteOutlined, PlusOutlined,
+  PlayCircleOutlined, DownloadOutlined, PlusOutlined,
   HistoryOutlined, RobotOutlined, CloseOutlined, FileExcelOutlined,
   FileTextOutlined, CopyOutlined,
 } from '@ant-design/icons';
@@ -170,7 +170,10 @@ export default function SqlConsolePage() {
     if (!selectedDs) { setTables([]); return; }
     setTablesLoading(true);
     api.get('/db-manager/tables', { params: { datasource_id: selectedDs } })
-      .then(res => setTables(res.data?.tables || []))
+      .then(res => {
+        const raw = res.data?.tables || [];
+        setTables(raw.map((t: any) => typeof t === 'string' ? t : t.table_name || ''));
+      })
       .catch(() => setTables([]))
       .finally(() => setTablesLoading(false));
   }, [selectedDs]);
@@ -206,23 +209,23 @@ export default function SqlConsolePage() {
   };
 
   // ── Execute SQL ──
-  const handleExecute = async () => {
-    if (!selectedDs || !sql.trim()) {
+  const handleExecute = async (overrideSql?: string) => {
+    const execSql = (overrideSql || sql).trim();
+    if (!selectedDs || !execSql) {
       message.warning(t('sqlConsole.selectDatasource'));
       return;
     }
     setLoading(true);
     setResult(null);
-    const startTime = Date.now();
     try {
       const res = await api.post('/sql-console/execute', {
         datasource_id: selectedDs,
-        sql: sql.trim(),
+        sql: execSql,
       });
       setResult(res.data);
       // Save to history
       setHistory(addHistory({
-        sql: sql.trim(),
+        sql: execSql,
         datasource_id: selectedDs,
         datasource_name: getDsName(selectedDs),
         executed_at: new Date().toISOString(),
@@ -233,7 +236,7 @@ export default function SqlConsolePage() {
       const errMsg = e?.response?.data?.detail || 'SQL error';
       message.error(errMsg);
       setHistory(addHistory({
-        sql: sql.trim(),
+        sql: execSql,
         datasource_id: selectedDs,
         datasource_name: getDsName(selectedDs),
         executed_at: new Date().toISOString(),
@@ -331,8 +334,7 @@ export default function SqlConsolePage() {
     const generated = generateSql();
     if (generated) {
       setSql(generated);
-      // Execute after state update
-      setTimeout(() => handleExecute(), 0);
+      handleExecute(generated);
     }
   };
 
@@ -421,7 +423,7 @@ export default function SqlConsolePage() {
               <Select.Option key={ds.id} value={ds.id}>{ds.datasource_name} ({ds.db_type})</Select.Option>
             ))}
           </Select>
-          <Button type="primary" icon={<PlayCircleOutlined />} onClick={handleExecute} loading={loading}>
+          <Button type="primary" icon={<PlayCircleOutlined />} onClick={() => handleExecute()} loading={loading}>
             {loading ? t('sqlConsole.executing') : t('sqlConsole.execute')} (Ctrl+Enter)
           </Button>
           {result && (
@@ -653,7 +655,7 @@ export default function SqlConsolePage() {
                 )}
                 <Space>
                   <Button type="primary" onClick={handleAiUse}>{t('sqlConsole.aiUseThis')}</Button>
-                  <Button onClick={() => { setSql(aiResult.sql); setMode('manual'); setTimeout(handleExecute, 0); }}>
+                  <Button onClick={() => { setSql(aiResult.sql); setMode('manual'); handleExecute(aiResult.sql); }}>
                     {t('sqlConsole.execute')}
                   </Button>
                 </Space>
