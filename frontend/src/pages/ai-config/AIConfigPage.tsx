@@ -493,7 +493,7 @@ export default function AIConfigPage() {
                       <Tag
                         key={m}
                         style={{ cursor: 'pointer', marginBottom: 4 }}
-                        onClick={() => cloudForm.setFieldsValue({ cloud_model_name: m })}
+                        onClick={() => form.setFieldsValue({ cloud_model_name: m })}
                       >{m}</Tag>
                     ))}
                   </div>
