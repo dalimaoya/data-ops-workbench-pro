@@ -1067,7 +1067,21 @@
     "tableComment": "Table Comment",
     "afterColumn": "After Column",
     "newColumnName": "New Column Name",
-    "newColumnType": "New Column Type"
+    "newColumnType": "New Column Type",
+    "structureTab": "Structure",
+    "indexesTab": "Indexes",
+    "createIndex": "Create Index",
+    "dropIndex": "Drop Index",
+    "indexName": "Index Name",
+    "indexColumns": "Index Columns",
+    "uniqueIndex": "Unique Index",
+    "confirmDropIndex": "Confirm drop index {name}?",
+    "isPrimary": "Primary Key",
+    "indexType": "Type",
+    "selectColumns": "Select columns",
+    "ddlWarning": "DDL operations directly modify database structure. Please confirm before executing.",
+    "indexNameRequired": "Please enter index name",
+    "indexColumnsRequired": "Please select index columns"
   },
   "dataMask": {
     "title": "Data Masking Export",

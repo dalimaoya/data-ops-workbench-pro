@@ -1067,7 +1067,21 @@
     "tableComment": "表注释",
     "afterColumn": "添加到字段之后",
     "newColumnName": "新字段名",
-    "newColumnType": "新字段类型"
+    "newColumnType": "新字段类型",
+    "structureTab": "表结构",
+    "indexesTab": "索引",
+    "createIndex": "新建索引",
+    "dropIndex": "删除索引",
+    "indexName": "索引名",
+    "indexColumns": "索引字段",
+    "uniqueIndex": "唯一索引",
+    "confirmDropIndex": "确认删除索引 {name}？",
+    "isPrimary": "主键索引",
+    "indexType": "类型",
+    "selectColumns": "请选择字段",
+    "ddlWarning": "DDL 操作会直接修改数据库结构，请确认后再执行",
+    "indexNameRequired": "请输入索引名",
+    "indexColumnsRequired": "请选择索引字段"
   },
   "dataMask": {
     "title": "数据脱敏导出",

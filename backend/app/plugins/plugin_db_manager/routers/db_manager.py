@@ -82,6 +82,22 @@ class DropTableRequest(BaseModel):
     backup_first: bool = True
 
 
+class CreateIndexRequest(BaseModel):
+    datasource_id: int
+    table_name: str
+    index_name: str
+    columns: List[str]
+    unique: bool = False
+    execute: bool = False
+
+
+class DropIndexRequest(BaseModel):
+    datasource_id: int
+    table_name: str
+    index_name: str
+    execute: bool = False
+
+
 # ── Helper ──
 
 def _get_connection(ds: DatasourceConfig):
@@ -135,6 +151,9 @@ def list_tables(
                 "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME",
                 (schema,),
             )
+            tables = [row[0] for row in cursor.fetchall()]
+        elif ds.db_type == "sqlite":
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
             tables = [row[0] for row in cursor.fetchall()]
         else:
             tables = []
@@ -242,6 +261,30 @@ def get_table_structure(
             cr = cursor.fetchone()
             if cr:
                 table_comment = cr[0]
+        elif ds.db_type == "sqlite":
+            cursor.execute(f"PRAGMA table_info('{table_name}')")
+            for row in cursor.fetchall():
+                # row: (cid, name, type, notnull, dflt_value, pk)
+                columns.append({
+                    "name": row[1],
+                    "type": row[2],
+                    "is_nullable": not row[3],
+                    "default_value": row[4],
+                    "is_primary_key": bool(row[5]),
+                })
+                if row[5]:
+                    primary_keys.append(row[1])
+
+            cursor.execute(f"PRAGMA index_list('{table_name}')")
+            for idx_row in cursor.fetchall():
+                idx_name = idx_row[1]
+                is_unique = bool(idx_row[2])
+                cursor2 = conn.cursor()
+                cursor2.execute(f"PRAGMA index_info('{idx_name}')")
+                idx_cols = [r[2] for r in cursor2.fetchall()]
+                indexes.append({"name": idx_name, "unique": is_unique, "columns": idx_cols})
+
+            table_comment = None
         else:
             table_comment = None
 
@@ -581,3 +624,211 @@ def drop_table(
         raise HTTPException(500, f"删除失败: {str(e)}")
     finally:
         conn.close()
+
+
+# ── GET /api/db-manager/indexes ── List indexes for a table
+
+@router.get("/indexes")
+def list_indexes(
+    datasource_id: int = Query(...),
+    table_name: str = Query(...),
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
+    """List all indexes for a table."""
+    ds = db.query(DatasourceConfig).filter(
+        DatasourceConfig.id == datasource_id,
+        DatasourceConfig.is_deleted == 0,
+    ).first()
+    if not ds:
+        raise HTTPException(404, "数据源不存在")
+
+    conn = _get_connection(ds)
+    try:
+        cursor = conn.cursor()
+        indexes: List[Dict[str, Any]] = []
+
+        if ds.db_type == "mysql":
+            cursor.execute(f"SHOW INDEX FROM `{table_name}`")
+            idx_map: Dict[str, Any] = {}
+            for row in cursor.fetchall():
+                idx_name = row[2]
+                if idx_name not in idx_map:
+                    idx_map[idx_name] = {
+                        "name": idx_name,
+                        "unique": not row[1],
+                        "columns": [],
+                        "is_primary": idx_name == "PRIMARY",
+                    }
+                idx_map[idx_name]["columns"].append(row[4])
+            indexes = list(idx_map.values())
+
+        elif ds.db_type == "postgresql":
+            schema = ds.schema_name or "public"
+            cursor.execute("""
+                SELECT i.relname AS index_name,
+                       ix.indisunique AS is_unique,
+                       ix.indisprimary AS is_primary,
+                       array_agg(a.attname ORDER BY x.n) AS columns
+                FROM pg_index ix
+                JOIN pg_class t ON t.oid = ix.indrelid
+                JOIN pg_class i ON i.oid = ix.indexrelid
+                JOIN pg_namespace n ON n.oid = t.relnamespace
+                CROSS JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY AS x(attnum, n)
+                JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = x.attnum
+                WHERE n.nspname = %s AND t.relname = %s
+                GROUP BY i.relname, ix.indisunique, ix.indisprimary
+                ORDER BY i.relname
+            """, (schema, table_name))
+            for row in cursor.fetchall():
+                cols = row[3] if isinstance(row[3], list) else [row[3]] if row[3] else []
+                indexes.append({
+                    "name": row[0],
+                    "unique": bool(row[1]),
+                    "is_primary": bool(row[2]),
+                    "columns": cols,
+                })
+
+        elif ds.db_type == "sqlserver":
+            schema = ds.schema_name or "dbo"
+            cursor.execute("""
+                SELECT i.name AS index_name,
+                       i.is_unique,
+                       i.is_primary_key,
+                       c.name AS column_name
+                FROM sys.indexes i
+                JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+                JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+                JOIN sys.tables t ON i.object_id = t.object_id
+                JOIN sys.schemas s ON t.schema_id = s.schema_id
+                WHERE s.name = ? AND t.name = ?
+                ORDER BY i.name, ic.key_ordinal
+            """, (schema, table_name))
+            idx_map2: Dict[str, Any] = {}
+            for row in cursor.fetchall():
+                idx_name = row[0]
+                if idx_name not in idx_map2:
+                    idx_map2[idx_name] = {
+                        "name": idx_name,
+                        "unique": bool(row[1]),
+                        "is_primary": bool(row[2]),
+                        "columns": [],
+                    }
+                idx_map2[idx_name]["columns"].append(row[3])
+            indexes = list(idx_map2.values())
+
+        elif ds.db_type == "sqlite":
+            cursor.execute(f"PRAGMA index_list('{table_name}')")
+            for idx_row in cursor.fetchall():
+                idx_name = idx_row[1]
+                is_unique = bool(idx_row[2])
+                cursor2 = conn.cursor()
+                cursor2.execute(f"PRAGMA index_info('{idx_name}')")
+                idx_cols = [r[2] for r in cursor2.fetchall()]
+                indexes.append({
+                    "name": idx_name,
+                    "unique": is_unique,
+                    "is_primary": False,
+                    "columns": idx_cols,
+                })
+
+        return {"indexes": indexes, "table_name": table_name}
+    finally:
+        conn.close()
+
+
+# ── POST /api/db-manager/create-index ── Create an index
+
+@router.post("/create-index")
+def create_index(
+    req: CreateIndexRequest,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
+    ds = db.query(DatasourceConfig).filter(
+        DatasourceConfig.id == req.datasource_id,
+        DatasourceConfig.is_deleted == 0,
+    ).first()
+    if not ds:
+        raise HTTPException(404, "数据源不存在")
+
+    if not req.columns:
+        raise HTTPException(400, "请至少选择一个字段")
+
+    q = _quote_ident
+    unique_kw = "UNIQUE " if req.unique else ""
+    col_list = ", ".join(q(c, ds.db_type) for c in req.columns)
+    sql = f"CREATE {unique_kw}INDEX {q(req.index_name, ds.db_type)} ON {q(req.table_name, ds.db_type)} ({col_list});"
+
+    result = {"sql": sql, "executed": False}
+
+    if req.execute:
+        conn = _get_connection(ds)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            conn.commit()
+            result["executed"] = True
+            result["message"] = f"索引 {req.index_name} 创建成功"
+            log_operation(db, "库表管理", "建索引", "success",
+                          target_name=f"{req.table_name}.{req.index_name}",
+                          message=f"在表 {req.table_name} 创建索引 {req.index_name} ({col_list})",
+                          operator=user.username)
+            db.commit()
+        except Exception as e:
+            result["error"] = str(e)
+            result["executed"] = False
+        finally:
+            conn.close()
+
+    return result
+
+
+# ── POST /api/db-manager/drop-index ── Drop an index
+
+@router.post("/drop-index")
+def drop_index(
+    req: DropIndexRequest,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
+    ds = db.query(DatasourceConfig).filter(
+        DatasourceConfig.id == req.datasource_id,
+        DatasourceConfig.is_deleted == 0,
+    ).first()
+    if not ds:
+        raise HTTPException(404, "数据源不存在")
+
+    q = _quote_ident
+
+    if ds.db_type == "mysql":
+        sql = f"DROP INDEX {q(req.index_name, ds.db_type)} ON {q(req.table_name, ds.db_type)};"
+    elif ds.db_type == "postgresql":
+        sql = f"DROP INDEX {q(req.index_name, ds.db_type)};"
+    elif ds.db_type == "sqlserver":
+        sql = f"DROP INDEX {q(req.index_name, ds.db_type)} ON {q(req.table_name, ds.db_type)};"
+    else:
+        sql = f"DROP INDEX {q(req.index_name, ds.db_type)};"
+
+    result = {"sql": sql, "executed": False}
+
+    if req.execute:
+        conn = _get_connection(ds)
+        try:
+            cursor = conn.cursor()
+            cursor.execute(sql)
+            conn.commit()
+            result["executed"] = True
+            result["message"] = f"索引 {req.index_name} 已删除"
+            log_operation(db, "库表管理", "删索引", "success",
+                          target_name=f"{req.table_name}.{req.index_name}",
+                          message=f"从表 {req.table_name} 删除索引 {req.index_name}",
+                          operator=user.username)
+            db.commit()
+        except Exception as e:
+            result["error"] = str(e)
+            result["executed"] = False
+        finally:
+            conn.close()
+
+    return result

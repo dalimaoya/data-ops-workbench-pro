@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Card, Select, Table, Button, Space, Tag, Modal, Form, Input,
-  message, Typography, Tooltip, Popconfirm, Divider, Checkbox, Empty,
+  message, Typography, Tooltip, Popconfirm, Divider, Checkbox, Empty, Tabs, Alert,
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, EditOutlined, EyeOutlined,
-  CopyOutlined, PlayCircleOutlined,
+  CopyOutlined, PlayCircleOutlined, ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api/request';
@@ -26,6 +26,7 @@ interface Column {
 interface IndexInfo {
   name: string;
   unique: boolean;
+  is_primary: boolean;
   columns: string[];
 }
 
@@ -68,6 +69,14 @@ export default function DbManagerPage() {
   const [modifyColOpen, setModifyColOpen] = useState(false);
   const [modifyColForm] = Form.useForm();
   const [modifyTarget, setModifyTarget] = useState<string>('');
+
+  // Index management
+  const [createIdxOpen, setCreateIdxOpen] = useState(false);
+  const [createIdxForm] = Form.useForm();
+  const [idxLoading, setIdxLoading] = useState(false);
+
+  // Detail tab
+  const [detailTab, setDetailTab] = useState('structure');
 
   // Fetch datasources
   useEffect(() => {
@@ -285,6 +294,84 @@ export default function DbManagerPage() {
     } catch { /* validation */ }
   };
 
+  // Fetch indexes separately
+  const fetchIndexes = useCallback(async () => {
+    if (!selectedDs || !selectedTable) return;
+    setIdxLoading(true);
+    try {
+      const res = await api.get('/db-manager/indexes', {
+        params: { datasource_id: selectedDs, table_name: selectedTable },
+      });
+      setIndexes(res.data?.indexes || []);
+    } catch {
+      setIndexes([]);
+    } finally {
+      setIdxLoading(false);
+    }
+  }, [selectedDs, selectedTable]);
+
+  // Create index
+  const handleCreateIndex = async (execute: boolean) => {
+    try {
+      const values = await createIdxForm.validateFields();
+      const res = await api.post('/db-manager/create-index', {
+        datasource_id: selectedDs,
+        table_name: selectedTable,
+        index_name: values.index_name,
+        columns: values.columns,
+        unique: values.unique ?? false,
+        execute,
+      });
+      if (execute && res.data?.executed) {
+        message.success(res.data.message || '索引创建成功');
+        setCreateIdxOpen(false);
+        createIdxForm.resetFields();
+        fetchIndexes();
+      } else if (execute && res.data?.error) {
+        message.error(res.data.error);
+      } else {
+        showSql(res.data?.sql || '', true, async () => {
+          const execRes = await api.post('/db-manager/create-index', {
+            datasource_id: selectedDs,
+            table_name: selectedTable,
+            index_name: values.index_name,
+            columns: values.columns,
+            unique: values.unique ?? false,
+            execute: true,
+          });
+          if (execRes.data?.executed) {
+            message.success('索引创建成功');
+            setCreateIdxOpen(false);
+            createIdxForm.resetFields();
+            fetchIndexes();
+          } else if (execRes.data?.error) {
+            message.error(execRes.data.error);
+          }
+        });
+      }
+    } catch { /* validation */ }
+  };
+
+  // Drop index
+  const handleDropIndex = async (indexName: string) => {
+    try {
+      const res = await api.post('/db-manager/drop-index', {
+        datasource_id: selectedDs,
+        table_name: selectedTable,
+        index_name: indexName,
+        execute: true,
+      });
+      if (res.data?.executed) {
+        message.success(res.data.message || '索引已删除');
+        fetchIndexes();
+      } else if (res.data?.error) {
+        message.error(res.data.error);
+      }
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || '删除失败');
+    }
+  };
+
   // Drop table
   const handleDropTable = async () => {
     if (!selectedTable || !selectedDs) return;
@@ -404,41 +491,77 @@ export default function DbManagerPage() {
             <div style={{ marginBottom: 8 }}>
               <Space>
                 <Text strong>{selectedTable}</Text>
-                {tableComment && <Text type="secondary">— {tableComment}</Text>}
+                {tableComment && <Text type="secondary">--- {tableComment}</Text>}
               </Space>
             </div>
 
-            <Space style={{ marginBottom: 12 }}>
-              <Button icon={<PlusOutlined />} onClick={() => { addColForm.resetFields(); setAddColOpen(true); }}>
-                {t('dbManager.addColumn')}
-              </Button>
-            </Space>
-
-            <Table
-              columns={structureColumns}
-              dataSource={columns}
-              rowKey="name"
-              loading={loading}
-              size="small"
-              pagination={false}
-            />
-
-            {indexes.length > 0 && (
-              <div style={{ marginTop: 16 }}>
-                <Text strong>{t('dbManager.indexes')}</Text>
-                <Table
-                  size="small"
-                  pagination={false}
-                  dataSource={indexes}
-                  rowKey="name"
-                  columns={[
-                    { title: '索引名', dataIndex: 'name', key: 'name' },
-                    { title: '唯一', dataIndex: 'unique', key: 'unique', render: (v: boolean) => v ? <Tag color="green">UNIQUE</Tag> : <Tag>INDEX</Tag> },
-                    { title: '字段', dataIndex: 'columns', key: 'columns', render: (v: string[]) => v.join(', ') },
-                  ]}
-                />
-              </div>
-            )}
+            <Tabs activeKey={detailTab} onChange={(k) => { setDetailTab(k); if (k === 'indexes') fetchIndexes(); }} items={[
+              {
+                key: 'structure',
+                label: t('dbManager.tableStructure'),
+                children: (
+                  <>
+                    <Space style={{ marginBottom: 12 }}>
+                      <Button icon={<PlusOutlined />} onClick={() => { addColForm.resetFields(); setAddColOpen(true); }}>
+                        {t('dbManager.addColumn')}
+                      </Button>
+                    </Space>
+                    <Table
+                      columns={structureColumns}
+                      dataSource={columns}
+                      rowKey="name"
+                      loading={loading}
+                      size="small"
+                      pagination={false}
+                    />
+                  </>
+                ),
+              },
+              {
+                key: 'indexes',
+                label: t('dbManager.indexes'),
+                children: (
+                  <>
+                    <Space style={{ marginBottom: 12 }}>
+                      <Button type="primary" icon={<PlusOutlined />} onClick={() => { createIdxForm.resetFields(); setCreateIdxOpen(true); }}>
+                        {t('dbManager.createIndex')}
+                      </Button>
+                    </Space>
+                    <Table
+                      size="small"
+                      pagination={false}
+                      loading={idxLoading}
+                      dataSource={indexes}
+                      rowKey="name"
+                      columns={[
+                        { title: t('dbManager.indexName'), dataIndex: 'name', key: 'name', width: 240 },
+                        {
+                          title: t('dbManager.indexType'), dataIndex: 'unique', key: 'unique', width: 120,
+                          render: (v: boolean, record: IndexInfo) =>
+                            record.is_primary ? <Tag color="blue">PRIMARY</Tag> :
+                            v ? <Tag color="green">UNIQUE</Tag> : <Tag>INDEX</Tag>,
+                        },
+                        { title: t('dbManager.indexColumns'), dataIndex: 'columns', key: 'columns', render: (v: string[]) => v?.join(', ') },
+                        {
+                          title: t('common.operation'), key: 'action', width: 100,
+                          render: (_: unknown, record: IndexInfo) => (
+                            record.is_primary ? null : (
+                              <Popconfirm
+                                title={t('dbManager.confirmDropIndex', { name: record.name })}
+                                icon={<ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />}
+                                onConfirm={() => handleDropIndex(record.name)}
+                              >
+                                <Button size="small" danger icon={<DeleteOutlined />}>{t('common.delete')}</Button>
+                              </Popconfirm>
+                            )
+                          ),
+                        },
+                      ]}
+                    />
+                  </>
+                ),
+              },
+            ]} />
           </>
         )}
 
@@ -459,6 +582,13 @@ export default function DbManagerPage() {
           <Button key="execute" type="primary" icon={<PlayCircleOutlined />} onClick={() => handleCreateTable(true)}>{t('dbManager.execute')}</Button>,
         ]}
       >
+        <Alert
+          message={t('dbManager.ddlWarning')}
+          type="warning"
+          showIcon
+          icon={<ExclamationCircleOutlined />}
+          style={{ marginBottom: 16 }}
+        />
         <Form form={createForm} layout="vertical">
           <Space style={{ width: '100%' }}>
             <Form.Item name="table_name" label="表名" rules={[{ required: true }]} style={{ flex: 1 }}>
@@ -569,6 +699,41 @@ export default function DbManagerPage() {
           </Form.Item>
           <Form.Item name="new_comment" label={t('dbManager.comment')}>
             <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Create Index Modal */}
+      <Modal
+        title={t('dbManager.createIndex')}
+        open={createIdxOpen}
+        onCancel={() => setCreateIdxOpen(false)}
+        footer={[
+          <Button key="cancel" onClick={() => setCreateIdxOpen(false)}>{t('common.cancel')}</Button>,
+          <Button key="preview" icon={<EyeOutlined />} onClick={() => handleCreateIndex(false)}>{t('dbManager.sqlPreview')}</Button>,
+          <Button key="execute" type="primary" icon={<PlayCircleOutlined />} onClick={() => handleCreateIndex(true)}>{t('dbManager.execute')}</Button>,
+        ]}
+      >
+        <Alert
+          message={t('dbManager.ddlWarning')}
+          type="warning"
+          showIcon
+          icon={<ExclamationCircleOutlined />}
+          style={{ marginBottom: 16 }}
+        />
+        <Form form={createIdxForm} layout="vertical">
+          <Form.Item name="index_name" label={t('dbManager.indexName')} rules={[{ required: true, message: t('dbManager.indexNameRequired') }]}>
+            <Input placeholder="idx_table_column" />
+          </Form.Item>
+          <Form.Item name="columns" label={t('dbManager.indexColumns')} rules={[{ required: true, message: t('dbManager.indexColumnsRequired') }]}>
+            <Select
+              mode="multiple"
+              placeholder={t('dbManager.selectColumns')}
+              options={columns.map(c => ({ value: c.name, label: c.name }))}
+            />
+          </Form.Item>
+          <Form.Item name="unique" valuePropName="checked" initialValue={false}>
+            <Checkbox>{t('dbManager.uniqueIndex')}</Checkbox>
           </Form.Item>
         </Form>
       </Modal>
