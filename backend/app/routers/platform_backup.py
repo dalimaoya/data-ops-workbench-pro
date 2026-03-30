@@ -20,6 +20,9 @@ from app.models import (
     SystemSetting, AIConfig, SystemOperationLog,
     TrialActivation, ActivationRecord, PluginStatus,
 )
+from app.plugins.plugin_notification_push.routers import (
+    NotificationChannel, NotificationSubscription, NotificationLog,
+)
 from app.utils.auth import get_current_user, require_role
 from app.utils.crypto import decrypt_password
 from app.i18n import t
@@ -272,6 +275,52 @@ def create_backup(
         with open(os.path.join(config_dir, "plugin_status.json"), "w", encoding="utf-8") as f:
             json.dump(ps_list, f, ensure_ascii=False, indent=2, default=str)
 
+        # Notification push tables
+        nch_rows = db.query(NotificationChannel).all()
+        nch_list = []
+        for ch in nch_rows:
+            nch_list.append({
+                "id": ch.id,
+                "channel_type": ch.channel_type,
+                "name": ch.name,
+                "config": ch.config,
+                "enabled": ch.enabled,
+                "created_by": ch.created_by,
+                "created_at": str(ch.created_at) if ch.created_at else None,
+                "updated_at": str(ch.updated_at) if ch.updated_at else None,
+            })
+        with open(os.path.join(config_dir, "notification_channels.json"), "w", encoding="utf-8") as f:
+            json.dump(nch_list, f, ensure_ascii=False, indent=2, default=str)
+
+        nsub_rows = db.query(NotificationSubscription).all()
+        nsub_list = []
+        for sub in nsub_rows:
+            nsub_list.append({
+                "id": sub.id,
+                "channel_id": sub.channel_id,
+                "event_type": sub.event_type,
+                "created_at": str(sub.created_at) if sub.created_at else None,
+            })
+        with open(os.path.join(config_dir, "notification_subscriptions.json"), "w", encoding="utf-8") as f:
+            json.dump(nsub_list, f, ensure_ascii=False, indent=2, default=str)
+
+        nlog_rows = db.query(NotificationLog).all()
+        nlog_list = []
+        for nl in nlog_rows:
+            nlog_list.append({
+                "id": nl.id,
+                "channel_id": nl.channel_id,
+                "channel_name": nl.channel_name,
+                "channel_type": nl.channel_type,
+                "event_type": nl.event_type,
+                "payload": nl.payload,
+                "status": nl.status,
+                "error_message": nl.error_message,
+                "sent_at": str(nl.sent_at) if nl.sent_at else None,
+            })
+        with open(os.path.join(config_dir, "notification_logs.json"), "w", encoding="utf-8") as f:
+            json.dump(nlog_list, f, ensure_ascii=False, indent=2, default=str)
+
         # 2. Copy platform.db
         db_src = os.path.join(DATA_DIR, "platform.db")
         if os.path.exists(db_src):
@@ -326,6 +375,9 @@ def create_backup(
                 "trial_activations": len(trial_list),
                 "activation_records": len(act_list),
                 "plugin_statuses": len(ps_list),
+                "notification_channels": len(nch_list),
+                "notification_subscriptions": len(nsub_list),
+                "notification_logs": len(nlog_list),
                 "log_entries": len(log_list) if req.include_logs else 0,
             },
             "checksums": {},
@@ -842,6 +894,57 @@ def _restore_overwrite(db: Session, extract_dir: str, contents: dict):
             ))
         db.commit()
 
+    # Restore notification_channels
+    nch_file = os.path.join(config_dir, "notification_channels.json")
+    if os.path.isfile(nch_file):
+        with open(nch_file, "r", encoding="utf-8") as f:
+            nch_data = json.load(f)
+        db.query(NotificationChannel).delete()
+        for ch in nch_data:
+            db.add(NotificationChannel(
+                channel_type=ch["channel_type"],
+                name=ch["name"],
+                config=ch.get("config", "{}"),
+                enabled=ch.get("enabled", 1),
+                created_by=ch.get("created_by", "restore"),
+                created_at=ch.get("created_at"),
+                updated_at=ch.get("updated_at"),
+            ))
+        db.commit()
+
+    # Restore notification_subscriptions
+    nsub_file = os.path.join(config_dir, "notification_subscriptions.json")
+    if os.path.isfile(nsub_file):
+        with open(nsub_file, "r", encoding="utf-8") as f:
+            nsub_data = json.load(f)
+        db.query(NotificationSubscription).delete()
+        for sub in nsub_data:
+            db.add(NotificationSubscription(
+                channel_id=sub["channel_id"],
+                event_type=sub["event_type"],
+                created_at=sub.get("created_at"),
+            ))
+        db.commit()
+
+    # Restore notification_logs
+    nlog_file = os.path.join(config_dir, "notification_logs.json")
+    if os.path.isfile(nlog_file):
+        with open(nlog_file, "r", encoding="utf-8") as f:
+            nlog_data = json.load(f)
+        db.query(NotificationLog).delete()
+        for nl in nlog_data:
+            db.add(NotificationLog(
+                channel_id=nl["channel_id"],
+                channel_name=nl.get("channel_name"),
+                channel_type=nl.get("channel_type"),
+                event_type=nl["event_type"],
+                payload=nl.get("payload"),
+                status=nl.get("status", "pending"),
+                error_message=nl.get("error_message"),
+                sent_at=nl.get("sent_at"),
+            ))
+        db.commit()
+
 
 def _restore_merge(db: Session, extract_dir: str, contents: dict):
     """Merge mode: import without clearing, conflict resolution favours backup."""
@@ -1053,4 +1156,62 @@ def _restore_merge(db: Session, extract_dir: str, contents: dict):
                     enabled_by=ps.get("enabled_by"),
                     enabled_at=ps.get("enabled_at"),
                 ))
+        db.commit()
+
+    # Merge notification_channels (by name + channel_type)
+    nch_file = os.path.join(config_dir, "notification_channels.json")
+    if os.path.isfile(nch_file):
+        with open(nch_file, "r", encoding="utf-8") as f:
+            nch_data = json.load(f)
+        for ch in nch_data:
+            existing = db.query(NotificationChannel).filter(
+                NotificationChannel.name == ch["name"],
+                NotificationChannel.channel_type == ch["channel_type"],
+            ).first()
+            if existing:
+                existing.config = ch.get("config", existing.config)
+                existing.enabled = ch.get("enabled", existing.enabled)
+            else:
+                db.add(NotificationChannel(
+                    channel_type=ch["channel_type"],
+                    name=ch["name"],
+                    config=ch.get("config", "{}"),
+                    enabled=ch.get("enabled", 1),
+                    created_by=ch.get("created_by", "restore"),
+                ))
+        db.commit()
+
+    # Merge notification_subscriptions (by channel_id + event_type)
+    nsub_file = os.path.join(config_dir, "notification_subscriptions.json")
+    if os.path.isfile(nsub_file):
+        with open(nsub_file, "r", encoding="utf-8") as f:
+            nsub_data = json.load(f)
+        for sub in nsub_data:
+            existing = db.query(NotificationSubscription).filter(
+                NotificationSubscription.channel_id == sub["channel_id"],
+                NotificationSubscription.event_type == sub["event_type"],
+            ).first()
+            if not existing:
+                db.add(NotificationSubscription(
+                    channel_id=sub["channel_id"],
+                    event_type=sub["event_type"],
+                ))
+        db.commit()
+
+    # Merge notification_logs (append all, no dedup — logs are immutable)
+    nlog_file = os.path.join(config_dir, "notification_logs.json")
+    if os.path.isfile(nlog_file):
+        with open(nlog_file, "r", encoding="utf-8") as f:
+            nlog_data = json.load(f)
+        for nl in nlog_data:
+            db.add(NotificationLog(
+                channel_id=nl["channel_id"],
+                channel_name=nl.get("channel_name"),
+                channel_type=nl.get("channel_type"),
+                event_type=nl["event_type"],
+                payload=nl.get("payload"),
+                status=nl.get("status", "pending"),
+                error_message=nl.get("error_message"),
+                sent_at=nl.get("sent_at"),
+            ))
         db.commit()
