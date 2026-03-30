@@ -317,3 +317,21 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  sync-version:
+    needs: [create-release]
+    if: always() && needs.create-release.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update version.txt and push back
+        run: |
+          echo "${{ inputs.version }}" > version.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.txt
+          git diff --cached --quiet || git commit -m "chore: bump version to ${{ inputs.version }}"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
