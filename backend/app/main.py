@@ -230,31 +230,51 @@ def get_startup_progress():
 
 
 @app.get("/api/plugins/loaded")
-def list_loaded_plugins():
-    """Return all known plugins with loaded/unloaded status for frontend menu rendering."""
-    from app.models import TrialActivation, _now_bjt
+def list_loaded_plugins(request: Request):
+    """Return all known plugins with loaded/unloaded status for frontend menu rendering.
+    Authorization is per-user: superadmin sees all, others see based on permissions + trial."""
+    from app.models import TrialActivation, UserPluginPermission, UserAccount, _now_bjt
+    from app.utils.auth import get_current_user_optional
     plugins = get_all_plugin_status()
 
-    # Check trial activation for extension plugin authorization
-    has_active_trial = False
+    db = SessionLocal()
     try:
-        db = SessionLocal()
+        now = _now_bjt()
+        # Check trial activation
+        has_active_trial = False
         try:
-            now = _now_bjt()
             trial = db.query(TrialActivation).filter(
                 TrialActivation.expires_at > now.replace(tzinfo=None)
             ).first()
             has_active_trial = trial is not None
-        finally:
-            db.close()
-    except Exception:
-        pass
+        except Exception:
+            pass
 
-    for p in plugins:
-        if p.get("layer") == "builtin":
-            p["authorized"] = True
-        else:
-            p["authorized"] = has_active_trial
+        # Try to identify the current user (optional — unauthenticated gets trial-only logic)
+        current_user = get_current_user_optional(request, db)
+        is_superadmin = current_user and current_user.role == "superadmin"
+
+        # Get user's plugin permissions if not superadmin
+        user_plugin_names: set = set()
+        if current_user and not is_superadmin:
+            perms = db.query(UserPluginPermission.plugin_name).filter(
+                UserPluginPermission.user_id == current_user.id
+            ).all()
+            user_plugin_names = {r[0] for r in perms}
+
+        for p in plugins:
+            if p.get("layer") == "builtin":
+                p["authorized"] = True
+            elif is_superadmin:
+                p["authorized"] = True
+            elif has_active_trial:
+                p["authorized"] = True
+            elif current_user and p.get("name") in user_plugin_names:
+                p["authorized"] = True
+            else:
+                p["authorized"] = False
+    finally:
+        db.close()
 
     return {"plugins": plugins}
 

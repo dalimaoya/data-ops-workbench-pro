@@ -656,6 +656,12 @@
     "noDatasource": "No datasources",
     "permUpdateSuccess": "Datasource permissions updated",
     "permLoadFailed": "Failed to load permissions",
+    "pluginPermission": "Plugin Access",
+    "pluginPermissionTitle": "Plugin Permissions",
+    "pluginPermLoadFailed": "Failed to load plugin permissions",
+    "pluginPermUpdateSuccess": "Plugin permissions updated",
+    "pluginPermHint": "Select extension plugins this user can access. All extensions are available during trial period. Builtin plugins are always accessible.",
+    "noExtensionPlugin": "No extension plugins available",
     "listFailed": "Failed to load user list",
     "lastLoginAt": "Last Login"
   },

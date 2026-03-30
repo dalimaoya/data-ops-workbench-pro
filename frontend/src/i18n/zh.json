@@ -656,6 +656,12 @@
     "noDatasource": "暂无数据源",
     "permUpdateSuccess": "数据源权限已更新",
     "permLoadFailed": "获取权限信息失败",
+    "pluginPermission": "功能权限",
+    "pluginPermissionTitle": "功能模块权限",
+    "pluginPermLoadFailed": "获取功能权限失败",
+    "pluginPermUpdateSuccess": "功能权限已更新",
+    "pluginPermHint": "勾选用户可访问的扩展功能模块。试用期内所有扩展插件自动开放。内置插件始终可用。",
+    "noExtensionPlugin": "暂无扩展插件",
     "listFailed": "获取用户列表失败",
     "lastLoginAt": "最后登录"
   },

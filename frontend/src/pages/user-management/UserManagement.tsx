@@ -5,11 +5,12 @@ import {
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, LockOutlined, StopOutlined, CheckCircleOutlined,
-  DatabaseOutlined,
+  DatabaseOutlined, AppstoreOutlined,
 } from '@ant-design/icons';
 import {
   listUsers, createUser, updateUser, updateUserStatus, resetUserPassword,
   getUserDatasourcePermissions, setUserDatasourcePermissions,
+  getUserPluginPermissions, setUserPluginPermissions,
 } from '../../api/users';
 import type { UserItem } from '../../api/users';
 import { formatBeijingTime } from '../../utils/formatTime';
@@ -75,6 +76,14 @@ export default function UserManagement() {
   const [permUser, setPermUser] = useState<UserItem | null>(null);
   const [allDatasources, setAllDatasources] = useState<{ id: number; datasource_name: string; db_type: string }[]>([]);
   const [selectedDsIds, setSelectedDsIds] = useState<number[]>([]);
+
+  // Plugin permission modal (v5.1, superadmin only)
+  const [pluginPermOpen, setPluginPermOpen] = useState(false);
+  const [pluginPermLoading, setPluginPermLoading] = useState(false);
+  const [pluginPermSaveLoading, setPluginPermSaveLoading] = useState(false);
+  const [pluginPermUser, setPluginPermUser] = useState<UserItem | null>(null);
+  const [allExtPlugins, setAllExtPlugins] = useState<{ name: string; display_name: string }[]>([]);
+  const [selectedPluginNames, setSelectedPluginNames] = useState<string[]>([]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -187,6 +196,35 @@ export default function UserManagement() {
     }
   };
 
+  const handleOpenPluginPermissions = async (record: UserItem) => {
+    setPluginPermUser(record);
+    setPluginPermOpen(true);
+    setPluginPermLoading(true);
+    try {
+      const res = await getUserPluginPermissions(record.id);
+      setAllExtPlugins(res.data.all_extension_plugins);
+      setSelectedPluginNames(res.data.plugin_names);
+    } catch {
+      message.error(t('userManagement.pluginPermLoadFailed'));
+    } finally {
+      setPluginPermLoading(false);
+    }
+  };
+
+  const handleSavePluginPermissions = async () => {
+    if (!pluginPermUser) return;
+    setPluginPermSaveLoading(true);
+    try {
+      await setUserPluginPermissions(pluginPermUser.id, selectedPluginNames);
+      message.success(t('userManagement.pluginPermUpdateSuccess'));
+      setPluginPermOpen(false);
+    } catch (err: any) {
+      message.error(err?.response?.data?.detail || t('common.failed'));
+    } finally {
+      setPluginPermSaveLoading(false);
+    }
+  };
+
   const columns = [
     { title: t('userManagement.username'), dataIndex: 'username', key: 'username', width: 120 },
     { title: t('userManagement.displayName'), dataIndex: 'display_name', key: 'display_name', width: 120 },
@@ -237,6 +275,18 @@ export default function UserManagement() {
           >
             {t('userManagement.datasourcePermission')}
           </Button>
+          {record.role !== 'superadmin' && (
+            currentUser?.role === 'superadmin' ||
+            (currentUser?.role === 'admin' && (record.role === 'operator' || record.role === 'viewer'))
+          ) && (
+            <Button
+              size="small"
+              icon={<AppstoreOutlined />}
+              onClick={() => handleOpenPluginPermissions(record)}
+            >
+              {t('userManagement.pluginPermission')}
+            </Button>
+          )}
           <Button
             size="small"
             icon={<LockOutlined />}
@@ -357,6 +407,40 @@ export default function UserManagement() {
         </Form>
       </Modal>
 
+      {/* Plugin permission modal (v5.1, superadmin only) */}
+      <Modal
+        title={`${t('userManagement.pluginPermissionTitle')} - ${pluginPermUser?.display_name || pluginPermUser?.username || ''}`}
+        open={pluginPermOpen}
+        onOk={handleSavePluginPermissions}
+        onCancel={() => { setPluginPermOpen(false); setPluginPermUser(null); }}
+        confirmLoading={pluginPermSaveLoading}
+        destroyOnClose
+      >
+        {pluginPermLoading ? (
+          <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
+        ) : (
+          <div>
+            <div style={{ marginBottom: 12, color: '#999', fontSize: 12 }}>
+              {t('userManagement.pluginPermHint')}
+            </div>
+            <Checkbox.Group
+              value={selectedPluginNames}
+              onChange={(vals) => setSelectedPluginNames(vals as string[])}
+              style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+            >
+              {allExtPlugins.map((p) => (
+                <Checkbox key={p.name} value={p.name}>
+                  {p.display_name || p.name}
+                </Checkbox>
+              ))}
+              {allExtPlugins.length === 0 && (
+                <div style={{ color: '#999' }}>{t('userManagement.noExtensionPlugin')}</div>
+              )}
+            </Checkbox.Group>
+          </div>
+        )}
+      </Modal>
+
       {/* Datasource permission modal (v2.2) */}
       <Modal
         title={`${t('userManagement.datasourcePermissionTitle')} - ${permUser?.display_name || permUser?.username || ''}`}
@@ -393,6 +477,7 @@ export default function UserManagement() {
           </div>
         )}
       </Modal>
+
     </div>
   );
 }

@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import UserAccount, UserDatasourcePermission, DatasourceConfig, _now_bjt
+from app.models import UserAccount, UserDatasourcePermission, UserPluginPermission, DatasourceConfig, _now_bjt
 from app.utils.auth import (
     get_current_user, require_role, hash_password, verify_password,
     needs_password_migration,
@@ -379,3 +379,70 @@ def set_user_datasource_permissions(
     )
     db.commit()
     return {"detail": t("user.datasource_perm_updated"), "datasource_ids": body.datasource_ids}
+
+
+# ── Plugin Permission Management (v5.1) ──
+
+class PluginPermissionUpdate(BaseModel):
+    plugin_names: List[str]
+
+
+@router.get("/api/users/{user_id}/plugin-permissions")
+def get_user_plugin_permissions(
+    user_id: int,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
+    target = db.query(UserAccount).filter(UserAccount.id == user_id).first()
+    if not target:
+        raise HTTPException(404, t("user.not_found"))
+    perms = db.query(UserPluginPermission).filter(
+        UserPluginPermission.user_id == user_id
+    ).all()
+    plugin_names = [p.plugin_name for p in perms]
+    # Return all extension plugin names for the UI
+    from app.plugin_loader import get_all_plugin_status
+    all_plugins = get_all_plugin_status()
+    extension_plugins = [
+        {"name": p["name"], "display_name": p.get("display_name", p["name"]), "display_name_en": p.get("display_name_en", "")}
+        for p in all_plugins if p.get("layer") == "extension"
+    ]
+    return {
+        "user_id": user_id,
+        "username": target.username,
+        "role": target.role,
+        "plugin_names": plugin_names,
+        "all_extension_plugins": extension_plugins,
+    }
+
+
+@router.put("/api/users/{user_id}/plugin-permissions")
+def set_user_plugin_permissions(
+    user_id: int,
+    body: PluginPermissionUpdate,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
+    target = db.query(UserAccount).filter(UserAccount.id == user_id).first()
+    if not target:
+        raise HTTPException(404, t("user.not_found"))
+    # Enforce hierarchy: admin can only set for operator/viewer
+    if user.role != "superadmin":
+        if target.role not in ("operator", "viewer"):
+            raise HTTPException(403, "权限不足：admin 只能为 operator/viewer 配置功能权限")
+    # Delete existing permissions
+    db.query(UserPluginPermission).filter(
+        UserPluginPermission.user_id == user_id
+    ).delete(synchronize_session=False)
+    # Insert new permissions
+    for name in body.plugin_names:
+        db.add(UserPluginPermission(user_id=user_id, plugin_name=name))
+    log_operation(
+        db, "用户管理", "设置功能权限", "success",
+        target_id=target.id,
+        target_name=target.username,
+        message="设置用户 %s 的功能权限：%d 个插件" % (target.username, len(body.plugin_names)),
+        operator=user.username,
+    )
+    db.commit()
+    return {"detail": "功能权限已更新", "plugin_names": body.plugin_names}

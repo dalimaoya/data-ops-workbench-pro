@@ -247,6 +247,33 @@ def get_optional_user(
         return None
 
 
+def get_current_user_optional(request: Request, db: Session) -> Optional[UserAccount]:
+    """Extract current user from request Authorization header without FastAPI Depends.
+    Returns None if no token or invalid token."""
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header[7:]
+    try:
+        payload = decode_token(token)
+    except Exception:
+        return None
+    auth_source = payload.get("_auth_source", "local")
+    if auth_source == "unified-auth":
+        superadmin = db.query(UserAccount).filter(
+            UserAccount.role == "superadmin",
+            UserAccount.status == "enabled",
+        ).first()
+        return superadmin
+    username = payload.get("sub")
+    if not username:
+        return None
+    return db.query(UserAccount).filter(
+        UserAccount.username == username,
+        UserAccount.status == "enabled",
+    ).first()
+
+
 def init_default_admin(db: Session):
     """Create default superadmin user if not exists. Migrate existing admin→superadmin."""
     existing = db.query(UserAccount).filter(UserAccount.username == "admin").first()

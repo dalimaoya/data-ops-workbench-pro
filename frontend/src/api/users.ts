@@ -52,6 +52,21 @@ export const getUserDatasourcePermissions = (userId: number) =>
 export const setUserDatasourcePermissions = (userId: number, datasource_ids: number[]) =>
   api.put(`/users/${userId}/datasource-permissions`, { datasource_ids });
 
+// 功能权限管理 (v5.1)
+export interface PluginPermissionInfo {
+  user_id: number;
+  username: string;
+  role: string;
+  plugin_names: string[];
+  all_extension_plugins: { name: string; display_name: string; display_name_en: string }[];
+}
+
+export const getUserPluginPermissions = (userId: number) =>
+  api.get<PluginPermissionInfo>(`/users/${userId}/plugin-permissions`);
+
+export const setUserPluginPermissions = (userId: number, plugin_names: string[]) =>
+  api.put(`/users/${userId}/plugin-permissions`, { plugin_names });
+
 // 个人设置
 export const changeMyPassword = (old_password: string, new_password: string) =>
   api.put('/me/password', { old_password, new_password });

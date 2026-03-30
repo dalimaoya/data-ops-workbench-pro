@@ -2,7 +2,8 @@
 
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, SmallInteger, Float, Boolean
+    Column, Integer, String, Text, DateTime, SmallInteger, Float, Boolean,
+    UniqueConstraint,
 )
 from app.database import Base
 
@@ -253,6 +254,20 @@ class UserDatasourcePermission(Base):
     created_at = Column(DateTime, nullable=False, default=_now_bjt)
 
 
+# ── 10b. user_plugin_permission (v5.1) ──
+class UserPluginPermission(Base):
+    __tablename__ = "user_plugin_permission"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    plugin_name = Column(String(100), nullable=False)
+    granted_at = Column(DateTime, nullable=False, default=_now_bjt)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "plugin_name", name="uq_user_plugin"),
+    )
+
+
 # ── 11. approval_request (v2.2) ──
 class ApprovalRequest(Base):
     __tablename__ = "approval_request"
@@ -475,3 +490,16 @@ class TrialActivation(Base):
     activated_at = Column(DateTime, nullable=False, default=_now_bjt)
     expires_at = Column(DateTime, nullable=False)
     account_id = Column(String(128), nullable=True, index=True)  # unified auth account id
+
+
+# ── 24. user_plugin_permission (v5.2) ──
+class UserPluginPermission(Base):
+    __tablename__ = "user_plugin_permission"
+    __table_args__ = (
+        UniqueConstraint("user_id", "plugin_name", name="uq_user_plugin"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    plugin_name = Column(String(100), nullable=False, index=True)
+    granted_at = Column(DateTime, nullable=False, default=_now_bjt)
