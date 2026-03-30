@@ -315,6 +315,13 @@ def create_table(
         raise HTTPException(404, "数据源不存在")
 
     q = _quote_ident
+
+    # Check duplicate column names
+    col_names = [col.name.strip().lower() for col in req.columns]
+    dupes = [n for n in set(col_names) if col_names.count(n) > 1]
+    if dupes:
+        raise HTTPException(400, f"字段名重复：{', '.join(dupes)}")
+
     col_defs = []
     pk_cols = []
 

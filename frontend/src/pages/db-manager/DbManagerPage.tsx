@@ -608,11 +608,31 @@ export default function DbManagerPage() {
               onChange={e => updateNewColumn(i, 'name', e.target.value)}
               style={{ width: 140 }}
             />
-            <Input
+            <Select
+              showSearch
               placeholder={t('dbManager.columnType')}
               value={col.type}
-              onChange={e => updateNewColumn(i, 'type', e.target.value)}
-              style={{ width: 150 }}
+              onChange={v => updateNewColumn(i, 'type', v)}
+              style={{ width: 170 }}
+              options={[
+                { label: 'INT', value: 'INT' },
+                { label: 'BIGINT', value: 'BIGINT' },
+                { label: 'FLOAT', value: 'FLOAT' },
+                { label: 'DOUBLE', value: 'DOUBLE' },
+                { label: 'DECIMAL(10,2)', value: 'DECIMAL(10,2)' },
+                { label: 'VARCHAR(50)', value: 'VARCHAR(50)' },
+                { label: 'VARCHAR(100)', value: 'VARCHAR(100)' },
+                { label: 'VARCHAR(255)', value: 'VARCHAR(255)' },
+                { label: 'TEXT', value: 'TEXT' },
+                { label: 'LONGTEXT', value: 'LONGTEXT' },
+                { label: 'DATE', value: 'DATE' },
+                { label: 'DATETIME', value: 'DATETIME' },
+                { label: 'TIMESTAMP', value: 'TIMESTAMP' },
+                { label: 'BOOLEAN', value: 'BOOLEAN' },
+                { label: 'INTEGER', value: 'INTEGER' },
+                { label: 'REAL', value: 'REAL' },
+                { label: 'BLOB', value: 'BLOB' },
+              ]}
             />
             <Checkbox
               checked={col.is_primary_key}
@@ -658,7 +678,25 @@ export default function DbManagerPage() {
             <Input />
           </Form.Item>
           <Form.Item name="type" label={t('dbManager.columnType')} rules={[{ required: true }]}>
-            <Input placeholder="VARCHAR(255)" />
+            <Select showSearch placeholder="VARCHAR(255)" options={[
+              { label: 'INT', value: 'INT' },
+              { label: 'BIGINT', value: 'BIGINT' },
+              { label: 'FLOAT', value: 'FLOAT' },
+              { label: 'DOUBLE', value: 'DOUBLE' },
+              { label: 'DECIMAL(10,2)', value: 'DECIMAL(10,2)' },
+              { label: 'VARCHAR(50)', value: 'VARCHAR(50)' },
+              { label: 'VARCHAR(100)', value: 'VARCHAR(100)' },
+              { label: 'VARCHAR(255)', value: 'VARCHAR(255)' },
+              { label: 'TEXT', value: 'TEXT' },
+              { label: 'LONGTEXT', value: 'LONGTEXT' },
+              { label: 'DATE', value: 'DATE' },
+              { label: 'DATETIME', value: 'DATETIME' },
+              { label: 'TIMESTAMP', value: 'TIMESTAMP' },
+              { label: 'BOOLEAN', value: 'BOOLEAN' },
+              { label: 'INTEGER', value: 'INTEGER' },
+              { label: 'REAL', value: 'REAL' },
+              { label: 'BLOB', value: 'BLOB' },
+            ]} />
           </Form.Item>
           <Form.Item name="is_nullable" valuePropName="checked" initialValue={true}>
             <Checkbox>{t('dbManager.nullable')}</Checkbox>
