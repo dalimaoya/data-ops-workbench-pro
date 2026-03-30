@@ -81,7 +81,7 @@ export default function DatasourceForm() {
     try {
       const vals = await form.validateFields();
       setLoading(true);
-      const payload: Record<string, unknown> = {
+      const payload: any = {
         datasource_name: vals.datasource_name,
         db_type: vals.db_type,
         host: vals.host,
@@ -101,7 +101,7 @@ export default function DatasourceForm() {
         payload.password = vals.password;
       }
       if (isEdit) {
-        await updateDatasource(Number(id), payload as any);
+        await updateDatasource(Number(id), payload);
         message.success(t('datasource.updateSuccess'));
       } else {
         await createDatasource(payload);

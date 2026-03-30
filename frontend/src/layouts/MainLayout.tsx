@@ -35,7 +35,6 @@ import {
   CodeOutlined,
   SettingOutlined,
   AppstoreOutlined,
-  EyeOutlined,
   SafetyCertificateOutlined,
   FundProjectionScreenOutlined,
 } from '@ant-design/icons';
