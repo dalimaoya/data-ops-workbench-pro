@@ -118,11 +118,20 @@ async def check_update():
     import os
 
     current_version = "0.0.0"
-    # __file__ = backend/app/routers/auth.py → 4 levels up to project root
-    version_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "version.txt")
-    if os.path.exists(version_file):
-        with open(version_file) as f:
-            current_version = f.read().strip()
+    # Try DATA_OPS_BASE_DIR first (set by app_entry.py in packaged mode), then fallback to source layout
+    base_dir = os.environ.get('DATA_OPS_BASE_DIR')
+    if not base_dir:
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    for candidate in [
+        os.path.join(base_dir, "version.txt"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "version.txt"),
+    ]:
+        if os.path.exists(candidate):
+            with open(candidate) as f:
+                v = f.read().strip()
+                if v:
+                    current_version = v
+                    break
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
