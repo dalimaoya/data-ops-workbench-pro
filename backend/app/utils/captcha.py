@@ -42,7 +42,7 @@ def generate_captcha():
         _captcha_store[captcha_id] = (code.upper(), time.time() + CAPTCHA_EXPIRE_SECONDS)
 
     # Generate image with Pillow
-    width, height = 130, 46
+    width, height = 160, 50
     img = Image.new("RGB", (width, height), color=(255, 255, 255))
     draw = ImageDraw.Draw(img)
 
@@ -64,7 +64,7 @@ def generate_captcha():
 
     # Try to use a monospaced font; fall back to default
     font = None
-    font_size = 30
+    font_size = 34
     try:
         # Try common system fonts (Linux + Windows)
         for font_path in [
@@ -84,16 +84,18 @@ def generate_captcha():
         pass
 
     if font is None:
-        # Pillow >= 10.0 load_default supports size; older versions do not.
+        # Pillow >= 10.1 load_default supports size; older versions do not.
         try:
             font = ImageFont.load_default(size=font_size)
         except TypeError:
             font = ImageFont.load_default()
+            # Default font is tiny (~11px). Scale up image + chars to compensate.
+            font_size = 11  # actual default font size
 
     # Draw each character with slight randomization, vertically centered
-    x_start = 10
+    x_start = 12
     for i, ch in enumerate(code):
-        x = x_start + i * 28
+        x = x_start + i * 34
         color = (random.randint(20, 100), random.randint(20, 100), random.randint(20, 100))
         # Calculate vertical position to center the character
         try:

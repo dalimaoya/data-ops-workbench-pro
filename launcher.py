@@ -518,12 +518,8 @@ class LauncherApp:
     # ── pywebview 主窗口 ─────────────────────────────────────────
     def _open_main_window(self):
         """服务就绪后打开 pywebview 窗口，失败则降级到浏览器"""
-        log.info("_open_main_window called, HAS_WEBVIEW=%s, _webview_failed=%s", HAS_WEBVIEW, self._webview_failed)
-        if HAS_WEBVIEW and not self._webview_failed:
-            # Schedule webview launch on main thread via pending flag
-            self._webview_ready = True
-        else:
-            webbrowser.open(URL)
+        log.info("_open_main_window called, opening browser")
+        webbrowser.open(URL)
 
     def _launch_webview(self):
         """Launch pywebview on the MAIN thread (required by pywebview/WebView2)."""
@@ -680,13 +676,10 @@ class LauncherApp:
 
     # ── 主循环 ───────────────────────────────────────────────────
     def run(self):
-        if HAS_WEBVIEW:
-            # pywebview requires main thread. Run tkinter in a background thread,
-            # poll for _webview_ready, then launch webview on main thread.
-            self._run_tkinter_in_thread()
-        else:
-            # No webview — tkinter on main thread as usual
-            self.root.mainloop()
+        # v5.0: Use tkinter control panel + browser (main thread safe)
+        # pywebview requires main thread but conflicts with tkinter;
+        # defer pywebview integration to a future version
+        self.root.mainloop()
 
     def _run_tkinter_in_thread(self):
         """Run tkinter mainloop in a daemon thread, wait for webview readiness on main thread."""
