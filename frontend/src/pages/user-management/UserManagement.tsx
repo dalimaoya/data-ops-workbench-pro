@@ -325,8 +325,15 @@ export default function UserManagement() {
             <Input placeholder={t('userManagement.displayNamePlaceholder')} />
           </Form.Item>
           <Form.Item name="role" label={t('userManagement.roleLabel')} rules={[{ required: true, message: t('userManagement.roleRequired') }]}>
-            <Select options={roleOptions} placeholder={t('userManagement.rolePlaceholder')} />
+            <Select
+              options={roleOptions}
+              placeholder={t('userManagement.rolePlaceholder')}
+              disabled={editingUser?.role === 'superadmin'}
+            />
           </Form.Item>
+          {editingUser?.role === 'superadmin' && (
+            <div style={{ color: '#999', fontSize: 12, marginTop: -12, marginBottom: 12 }}>超级管理员角色不可修改</div>
+          )}
         </Form>
       </Modal>
 

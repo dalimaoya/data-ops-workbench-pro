@@ -33,7 +33,7 @@ const ALL_CATEGORIES = ['all', 'ai', 'governance', 'report', 'workflow', 'integr
 export default function PluginCenterPage() {
   const { i18n } = useTranslation();
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
   const isZh = i18n.language === 'zh';
 
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
