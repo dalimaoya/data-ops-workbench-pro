@@ -322,8 +322,12 @@ def create_table(
         parts = [f"  {q(col.name, ds.db_type)} {col.type}"]
         if not col.is_nullable:
             parts.append("NOT NULL")
-        if col.default_value is not None:
-            parts.append(f"DEFAULT {col.default_value}")
+        if col.default_value is not None and col.default_value != "":
+            # Quote string defaults, leave numeric/NULL/function unquoted
+            dv = col.default_value
+            if dv.upper() not in ("NULL", "CURRENT_TIMESTAMP", "NOW()") and not dv.replace(".", "").replace("-", "").isdigit():
+                dv = f"'{dv}'"
+            parts.append(f"DEFAULT {dv}")
         if col.comment and ds.db_type == "mysql":
             parts.append(f"COMMENT '{col.comment}'")
         col_defs.append(" ".join(parts))
@@ -400,8 +404,11 @@ def add_column(
     parts = [f"ADD COLUMN {q(col.name, ds.db_type)} {col.type}"]
     if not col.is_nullable:
         parts.append("NOT NULL")
-    if col.default_value is not None:
-        parts.append(f"DEFAULT {col.default_value}")
+    if col.default_value is not None and col.default_value != "":
+        dv = col.default_value
+        if dv.upper() not in ("NULL", "CURRENT_TIMESTAMP", "NOW()") and not dv.replace(".", "").replace("-", "").isdigit():
+            dv = f"'{dv}'"
+        parts.append(f"DEFAULT {dv}")
     if col.comment and ds.db_type == "mysql":
         parts.append(f"COMMENT '{col.comment}'")
     if req.after_column and ds.db_type == "mysql":
