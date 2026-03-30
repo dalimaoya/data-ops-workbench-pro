@@ -99,12 +99,12 @@ def _ensure_trial_on_activation(db: Session) -> None:
 
 class ActivateRequest(BaseModel):
     code: str
-    product: str
-    plugin_keys: list[str]
+    product: Optional[str] = None
+    plugin_keys: Optional[list[str]] = None
     expires_at: Optional[str] = None  # ISO datetime or null
     created_at: Optional[str] = None
     batch_no: Optional[str] = None
-    signature: str
+    signature: Optional[str] = None
 
 
 class ActivateResponse(BaseModel):
@@ -132,6 +132,13 @@ def activate(req: ActivateRequest, db: Session = Depends(get_db)):
     # 1. Check format
     if not req.code.startswith("ACT:"):
         raise HTTPException(status_code=400, detail="激活码格式无效，应以 ACT: 开头")
+
+    # 1.5 Check required fields for signed activation
+    if not req.signature or not req.product or not req.plugin_keys:
+        raise HTTPException(
+            status_code=400,
+            detail="请输入完整的激活码（包含产品、插件和签名信息）。请联系管理员获取完整激活码。"
+        )
 
     # 2. Check duplicate
     existing = db.query(ActivationRecord).filter(ActivationRecord.code == req.code).first()

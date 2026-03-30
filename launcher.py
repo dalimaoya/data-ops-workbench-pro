@@ -88,14 +88,8 @@ except ImportError as e:
     HAS_TRAY = False
     log.warning("pystray not available: %s", e)
 
-# ── pywebview 可选 ────────────────────────────────────────────────
-try:
-    import webview
-    HAS_WEBVIEW = True
-    log.info("webview OK")
-except ImportError as e:
-    HAS_WEBVIEW = False
-    log.warning("webview not available: %s", e)
+# ── pywebview 禁用（v5.0 使用浏览器 + 托盘模式，pywebview 留待 v6.0）
+HAS_WEBVIEW = False
 
 
 # ── 定位可执行文件 ────────────────────────────────────────────────

@@ -191,19 +191,15 @@ jobs:
 
           pyinstaller --onefile `
             --name DataOpsWorkbench `
-            --hidden-import webview `
-            --hidden-import webview.platforms.edgechromium `
-            --hidden-import webview.platforms.winforms `
-            --hidden-import webview.platforms.cef `
             --hidden-import pystray `
             --hidden-import pystray._win32 `
             --hidden-import PIL `
             --hidden-import PIL.Image `
             --hidden-import PIL.ImageDraw `
             --hidden-import PIL.ImageFont `
-            --collect-all webview `
             --collect-submodules pystray `
             --collect-submodules PIL `
+            --noconsole `
             launcher.py
 
       - name: Package Windows release
