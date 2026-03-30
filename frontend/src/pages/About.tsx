@@ -444,6 +444,13 @@ export default function About() {
   ];
 
   const [updateChecking, setUpdateChecking] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState(t('about.version'));
+
+  useEffect(() => {
+    api.get('/auth/check-update').then(res => {
+      if (res.data.current_version) setCurrentVersion('v' + res.data.current_version);
+    }).catch(() => {});
+  }, []);
 
   const handleCheckUpdate = async () => {
     setUpdateChecking(true);
@@ -479,7 +486,7 @@ export default function About() {
       <div style={{ textAlign: 'center', marginBottom: 16 }}>
         <Title level={3} style={{ marginBottom: 4 }}>{t('about.title')}</Title>
         <Space>
-          <Tag color="blue" style={{ fontSize: 14, padding: '2px 12px' }}>{t('about.version')}</Tag>
+          <Tag color="blue" style={{ fontSize: 14, padding: '2px 12px' }}>{currentVersion}</Tag>
           <Button size="small" loading={updateChecking} onClick={handleCheckUpdate}>检查更新</Button>
         </Space>
       </div>
