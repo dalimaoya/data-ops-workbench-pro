@@ -47,7 +47,6 @@ log = _setup_logging()
 log.info("launcher starting, frozen=%s", getattr(sys, 'frozen', False))
 
 from urllib.request import urlopen, Request
-from urllib.error import URLError
 from datetime import datetime
 
 # ── 版本号读取 ────────────────────────────────────────────────────
