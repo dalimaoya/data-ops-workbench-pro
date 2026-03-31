@@ -697,6 +697,8 @@ def export_template(
         ws.protection = SheetProtection(
             sheet=True,
             password=_SHEET_PROTECTION_PASSWORD,
+            selectLockedCells=False,
+            selectUnlockedCells=False,
             formatColumns=False,
             formatRows=False,
             formatCells=False,
@@ -3208,6 +3210,7 @@ def _run_async_export(task_id: str, table_config_id: int, export_type: str,
         if unlocked != "1":
             ws.protection = SheetProtection(
                 sheet=True, password=_SHEET_PROTECTION_PASSWORD,
+                selectLockedCells=False, selectUnlockedCells=False,
                 formatColumns=False, formatRows=False, formatCells=False,
                 insertRows=False, deleteRows=True, deleteColumns=True, insertColumns=True,
                 sort=False, autoFilter=False,
