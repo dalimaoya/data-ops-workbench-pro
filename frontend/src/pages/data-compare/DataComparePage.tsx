@@ -129,7 +129,7 @@ export default function DataComparePage() {
 
   const renderSide = (
     label: string,
-    ds: number | null, setDs: (v: number | null) => void, handleDsChange: (v: number | null) => void,
+    ds: number | null, _setDs: (v: number | null) => void, handleDsChange: (v: number | null) => void,
     dbs: string[], db: string | undefined, handleDbChange: (v: string | undefined) => void,
     tables: string[], table: string | undefined, setTable: (v: string | undefined) => void,
     sideLoading: boolean,

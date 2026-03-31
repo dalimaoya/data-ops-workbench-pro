@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDatasourceOnline } from '../../context/DatasourceOnlineContext';
-import { buildDatasourceOptions } from '../../utils/datasourceOptions';
 import {
   Card, Select, Table, Button, Space, Tag, Modal, Form, Input,
   message, Typography, Tooltip, Popconfirm, Divider, Checkbox, Empty, Tabs, Alert, Spin,
