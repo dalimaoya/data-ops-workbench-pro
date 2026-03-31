@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useDatasourceOnline } from '../../context/DatasourceOnlineContext';
 import {
   Card, Select, Button, Table, message, Space, Tag, Alert, Segmented,
   Checkbox, Input, Collapse, Dropdown, InputNumber, Tooltip, Spin,
@@ -115,6 +116,7 @@ function quoteValue(val: string, op: string): string {
 
 export default function SqlConsolePage() {
   const { t } = useTranslation();
+  const { onlineStatus } = useDatasourceOnline();
   const editorRef = useRef<HTMLDivElement>(null);
 
   // ── Shared state ──
@@ -154,7 +156,7 @@ export default function SqlConsolePage() {
       const items = Array.isArray(raw) ? raw : (raw.items || []);
       setDatasources(items);
       if (items.length > 0 && !selectedDs) {
-        const healthy = findFirstHealthyDs(items);
+        const healthy = findFirstHealthyDs(items, onlineStatus);
         if (healthy) setSelectedDs(healthy.id);
       }
     }).catch(() => {});
@@ -421,9 +423,14 @@ export default function SqlConsolePage() {
             showSearch
             filterOption={(input, option) => (option?.children as unknown as string || '').toLowerCase().includes(input.toLowerCase())}
           >
-            {datasources.map(ds => (
-              <Select.Option key={ds.id} value={ds.id}>{ds.datasource_name} ({ds.db_type})</Select.Option>
-            ))}
+            {datasources.map(ds => {
+              const offline = onlineStatus[String(ds.id)] === false;
+              return (
+                <Select.Option key={ds.id} value={ds.id} disabled={offline}>
+                  {ds.datasource_name} ({ds.db_type}){offline ? ' ⚠ 离线' : ''}
+                </Select.Option>
+              );
+            })}
           </Select>
           <Button type="primary" icon={<PlayCircleOutlined />} onClick={() => handleExecute()} loading={loading}>
             {loading ? t('sqlConsole.executing') : t('sqlConsole.execute')} (Ctrl+Enter)

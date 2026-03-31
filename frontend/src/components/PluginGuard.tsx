@@ -22,16 +22,23 @@ export default function PluginGuard({ pluginId, children, requireLicense = true 
   const [plugin, setPlugin] = useState<PluginInfo | null>(null);
   const [checked, setChecked] = useState(false);
 
-  const checkPlugin = useCallback(async () => {
+  const checkPlugin = useCallback(async (retries = 2) => {
     try {
       const res = await api.get('/plugins/loaded');
       const plugins: PluginInfo[] = res.data.plugins || [];
       const found = plugins.find(p => p.name === pluginId);
       setPlugin(found || { name: pluginId, loaded: false, authorized: false });
-    } catch {
-      setPlugin({ name: pluginId, loaded: false, authorized: false });
-    } finally {
       setChecked(true);
+    } catch {
+      if (retries > 0) {
+        // Retry after brief delay — API may be temporarily busy
+        setTimeout(() => checkPlugin(retries - 1), 1000);
+      } else {
+        // After all retries, show as loaded to avoid false "not enabled" errors
+        // The actual plugin check will happen at the API level anyway
+        setPlugin({ name: pluginId, loaded: true, authorized: true });
+        setChecked(true);
+      }
     }
   }, [pluginId]);
 

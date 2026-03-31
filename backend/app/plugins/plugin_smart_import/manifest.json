@@ -1,7 +1,7 @@
 {
   "name": "plugin-smart-import",
   "version": "3.2.0",
-  "display_name": "智能数据导入中心",
+  "display_name": "智能导入",
   "display_name_en": "Smart Import Center",
   "description": "Word/PDF/Excel解析、指标匹配、字段映射、映射模板",
   "author": "dalimaoya",

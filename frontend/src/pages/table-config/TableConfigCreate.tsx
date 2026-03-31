@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Card, Form, Select, Button, Input, Space, Table, message, Spin, Tag, Descriptions } from 'antd';
 import { SearchOutlined, KeyOutlined } from '@ant-design/icons';
 import { listDatasources, getDatasourceDatabases, type Datasource } from '../../api/datasource';
+import { buildDatasourceOptions } from '../../utils/datasourceOptions';
+import { useDatasourceOnline } from '../../context/DatasourceOnlineContext';
 import { getRemoteTables, createTableConfig, type RemoteTableInfo } from '../../api/tableConfig';
 import { findFirstHealthyDs } from '../../utils/datasourceHelper';
 import { api } from '../../api/request';
@@ -18,6 +20,7 @@ interface RemoteColumn {
 export default function TableConfigCreate() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { onlineStatus } = useDatasourceOnline();
   const [datasources, setDatasources] = useState<Datasource[]>([]);
   const [selectedDs, setSelectedDs] = useState<number | undefined>();
   const [remoteTables, setRemoteTables] = useState<RemoteTableInfo[]>([]);
@@ -42,7 +45,7 @@ export default function TableConfigCreate() {
       setDatasources(list);
       // 默认选中第1个连接正常的数据源
       if (list.length > 0 && !selectedDs) {
-        const healthy = findFirstHealthyDs(list);
+        const healthy = findFirstHealthyDs(list, onlineStatus);
         if (healthy) handleDsChange(healthy.id);
       }
     });
@@ -233,7 +236,7 @@ export default function TableConfigCreate() {
             <Select
               placeholder={t('tableConfig.selectDatasource')} style={{ width: 400 }}
               value={selectedDs}
-              options={datasources.map(d => ({ label: `${d.datasource_name} (${d.db_type})`, value: d.id }))}
+              options={buildDatasourceOptions(datasources, onlineStatus)}
               onChange={handleDsChange}
             />
             {selectedDs && databases.length > 0 && (

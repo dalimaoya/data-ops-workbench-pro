@@ -12,10 +12,12 @@ import {
 import { api } from '../../api/request';
 import type { Datasource } from '../../api/datasource';
 import { useTranslation } from 'react-i18next';
+import { useDatasourceOnline } from '../../context/DatasourceOnlineContext';
 
 export default function DatasourceList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { onlineStatus } = useDatasourceOnline();
   const [data, setData] = useState<Datasource[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -140,8 +142,15 @@ export default function DatasourceList() {
     { title: t('datasource.port'), dataIndex: 'port', width: 80 },
     { title: t('datasource.databaseName'), dataIndex: 'database_name', width: 120 },
     {
-      title: t('datasource.connectionStatus'), dataIndex: 'last_test_status', width: 100,
-      render: (v: string) => v ? <Tag color={v === 'success' ? 'green' : 'red'}>{v === 'success' ? t('datasource.connectionSuccess') : t('datasource.connectionFailed')}</Tag> : <Tag>{t('datasource.connectionNotTested')}</Tag>,
+      title: t('datasource.onlineStatus'), width: 90,
+      render: (_: unknown, record: Datasource) => {
+        const key = String(record.id);
+        const checked = key in onlineStatus;
+        if (!checked) return <Tag>{t('datasource.connectionNotTested')}</Tag>;
+        return onlineStatus[key]
+          ? <Tag color="success">{t('datasource.online')}</Tag>
+          : <Tag color="error">{t('datasource.offline')}</Tag>;
+      },
     },
     {
       title: t('common.status'), dataIndex: 'status', width: 90,

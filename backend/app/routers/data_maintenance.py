@@ -563,8 +563,9 @@ def export_template(
         conn.close()
 
     # Generate Excel with openpyxl
-    from openpyxl.styles import Protection as CellProtection, PatternFill, Font as XlFont
+    from openpyxl.styles import Protection as CellProtection, PatternFill, Font as XlFont, Border, Side
     from openpyxl.worksheet.protection import SheetProtection
+    from openpyxl.comments import Comment as XlComment
 
     # v3.5: protection password (internal, not exposed to user)
     _SHEET_PROTECTION_PASSWORD = "DOW_tpl_v35_sec"
@@ -574,9 +575,29 @@ def export_template(
     ws = wb.active
     ws.title = "数据"
 
-    RESERVED_BLANK_ROWS = getattr(tc, 'template_reserved_blank_rows', 200) or 200  # 从纳管表配置读取，默认200
+    RESERVED_BLANK_ROWS = getattr(tc, 'template_reserved_blank_rows', 200) or 200
     locked_cell = CellProtection(locked=True)
     unlocked_cell = CellProtection(locked=False)
+
+    # v5.2: Borders
+    _thin_border = Border(
+        left=Side(style='thin', color='D9D9D9'),
+        right=Side(style='thin', color='D9D9D9'),
+        top=Side(style='thin', color='D9D9D9'),
+        bottom=Side(style='thin', color='D9D9D9'),
+    )
+    _dashed_border = Border(
+        left=Side(style='hair', color='D9D9D9'),
+        right=Side(style='hair', color='D9D9D9'),
+        top=Side(style='hair', color='D9D9D9'),
+        bottom=Side(style='hair', color='D9D9D9'),
+    )
+    _header_border = Border(
+        left=Side(style='thin', color='2F5496'),
+        right=Side(style='thin', color='2F5496'),
+        top=Side(style='thin', color='2F5496'),
+        bottom=Side(style='medium', color='2F5496'),
+    )
 
     # v3.5: Visual style fills
     header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
@@ -598,19 +619,33 @@ def export_template(
 
     data_row_count = len(raw_rows)
 
-    # Row 1: Header (field aliases) — always locked, v3.5: blue bg + white bold font
+    # Row 1: Header — blue bg + white bold + bottom border + guide comment
     for i, f in enumerate(export_fields, 1):
         cell = ws.cell(row=1, column=i, value=f.field_alias or f.field_name)
         cell.font = header_font
         cell.fill = header_fill
         cell.protection = locked_cell
+        cell.border = _header_border
 
-    # Row 2+: Data rows — v3.5: visual color coding
+    # Guide comment on A1
+    guide_text = (
+        "数据运维工作台导出模板\n"
+        "灰色列 = 不可修改（主键/系统字段）\n"
+        "白色列 = 可编辑\n"
+        "黄色区域 = 新增行（填入后自动识别为新增）\n"
+        "请勿修改表头行和隐藏的 _meta 页"
+    )
+    ws.cell(row=1, column=1).comment = XlComment(guide_text, "数据运维工作台")
+
+    # Freeze header row
+    ws.freeze_panes = "A2"
+
+    # Row 2+: Data rows — with thin borders
     for row_idx, raw in enumerate(raw_rows, 2):
         for col_idx, (val, ef) in enumerate(zip(raw, export_fields), 1):
             cell = ws.cell(row=row_idx, column=col_idx, value=str(val) if val is not None else "")
+            cell.border = _thin_border
             if ef.field_name in pk_set:
-                # 已有数据行的主键列 — 锁定 + 灰色
                 cell.protection = locked_cell
                 cell.fill = readonly_fill
             elif ef.field_name in editable_field_names:
@@ -620,38 +655,39 @@ def export_template(
                 cell.protection = locked_cell
                 cell.fill = readonly_fill
 
-    # Reserved blank rows (for new-row support) — v2.0: 主键列也解锁, v3.5: 浅黄色背景
+    # Reserved blank rows — dashed borders
     blank_start = 2 + data_row_count
     for row_idx in range(blank_start, blank_start + RESERVED_BLANK_ROWS):
         for col_idx, ef in enumerate(export_fields, 1):
             cell = ws.cell(row=row_idx, column=col_idx, value="")
             cell.fill = blank_zone_fill
+            cell.border = _dashed_border
             if ef.field_name in pk_set:
-                # v2.0: 空白行的主键列 — 解锁，允许用户填写新主键
                 cell.protection = unlocked_cell
             elif ef.field_name in editable_field_names:
                 cell.protection = unlocked_cell
             else:
                 cell.protection = locked_cell
 
-    # v3.10: Add "_操作" column (last column) for delete marking
-    from openpyxl.comments import Comment as XlComment
-    op_col = len(export_fields) + 1
-    op_header = ws.cell(row=1, column=op_col, value="_操作")
-    op_header.font = header_font
-    op_header.fill = header_fill
-    op_header.protection = locked_cell
-    op_header.comment = XlComment("填 DELETE 标记删除", "系统")
-    # Data rows — unlocked so user can mark DELETE
-    for row_idx in range(2, 2 + data_row_count):
-        cell = ws.cell(row=row_idx, column=op_col, value="")
-        cell.protection = unlocked_cell
-        cell.fill = editable_fill
-    # Blank rows
-    for row_idx in range(blank_start, blank_start + RESERVED_BLANK_ROWS):
-        cell = ws.cell(row=row_idx, column=op_col, value="")
-        cell.protection = unlocked_cell
-        cell.fill = blank_zone_fill
+    # v3.10: Add "_操作" column only when delete is allowed
+    if tc.allow_delete_rows:
+        op_col = len(export_fields) + 1
+        op_header = ws.cell(row=1, column=op_col, value="_操作")
+        op_header.font = header_font
+        op_header.fill = header_fill
+        op_header.protection = locked_cell
+        op_header.border = _header_border
+        op_header.comment = XlComment("填 DELETE 标记删除", "系统")
+        for row_idx in range(2, 2 + data_row_count):
+            cell = ws.cell(row=row_idx, column=op_col, value="")
+            cell.protection = unlocked_cell
+            cell.fill = editable_fill
+            cell.border = _thin_border
+        for row_idx in range(blank_start, blank_start + RESERVED_BLANK_ROWS):
+            cell = ws.cell(row=row_idx, column=op_col, value="")
+            cell.protection = unlocked_cell
+            cell.fill = blank_zone_fill
+            cell.border = _dashed_border
 
     # Enable worksheet protection — v3.5: with password, stricter settings
     # v3.9 fix: insertRows=True 允许用户在空白区域以外追加行
@@ -688,7 +724,7 @@ def export_template(
         "blank_row_start": blank_start,
         "reserved_blank_rows": RESERVED_BLANK_ROWS,
         "allow_insert_rows": tc.allow_insert_rows,
-        "has_operation_column": True,
+        "has_operation_column": bool(tc.allow_delete_rows),
     }
     meta_ws.cell(row=1, column=1, value=json.dumps(meta_info, ensure_ascii=False))
     meta_ws.sheet_state = "hidden"
@@ -697,8 +733,9 @@ def export_template(
     for i, f in enumerate(export_fields, 1):
         col_letter = get_column_letter(i)
         ws.column_dimensions[col_letter].width = max(12, len(f.field_alias or f.field_name) * 2 + 4)
-    # v3.10: auto-width for operation column
-    ws.column_dimensions[get_column_letter(op_col)].width = 12
+    # v3.10: auto-width for operation column (only if added)
+    if tc.allow_delete_rows:
+        ws.column_dimensions[get_column_letter(len(export_fields) + 1)].width = 12
 
     file_name = f"{tc.table_alias or tc.table_name}_{batch_no}.xlsx"
     file_path = os.path.join(EXPORT_DIR, file_name)
@@ -952,6 +989,36 @@ async def import_template(
                 _real_op_col_idx = _hi  # 0-based index in Excel row
                 break
 
+    # Auto-increment PK detection: single int PK → auto-fill empty PKs
+    _pk_is_auto_int = False
+    _auto_pk_counter = 0
+    if len(pk_fields) == 1:
+        _pk_fname = list(pk_fields)[0]
+        _pk_fc = field_map.get(_pk_fname)
+        if _pk_fc and any(dt in (_pk_fc.db_data_type or "").lower() for dt in ("int", "bigint", "smallint", "serial")):
+            _pk_is_auto_int = True
+            # Find current max PK value from existing data rows + remote DB
+            try:
+                _existing_max = max(
+                    (int(row_data.get(mapped_cols[pk_col_indices[0]], 0) or 0)
+                     for row_data in data_rows),
+                    default=0,
+                ) if data_rows else 0
+            except (ValueError, TypeError):
+                _existing_max = 0
+            # Query remote DB for current max
+            try:
+                _conn = _connect(ds.db_type, ds.host, ds.port, ds.username, decrypt_password(ds.password_encrypted),
+                                 tc.db_name, tc.schema_name, ds.charset, ds.connect_timeout_seconds or 10)
+                _cur = _conn.cursor()
+                _qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
+                _exec(_cur, ds.db_type, f"SELECT MAX({_quote_col(ds.db_type, _pk_fname)}) FROM {_qt}", [])
+                _db_max = _cur.fetchone()[0]
+                _conn.close()
+                _auto_pk_counter = max(int(_db_max or 0), _existing_max)
+            except Exception:
+                _auto_pk_counter = _existing_max
+
     for row_idx in range(2, data_ws.max_row + 1):
         # Read all columns from the real header (including _操作)
         _all_cells_count = len(_real_header)
@@ -982,8 +1049,8 @@ async def import_template(
             if not fc:
                 continue
 
-            # Required check
-            if fc.is_required and (str_val is None or str_val == ""):
+            # Required check (skip PK fields — handled separately in PK check below)
+            if fc.is_required and not fc.is_primary_key and (str_val is None or str_val == ""):
                 row_errors.append({
                     "row": row_idx, "field": fname,
                     "type": "required", "value": str_val,
@@ -1044,16 +1111,26 @@ async def import_template(
                 except json.JSONDecodeError:
                     pass
 
-        # PK check
+        # PK check — auto-fill for single auto-increment int PK
         pk_vals = tuple(row_data.get(mapped_cols[i], "") for i in pk_col_indices)
         pk_key = "|".join(str(v) for v in pk_vals)
         if any(v is None or v == "" for v in pk_vals):
-            row_errors.append({
-                "row": row_idx, "field": ",".join(pk_fields),
-                "type": "pk_empty", "value": pk_key,
-                "message": t("data_maintenance.row_pk_empty", row=row_idx),
-            })
-        elif pk_key in seen_pks:
+            # Check if single int PK that can be auto-incremented
+            if len(pk_fields) == 1 and _pk_is_auto_int:
+                _auto_pk_counter += 1
+                auto_val = str(_auto_pk_counter)
+                pk_fname = list(pk_fields)[0]
+                for i in pk_col_indices:
+                    row_data[mapped_cols[i]] = auto_val
+                pk_vals = (auto_val,)
+                pk_key = auto_val
+            else:
+                row_errors.append({
+                    "row": row_idx, "field": ",".join(pk_fields),
+                    "type": "pk_empty", "value": pk_key,
+                    "message": t("data_maintenance.row_pk_empty", row=row_idx),
+                })
+        if pk_key in seen_pks:
             row_errors.append({
                 "row": row_idx, "field": ",".join(pk_fields),
                 "type": "duplicate", "value": pk_key,
@@ -3046,12 +3123,11 @@ def _run_async_export(task_id: str, table_config_id: int, export_type: str,
             conn.close()
 
         # Generate Excel
-        from openpyxl.styles import Protection as CellProtection, PatternFill, Font as XlFont
+        from openpyxl.styles import Protection as CellProtection, PatternFill, Font as XlFont, Border, Side
         from openpyxl.worksheet.protection import SheetProtection
+        from openpyxl.comments import Comment as XlComment
 
-        # v3.5: protection password (internal)
         _SHEET_PROTECTION_PASSWORD = "DOW_tpl_v35_sec"
-
         batch_no = _gen_batch("EXP")
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -3062,22 +3138,30 @@ def _run_async_export(task_id: str, table_config_id: int, export_type: str,
         data_row_count = len(raw_rows)
         RESERVED_BLANK_ROWS = getattr(tc, 'template_reserved_blank_rows', 200) or 200
 
-        # v3.5: Visual style fills
         header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
         header_font = XlFont(bold=True, color="FFFFFF", size=11)
         readonly_fill = PatternFill(start_color="F0F0F0", end_color="F0F0F0", fill_type="solid")
         editable_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
         blank_zone_fill = PatternFill(start_color="FFFFF0", end_color="FFFFF0", fill_type="solid")
+        _thin = Border(left=Side(style='thin', color='D9D9D9'), right=Side(style='thin', color='D9D9D9'), top=Side(style='thin', color='D9D9D9'), bottom=Side(style='thin', color='D9D9D9'))
+        _dashed = Border(left=Side(style='hair', color='D9D9D9'), right=Side(style='hair', color='D9D9D9'), top=Side(style='hair', color='D9D9D9'), bottom=Side(style='hair', color='D9D9D9'))
+        _hdr_border = Border(left=Side(style='thin', color='2F5496'), right=Side(style='thin', color='2F5496'), top=Side(style='thin', color='2F5496'), bottom=Side(style='medium', color='2F5496'))
 
+        # Header
         for i, f in enumerate(export_fields, 1):
             cell = ws.cell(row=1, column=i, value=f.field_alias or f.field_name)
             cell.font = header_font
             cell.fill = header_fill
             cell.protection = locked_cell
+            cell.border = _hdr_border
+        ws.cell(row=1, column=1).comment = XlComment("数据运维工作台导出模板\n灰色=不可改 | 白色=可编辑 | 黄色=新增行\n请勿修改表头和隐藏信息", "数据运维工作台")
+        ws.freeze_panes = "A2"
 
+        # Data rows
         for row_idx, raw in enumerate(raw_rows, 2):
             for col_idx, (val, ef) in enumerate(zip(raw, export_fields), 1):
                 cell = ws.cell(row=row_idx, column=col_idx, value=str(val) if val is not None else "")
+                cell.border = _thin
                 if ef.field_name in pk_set:
                     cell.protection = locked_cell
                     cell.fill = readonly_fill
@@ -3088,17 +3172,37 @@ def _run_async_export(task_id: str, table_config_id: int, export_type: str,
                     cell.protection = locked_cell
                     cell.fill = readonly_fill
 
+        # Blank rows
         blank_start = 2 + data_row_count
         for row_idx in range(blank_start, blank_start + RESERVED_BLANK_ROWS):
             for col_idx, ef in enumerate(export_fields, 1):
                 cell = ws.cell(row=row_idx, column=col_idx, value="")
                 cell.fill = blank_zone_fill
+                cell.border = _dashed
                 if ef.field_name in pk_set:
                     cell.protection = unlocked_cell
                 elif ef.field_name in editable_field_names:
                     cell.protection = unlocked_cell
                 else:
                     cell.protection = locked_cell
+
+        # "_操作" column
+        if tc.allow_delete_rows:
+            op_col = len(export_fields) + 1
+            op_header = ws.cell(row=1, column=op_col, value="_操作")
+            op_header.font = header_font
+            op_header.fill = header_fill
+            op_header.protection = locked_cell
+            op_header.border = _hdr_border
+            op_header.comment = XlComment("填 DELETE 标记删除", "系统")
+            for ri in range(2, 2 + data_row_count):
+                cell = ws.cell(row=ri, column=op_col, value="")
+                cell.protection = unlocked_cell
+                cell.border = _thin
+            for ri in range(blank_start, blank_start + RESERVED_BLANK_ROWS):
+                cell = ws.cell(row=ri, column=op_col, value="")
+                cell.protection = unlocked_cell
+                cell.border = _dashed
 
         if unlocked != "1":
             ws.protection = SheetProtection(
@@ -3123,6 +3227,7 @@ def _run_async_export(task_id: str, table_config_id: int, export_type: str,
             "blank_row_start": blank_start,
             "reserved_blank_rows": RESERVED_BLANK_ROWS,
             "allow_insert_rows": tc.allow_insert_rows,
+            "has_operation_column": bool(tc.allow_delete_rows),
         }
         meta_ws.cell(row=1, column=1, value=json.dumps(meta_info, ensure_ascii=False))
         meta_ws.sheet_state = "hidden"

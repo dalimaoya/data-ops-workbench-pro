@@ -6,19 +6,24 @@ import {
   listTableConfigs, countTableConfigs, deleteTableConfig, checkStructure,
   type TableConfig,
 } from '../../api/tableConfig';
-import { listDatasources, type Datasource } from '../../api/datasource';
+import { listDatasources, getDatasourceDatabases, type Datasource } from '../../api/datasource';
+import { buildDatasourceOptions } from '../../utils/datasourceOptions';
+import { useDatasourceOnline } from '../../context/DatasourceOnlineContext';
+import { findFirstHealthyDs } from '../../utils/datasourceHelper';
 import { useTranslation } from 'react-i18next';
 
 export default function TableConfigList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { onlineStatus } = useDatasourceOnline();
   const [data, setData] = useState<TableConfig[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [datasources, setDatasources] = useState<Datasource[]>([]);
-  const [filters, setFilters] = useState<{ datasource_id?: number; keyword?: string; status?: string }>({});
+  const [databases, setDatabases] = useState<string[]>([]);
+  const [filters, setFilters] = useState<{ datasource_id?: number; db_name?: string; keyword?: string }>({});
 
   const fetchData = async () => {
     setLoading(true);
@@ -36,8 +41,23 @@ export default function TableConfigList() {
   };
 
   useEffect(() => {
-    listDatasources({ page_size: 100 }).then(r => setDatasources(r.data));
+    listDatasources({ page_size: 100 }).then(r => {
+      const list = Array.isArray(r.data) ? r.data : [];
+      setDatasources(list);
+      const healthy = findFirstHealthyDs(list, onlineStatus);
+      if (healthy) setFilters(f => ({ ...f, datasource_id: healthy.id }));
+    });
   }, []);
+
+  // Fetch databases when datasource changes
+  useEffect(() => {
+    setDatabases([]);
+    if (filters.datasource_id) {
+      getDatasourceDatabases(filters.datasource_id)
+        .then(res => setDatabases(res.data.databases || []))
+        .catch(() => {});
+    }
+  }, [filters.datasource_id]);
 
   useEffect(() => { fetchData(); }, [page, pageSize, filters]);
 
@@ -80,8 +100,15 @@ export default function TableConfigList() {
       },
     },
     {
-      title: t('common.status'), dataIndex: 'status', width: 80,
-      render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'default'}>{v === 'enabled' ? t('common.enabled') : t('common.disabled')}</Tag>,
+      title: t('datasource.onlineStatus'), width: 80,
+      render: (_: unknown, r: TableConfig) => {
+        const key = String(r.datasource_id);
+        const checked = key in onlineStatus;
+        if (!checked) return <Tag>{t('datasource.connectionNotTested')}</Tag>;
+        return onlineStatus[key]
+          ? <Tag color="success">{t('datasource.online')}</Tag>
+          : <Tag color="error">{t('datasource.offline')}</Tag>;
+      },
     },
     {
       title: t('common.operation'), width: 280, fixed: 'right' as const,
@@ -106,15 +133,19 @@ export default function TableConfigList() {
     }>
       <Space wrap style={{ marginBottom: 16 }}>
         <Select
-          allowClear placeholder={t('common.datasource')} style={{ width: 200 }}
-          options={datasources.map(d => ({ label: d.datasource_name, value: d.id }))}
-          onChange={v => setFilters(f => ({ ...f, datasource_id: v }))}
+          allowClear placeholder={t('common.datasource')} style={{ width: 220 }}
+          value={filters.datasource_id}
+          options={buildDatasourceOptions(datasources, onlineStatus)}
+          onChange={v => setFilters(f => ({ ...f, datasource_id: v, db_name: undefined }))}
         />
-        <Select
-          allowClear placeholder={t('common.status')} style={{ width: 120 }}
-          options={[{ label: t('common.enabled'), value: 'enabled' }, { label: t('common.disabled'), value: 'disabled' }]}
-          onChange={v => setFilters(f => ({ ...f, status: v }))}
-        />
+        {filters.datasource_id && databases.length > 0 && (
+          <Select
+            allowClear showSearch placeholder={t('tableConfig.selectDatabase')} style={{ width: 180 }}
+            value={filters.db_name}
+            options={databases.map(d => ({ label: d, value: d }))}
+            onChange={v => setFilters(f => ({ ...f, db_name: v }))}
+          />
+        )}
         <Input
           placeholder={t('tableConfig.searchTable')} prefix={<SearchOutlined />} style={{ width: 200 }}
           onPressEnter={e => setFilters(f => ({ ...f, keyword: (e.target as HTMLInputElement).value }))}
@@ -128,7 +159,7 @@ export default function TableConfigList() {
         columns={columns}
         dataSource={data}
         loading={loading}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1300 }}
         pagination={{
           current: page, pageSize, total, showSizeChanger: true,
           pageSizeOptions: ['20', '50', '100'],

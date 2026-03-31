@@ -572,9 +572,10 @@ export default function DataBrowse() {
         }
         style={{ marginBottom: 16 }}
       >
-        <Descriptions size="small" column={4}>
+        <Descriptions size="small" column={5}>
           <Descriptions.Item label={t('common.datasource')}>{(tableInfo as { datasource_name?: string }).datasource_name || '-'}</Descriptions.Item>
           <Descriptions.Item label={t('common.tableName')}>{(tableInfo as { table_name?: string }).table_name || '-'}</Descriptions.Item>
+          <Descriptions.Item label={t('maintenance.tableAlias')}>{(tableInfo as { table_alias?: string }).table_alias || '-'}</Descriptions.Item>
           <Descriptions.Item label={t('dataBrowse.configVersionLabel')}>v{String((tableInfo as { config_version?: number }).config_version || 0)}</Descriptions.Item>
           <Descriptions.Item label={t('dataBrowse.structureStatusLabel')}>
             {(() => {

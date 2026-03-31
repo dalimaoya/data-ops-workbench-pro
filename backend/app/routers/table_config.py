@@ -16,6 +16,7 @@ from app.schemas.table_config import (
 )
 from app.utils.crypto import decrypt_password
 from app.utils.remote_db import list_tables, list_columns, fetch_sample_data, compute_structure_hash
+from app.ai.rules_engine import suggest_semantic_name, is_system_field
 from app.utils.audit import log_operation
 from app.utils.auth import get_current_user, require_role
 from app.utils.permissions import get_permitted_datasource_ids
@@ -148,6 +149,7 @@ def preview_remote_table(
 @router.get("", response_model=List[TableConfigOut])
 def list_table_configs(
     datasource_id: Optional[int] = None,
+    db_name: Optional[str] = None,
     status: Optional[str] = None,
     keyword: Optional[str] = None,
     page: int = Query(1, ge=1),
@@ -164,6 +166,8 @@ def list_table_configs(
         q = q.filter(TableConfig.datasource_id.in_(permitted_ids))
     if datasource_id:
         q = q.filter(TableConfig.datasource_id == datasource_id)
+    if db_name:
+        q = q.filter(TableConfig.db_name == db_name)
     if status:
         q = q.filter(TableConfig.status == status)
     if keyword:
@@ -191,13 +195,13 @@ def list_table_configs(
 @router.get("/count")
 def count_table_configs(
     datasource_id: Optional[int] = None,
+    db_name: Optional[str] = None,
     status: Optional[str] = None,
     keyword: Optional[str] = None,
     db: Session = Depends(get_db),
     user: UserAccount = Depends(get_current_user),
 ):
     q = db.query(TableConfig).filter(TableConfig.is_deleted == 0)
-    # v2.2: datasource-level permission filtering
     permitted_ids = get_permitted_datasource_ids(db, user)
     if permitted_ids is not None:
         if not permitted_ids:
@@ -205,6 +209,8 @@ def count_table_configs(
         q = q.filter(TableConfig.datasource_id.in_(permitted_ids))
     if datasource_id:
         q = q.filter(TableConfig.datasource_id == datasource_id)
+    if db_name:
+        q = q.filter(TableConfig.db_name == db_name)
     if status:
         q = q.filter(TableConfig.status == status)
     if keyword:
@@ -272,7 +278,7 @@ def create_table_config(body: TableConfigCreate, db: Session = Depends(get_db), 
         db_name=use_db,
         schema_name=use_schema,
         table_name=body.table_name,
-        table_alias=body.table_alias or body.table_name,
+        table_alias=body.table_alias or suggest_semantic_name(body.table_name) or body.table_name,
         table_comment=body.table_comment,
         config_version=1,
         structure_version_hash=structure_hash,
@@ -397,18 +403,21 @@ def _merge_fields(db: Session, table_config_id: int, columns: list, pk_fields_st
 
 
 def _auto_generate_fields(db: Session, table_config_id: int, columns: list, pk_fields_str: str, operator_name: str = "system"):
-    """Generate FieldConfig records from remote column info."""
+    """Generate FieldConfig records from remote column info, with local AI alias suggestion."""
     pk_set = set(f.strip() for f in pk_fields_str.split(","))
-    system_keywords = {"created_at", "updated_at", "created_by", "updated_by", "is_deleted",
-                       "create_time", "update_time", "create_by", "update_by", "gmt_create", "gmt_modified"}
 
     for col in columns:
-        is_pk = col["field_name"] in pk_set or col.get("is_primary_key", False)
-        is_sys = col["field_name"].lower() in system_keywords
+        fname = col["field_name"]
+        is_pk = fname in pk_set or col.get("is_primary_key", False)
+        is_sys = is_system_field(fname)
+
+        # Local rule-based alias suggestion
+        alias = suggest_semantic_name(fname) or fname
+
         fc = FieldConfig(
             table_config_id=table_config_id,
-            field_name=col["field_name"],
-            field_alias=col["field_name"],
+            field_name=fname,
+            field_alias=alias,
             db_data_type=col["db_data_type"],
             field_order_no=col.get("ordinal_position", 0),
             sample_value=col.get("sample_value"),

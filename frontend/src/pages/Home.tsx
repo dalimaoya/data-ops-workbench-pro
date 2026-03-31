@@ -21,12 +21,14 @@ import type {
   TrendDay, DatasourceHealth, TopTable, TopField,
 } from '../api/dashboard';
 import { useTranslation } from 'react-i18next';
+import { useDatasourceOnline } from '../context/DatasourceOnlineContext';
 
 const { Text } = Typography;
 
 export default function Home() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { onlineStatus } = useDatasourceOnline();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [operations, setOperations] = useState<RecentOperation[]>([]);
   const [trends, setTrends] = useState<TrendDay[]>([]);
@@ -196,18 +198,25 @@ export default function Home() {
               <List
                 size="small"
                 dataSource={dsHealth}
-                renderItem={(item) => (
+                renderItem={(item) => {
+                  // Prefer global online status over backend last_test_status
+                  const key = String(item.id);
+                  const realStatus = key in onlineStatus
+                    ? (onlineStatus[key] ? 'ok' : 'error')
+                    : item.status;
+                  return (
                   <List.Item style={{ padding: '4px 0' }}>
                     <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 8 }}>
-                      {healthIcon(item.status)}
+                      {healthIcon(realStatus)}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <Text ellipsis style={{ display: 'block', fontWeight: 500 }}>{item.name}</Text>
                         <Text type="secondary" style={{ fontSize: 11 }}>{dbTypeLabel(item.db_type)}</Text>
                       </div>
-                      <div style={{ flexShrink: 0 }}>{healthLabel(item.status)}</div>
+                      <div style={{ flexShrink: 0 }}>{healthLabel(realStatus)}</div>
                     </div>
                   </List.Item>
-                )}
+                  );
+                }}
               />
             ) : (
               <Empty description={t('home.noDatasource')} image={Empty.PRESENTED_IMAGE_SIMPLE} />

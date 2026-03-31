@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Card, Radio, Tag, Space, Typography, Button, Spin, message, Alert } from 'antd';
+import { Card, Radio, Tag, Space, Typography, Button, Spin, message, Alert, Select } from 'antd';
 import { RobotOutlined, CheckCircleOutlined, QuestionCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { matchTables } from '../../api/smartImport';
+import { listTableConfigs, type TableConfig } from '../../api/tableConfig';
 import type { ParsedTable } from './SmartImportPage';
 import { checkAIAvailable } from '../../utils/aiGuard';
 
@@ -32,6 +33,15 @@ export default function StepMatchTables({ selectedTables, setSelectedTables }: P
   const [loading, setLoading] = useState(false);
   const [matchResults, setMatchResults] = useState<MatchResult[]>([]);
   const [hasMatched, setHasMatched] = useState(false);
+  const [allManagedTables, setAllManagedTables] = useState<TableConfig[]>([]);
+
+  // Load all managed tables for manual selection fallback
+  useEffect(() => {
+    listTableConfigs({ page_size: 500 }).then(res => {
+      const list = Array.isArray(res.data) ? res.data : (res.data as any).items || [];
+      setAllManagedTables(list);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!hasMatched && selectedTables.length > 0) {
@@ -179,12 +189,39 @@ export default function StepMatchTables({ selectedTables, setSelectedTables }: P
                 </Space>
               </Radio.Group>
             ) : (
-              <Alert
-                type="warning"
-                showIcon
-                message={t('smartImport.noMatchFound')}
-                description={t('smartImport.noMatchHint')}
-              />
+              <div>
+                <Alert
+                  type="warning"
+                  showIcon
+                  style={{ marginBottom: 12 }}
+                  message={t('smartImport.noMatchFound')}
+                  description={t('smartImport.manualSelectHint')}
+                />
+                <Select
+                  style={{ width: '100%' }}
+                  placeholder={t('smartImport.manualSelectTable')}
+                  showSearch
+                  allowClear
+                  value={st.matchedTableId}
+                  filterOption={(input, option) =>
+                    (option?.label as string || '').toLowerCase().includes(input.toLowerCase())
+                  }
+                  options={allManagedTables.map(tc => ({
+                    value: tc.id,
+                    label: `${tc.table_alias || tc.table_name} (${tc.table_name})`,
+                  }))}
+                  onChange={(val) => {
+                    const tc = allManagedTables.find(t => t.id === val);
+                    handleSelectTarget(st.table_index, tc ? {
+                      table_config_id: tc.id,
+                      table_name: tc.table_name,
+                      table_alias: tc.table_alias || tc.table_name,
+                      confidence: 1,
+                      match_reason: t('smartImport.manualMatch'),
+                    } : null);
+                  }}
+                />
+              </div>
             )}
           </Card>
         );

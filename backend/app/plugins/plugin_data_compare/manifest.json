@@ -1,7 +1,7 @@
 {
   "name": "plugin-data-compare",
   "version": "3.3.0",
-  "display_name": "跨库数据对比",
+  "display_name": "数据对比",
   "display_name_en": "Cross-DB Data Compare",
   "description": "选择两个数据源的表进行逐行对比，展示差异并可导出报告",
   "author": "dalimaoya",

@@ -1,7 +1,7 @@
 {
   "name": "plugin-data-trend",
   "version": "3.3.0",
-  "display_name": "数据变更趋势",
+  "display_name": "数据趋势",
   "display_name_en": "Data Trend Analysis",
   "description": "表行数变化折线图、修改频率统计、趋势预警",
   "author": "dalimaoya",

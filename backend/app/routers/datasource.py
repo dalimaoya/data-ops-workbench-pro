@@ -43,6 +43,73 @@ def _gen_code(db: Session) -> str:
     return f"{prefix}{seq:03d}"
 
 
+import time as _time
+import threading as _threading
+from concurrent.futures import ThreadPoolExecutor as _TPE
+
+# Cached online status: {ds_id: {"online": bool, "checked_at": float}}
+_online_cache: dict = {}
+_online_cache_lock = _threading.Lock()
+_CACHE_TTL = 60  # seconds
+
+
+def _check_one_ds(ds_id: int, db_type: str, host: str, port: int,
+                   username: str, pwd: str, database_name, schema_name,
+                   charset, timeout):
+    """Check one datasource connection (runs in thread pool)."""
+    try:
+        ok, _ = test_connection(
+            db_type=db_type, host=host, port=port,
+            username=username, password=pwd,
+            database_name=database_name, schema_name=schema_name,
+            charset=charset, connect_timeout_seconds=timeout,
+        )
+    except Exception:
+        ok = False
+    with _online_cache_lock:
+        _online_cache[ds_id] = {"online": ok, "checked_at": _time.time()}
+    return ds_id, ok
+
+
+@router.get("/online-status")
+def batch_online_status(db: Session = Depends(get_db), user: UserAccount = Depends(get_current_user)):
+    """批量检测所有数据源在线状态（并发+60s 缓存）。"""
+    now = _time.time()
+    sources = db.query(DatasourceConfig).filter(
+        DatasourceConfig.is_deleted == 0, DatasourceConfig.status == "enabled"
+    ).all()
+
+    result = {}
+    to_check = []
+    with _online_cache_lock:
+        for ds in sources:
+            cached = _online_cache.get(ds.id)
+            if cached and now - cached["checked_at"] < _CACHE_TTL:
+                result[ds.id] = cached["online"]
+            else:
+                to_check.append(ds)
+
+    if to_check:
+        # Concurrent check with ThreadPool — max 3s per connection, max 4 workers
+        futures = []
+        with _TPE(max_workers=min(len(to_check), 4)) as pool:
+            for ds in to_check:
+                pwd = decrypt_password(ds.password_encrypted)
+                futures.append(pool.submit(
+                    _check_one_ds, ds.id, ds.db_type, ds.host, ds.port,
+                    ds.username, pwd, ds.database_name, ds.schema_name,
+                    ds.charset, min(ds.connect_timeout_seconds or 3, 3),
+                ))
+            for f in futures:
+                try:
+                    ds_id, ok = f.result(timeout=5)
+                    result[ds_id] = ok
+                except Exception:
+                    pass
+
+    return {"status": {str(k): v for k, v in result.items()}}
+
+
 @router.get("", response_model=List[DatasourceOut])
 def list_datasources(
     db_type: Optional[str] = None,

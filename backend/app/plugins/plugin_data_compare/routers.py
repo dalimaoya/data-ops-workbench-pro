@@ -49,18 +49,20 @@ router = APIRouter(prefix="/api/data-compare", tags=["data-compare"])
 class CompareRequest(BaseModel):
     source_ds_id: int
     source_table: str
+    source_db_name: Optional[str] = None
     source_schema: Optional[str] = None
     target_ds_id: int
     target_table: str
+    target_db_name: Optional[str] = None
     target_schema: Optional[str] = None
     key_fields: Optional[List[str]] = None  # fields to use as join key
     max_rows: int = 10000
 
 
-def _fetch_all(ds: DatasourceConfig, table: str, schema: Optional[str], cols: List[str], max_rows: int):
+def _fetch_all(ds: DatasourceConfig, table: str, database: Optional[str], schema: Optional[str], cols: List[str], max_rows: int):
     pwd = decrypt_password(ds.password_encrypted)
     conn = _connect(ds.db_type, ds.host, ds.port, ds.username, pwd,
-                    ds.database_name, schema, ds.charset, ds.connect_timeout_seconds or 10)
+                    database or ds.database_name, schema, ds.charset, ds.connect_timeout_seconds or 10)
     try:
         cur = conn.cursor()
         col_str = ",".join(cols)
@@ -89,10 +91,10 @@ def run_compare(
     tgt_pwd = decrypt_password(tgt_ds.password_encrypted)
 
     src_cols = list_columns(src_ds.db_type, src_ds.host, src_ds.port, src_ds.username, src_pwd,
-                            body.source_table, src_ds.database_name, body.source_schema,
+                            body.source_table, body.source_db_name or src_ds.database_name, body.source_schema,
                             src_ds.charset, src_ds.connect_timeout_seconds or 10)
     tgt_cols = list_columns(tgt_ds.db_type, tgt_ds.host, tgt_ds.port, tgt_ds.username, tgt_pwd,
-                            body.target_table, tgt_ds.database_name, body.target_schema,
+                            body.target_table, body.target_db_name or tgt_ds.database_name, body.target_schema,
                             tgt_ds.charset, tgt_ds.connect_timeout_seconds or 10)
 
     src_col_names = [c["field_name"] for c in src_cols]
@@ -106,8 +108,8 @@ def run_compare(
     key_fields = body.key_fields or matched[:1]  # Use first matched field as key
 
     # Fetch data
-    src_rows = _fetch_all(src_ds, body.source_table, body.source_schema, matched, body.max_rows)
-    tgt_rows = _fetch_all(tgt_ds, body.target_table, body.target_schema, matched, body.max_rows)
+    src_rows = _fetch_all(src_ds, body.source_table, body.source_db_name, body.source_schema, matched, body.max_rows)
+    tgt_rows = _fetch_all(tgt_ds, body.target_table, body.target_db_name, body.target_schema, matched, body.max_rows)
 
     # Build lookup by key
     key_indices = [matched.index(k) for k in key_fields if k in matched]

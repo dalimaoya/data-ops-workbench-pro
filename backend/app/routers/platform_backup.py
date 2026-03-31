@@ -18,7 +18,7 @@ from app.database import get_db, DATA_DIR, DATABASE_URL
 from app.models import (
     DatasourceConfig, TableConfig, FieldConfig, UserAccount,
     SystemSetting, AIConfig, SystemOperationLog, Notification,
-    TrialActivation, ActivationRecord, PluginStatus,
+    TrialActivation, ActivationRecord, PluginStatus, MappingTemplate,
 )
 from app.plugins.plugin_notification_push.routers import (
     NotificationChannel, NotificationSubscription, NotificationLog,
@@ -338,6 +338,24 @@ def create_backup(
         with open(os.path.join(config_dir, "notifications.json"), "w", encoding="utf-8") as f:
             json.dump(notif_list, f, ensure_ascii=False, indent=2, default=str)
 
+        # Smart import mapping templates (v5.2)
+        mt_rows = db.query(MappingTemplate).filter(MappingTemplate.is_deleted == 0).all()
+        mt_list = []
+        for mt in mt_rows:
+            mt_list.append({
+                "id": mt.id,
+                "template_name": mt.template_name,
+                "target_table_id": mt.target_table_id,
+                "mappings_json": mt.mappings_json,
+                "source_headers_json": mt.source_headers_json,
+                "use_count": mt.use_count,
+                "last_used_at": str(mt.last_used_at) if mt.last_used_at else None,
+                "created_by": mt.created_by,
+                "updated_by": mt.updated_by,
+            })
+        with open(os.path.join(config_dir, "mapping_templates.json"), "w", encoding="utf-8") as f:
+            json.dump(mt_list, f, ensure_ascii=False, indent=2, default=str)
+
         # 2. Copy platform.db
         db_src = os.path.join(DATA_DIR, "platform.db")
         if os.path.exists(db_src):
@@ -396,6 +414,7 @@ def create_backup(
                 "notification_subscriptions": len(nsub_list),
                 "notification_logs": len(nlog_list),
                 "notifications": len(notif_list),
+                "mapping_templates": len(mt_list),
                 "log_entries": len(log_list) if req.include_logs else 0,
             },
             "checksums": {},
@@ -981,6 +1000,25 @@ def _restore_overwrite(db: Session, extract_dir: str, contents: dict):
             ))
         db.commit()
 
+    # Restore mapping templates
+    mt_file = os.path.join(config_dir, "mapping_templates.json")
+    if os.path.isfile(mt_file):
+        with open(mt_file, "r", encoding="utf-8") as f:
+            mt_data = json.load(f)
+        db.query(MappingTemplate).delete()
+        for mt in mt_data:
+            db.add(MappingTemplate(
+                template_name=mt["template_name"],
+                target_table_id=mt["target_table_id"],
+                mappings_json=mt.get("mappings_json"),
+                source_headers_json=mt.get("source_headers_json"),
+                use_count=mt.get("use_count", 0),
+                last_used_at=mt.get("last_used_at"),
+                created_by=mt.get("created_by", "system"),
+                updated_by=mt.get("updated_by", "system"),
+            ))
+        db.commit()
+
 
 def _restore_merge(db: Session, extract_dir: str, contents: dict):
     """Merge mode: import without clearing, conflict resolution favours backup."""
@@ -1267,4 +1305,23 @@ def _restore_merge(db: Session, extract_dir: str, contents: dict):
                 related_url=n.get("related_url"),
                 created_at=n.get("created_at"),
             ))
+        db.commit()
+
+    # Merge mapping templates (by template_name, skip duplicates)
+    mt_file = os.path.join(config_dir, "mapping_templates.json")
+    if os.path.isfile(mt_file):
+        with open(mt_file, "r", encoding="utf-8") as f:
+            mt_data = json.load(f)
+        existing_names = {m.template_name for m in db.query(MappingTemplate).filter(MappingTemplate.is_deleted == 0).all()}
+        for mt in mt_data:
+            if mt["template_name"] not in existing_names:
+                db.add(MappingTemplate(
+                    template_name=mt["template_name"],
+                    target_table_id=mt["target_table_id"],
+                    mappings_json=mt.get("mappings_json"),
+                    source_headers_json=mt.get("source_headers_json"),
+                    use_count=mt.get("use_count", 0),
+                    created_by=mt.get("created_by", "system"),
+                    updated_by=mt.get("updated_by", "system"),
+                ))
         db.commit()

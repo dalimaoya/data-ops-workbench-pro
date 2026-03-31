@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useDatasourceOnline } from '../../context/DatasourceOnlineContext';
+import { buildDatasourceOptions } from '../../utils/datasourceOptions';
 import {
   Card, Select, Table, Button, Space, Tag, Modal, Form, Input,
   message, Typography, Tooltip, Popconfirm, Divider, Checkbox, Empty, Tabs, Alert, Spin,
@@ -45,6 +47,7 @@ interface DatasourceOption {
 
 export default function DbManagerPage() {
   const { t } = useTranslation();
+  const { onlineStatus } = useDatasourceOnline();
   const [datasources, setDatasources] = useState<DatasourceOption[]>([]);
   const [selectedDs, setSelectedDs] = useState<number | null>(null);
   const [tables, setTables] = useState<TableInfo[]>([]);
@@ -117,7 +120,7 @@ export default function DbManagerPage() {
       }));
       setDatasources(mapped);
       if (mapped.length > 0 && !selectedDs) {
-        const healthy = findFirstHealthyDs(mapped);
+        const healthy = findFirstHealthyDs(mapped, onlineStatus);
         if (healthy) setSelectedDs(healthy.id);
       }
     }).catch(() => {});
@@ -483,7 +486,10 @@ export default function DbManagerPage() {
           style={{ width: '100%', marginBottom: 8 }}
           value={selectedDs}
           onChange={v => setSelectedDs(v)}
-          options={datasources.map(d => ({ value: d.id, label: `${d.datasource_name} (${d.db_type})` }))}
+          options={datasources.map(d => {
+            const offline = onlineStatus[String(d.id)] === false;
+            return { value: d.id, label: `${d.datasource_name} (${d.db_type})${offline ? ' ⚠ 离线' : ''}`, disabled: offline };
+          })}
           showSearch
           filterOption={(input, option) => (option?.label as string || '').toLowerCase().includes(input.toLowerCase())}
           size="small"

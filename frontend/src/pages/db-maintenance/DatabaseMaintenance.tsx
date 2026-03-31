@@ -13,6 +13,8 @@ import {
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { listDatasources, getDatasourceDatabases, type Datasource } from '../../api/datasource';
+import { buildDatasourceOptions } from '../../utils/datasourceOptions';
+import { useDatasourceOnline } from '../../context/DatasourceOnlineContext';
 import { getRemoteTables, listTableConfigs, type RemoteTableInfo, type TableConfig } from '../../api/tableConfig';
 import { findFirstHealthyDs } from '../../utils/datasourceHelper';
 import {
@@ -59,6 +61,7 @@ interface EditableFieldConfig {
 export default function DatabaseMaintenance() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { onlineStatus } = useDatasourceOnline();
   const [searchParams] = useSearchParams();
 
   // Step management
@@ -113,7 +116,7 @@ export default function DatabaseMaintenance() {
         setSelectedDsId(Number(dsParam));
       } else if (list.length > 0 && !selectedDsId) {
         // 默认选中第1个连接正常的数据源
-        const healthy = findFirstHealthyDs(list);
+        const healthy = findFirstHealthyDs(list, onlineStatus);
         if (healthy) setSelectedDsId(healthy.id);
       }
     }).catch(() => {});
@@ -472,6 +475,7 @@ export default function DatabaseMaintenance() {
       title: t('common.tableName'),
       dataIndex: 'table_name',
       ellipsis: true,
+      width: 180,
       render: (val: string, record: TableSelectItem) => (
         record.is_managed && record.table_config_id ? (
           <a onClick={() => navigate(`/data-maintenance/browse/${record.table_config_id}`)}
@@ -482,9 +486,16 @@ export default function DatabaseMaintenance() {
       ),
     },
     {
+      title: t('common.remark'),
+      dataIndex: 'table_comment',
+      ellipsis: true,
+      width: 200,
+      render: (val: string | undefined) => val || '—',
+    },
+    {
       title: t('dbMaintenance.fieldCount'),
       dataIndex: 'field_count',
-      width: 80,
+      width: 70,
       render: (val: number | undefined) => val ?? '—',
     },
     {
@@ -701,14 +712,19 @@ export default function DatabaseMaintenance() {
       <Space style={{ marginBottom: 16 }} wrap>
         <Select
           value={selectedDsId}
-          onChange={val => { setSelectedDsId(val); setActiveTab('batch'); handleReset(); }}
+          onChange={val => {
+            setSelectedDsId(val);
+            setSelectedDb(undefined);
+            setDatabases([]);
+            setManagedSearch('');
+            setManagedSelectedIds([]);
+            setActiveTab('batch');
+            handleReset();
+          }}
           placeholder={t('maintenance.selectDatasource')}
           style={{ width: 280 }}
           allowClear
-          options={datasources.map(ds => ({
-            value: ds.id,
-            label: `${ds.datasource_name} (${ds.db_type})`,
-          }))}
+          options={buildDatasourceOptions(datasources, onlineStatus)}
         />
         {selectedDsId && databases.length > 0 && (
           <Select

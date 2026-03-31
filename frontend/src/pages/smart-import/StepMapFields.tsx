@@ -3,6 +3,7 @@ import { Table, Tag, Select, Button, Space, Typography, Collapse, Spin, message,
 import { RobotOutlined, SaveOutlined, SwapOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { mapFields, createMappingTemplate } from '../../api/smartImport';
+import { listFields, type FieldConfig } from '../../api/tableConfig';
 import type { ParsedTable } from './SmartImportPage';
 import { checkAIAvailable } from '../../utils/aiGuard';
 
@@ -51,6 +52,7 @@ export default function StepMapFields({ selectedTables, setSelectedTables }: Pro
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [savingTableIndex, setSavingTableIndex] = useState<number | null>(null);
   const [templateName, setTemplateName] = useState('');
+  const [allFieldsMap, setAllFieldsMap] = useState<Record<number, FieldConfig[]>>({});
 
   const matchedTables = selectedTables.filter(t => t.matchedTableId);
 
@@ -58,6 +60,15 @@ export default function StepMapFields({ selectedTables, setSelectedTables }: Pro
     if (matchedTables.length > 0) {
       setActiveKey([String(matchedTables[0].table_index)]);
       doMapAll(false);
+      // Load all fields for each matched table
+      matchedTables.forEach(tbl => {
+        if (tbl.matchedTableId) {
+          listFields(tbl.matchedTableId).then(res => {
+            const fields = Array.isArray(res.data) ? res.data : [];
+            setAllFieldsMap(prev => ({ ...prev, [tbl.matchedTableId!]: fields }));
+          }).catch(() => {});
+        }
+      });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -216,20 +227,36 @@ export default function StepMapFields({ selectedTables, setSelectedTables }: Pro
       {
         title: t('common.actions'),
         width: 180,
-        render: (_: any, record: FieldMapping) => (
-          <Select
-            size="small"
-            style={{ width: 160 }}
-            placeholder={t('smartImport.selectField')}
-            allowClear
-            value={record.target_field}
-            onChange={(val) => handleFieldChange(tbl.table_index, record.source_column, val)}
-            options={record.candidates?.map(c => ({
+        render: (_: any, record: FieldMapping) => {
+          // Merge candidates + all fields, dedup
+          const allFields = allFieldsMap[tbl.matchedTableId!] || [];
+          const candidateNames = new Set((record.candidates || []).map(c => c.field_name));
+          const options = [
+            ...(record.candidates || []).map(c => ({
               value: c.field_name,
               label: `${c.field_alias} (${c.field_name}) ${Math.round(c.confidence * 100)}%`,
-            }))}
-          />
-        ),
+            })),
+            ...allFields
+              .filter(f => !candidateNames.has(f.field_name))
+              .map(f => ({
+                value: f.field_name,
+                label: `${f.field_alias || f.field_name} (${f.field_name})`,
+              })),
+          ];
+          return (
+            <Select
+              size="small"
+              style={{ width: 200 }}
+              placeholder={t('smartImport.selectField')}
+              allowClear
+              showSearch
+              value={record.target_field}
+              onChange={(val) => handleFieldChange(tbl.table_index, record.source_column, val)}
+              filterOption={(input, option) => (option?.label as string || '').toLowerCase().includes(input.toLowerCase())}
+              options={options}
+            />
+          );
+        },
       },
     ];
 

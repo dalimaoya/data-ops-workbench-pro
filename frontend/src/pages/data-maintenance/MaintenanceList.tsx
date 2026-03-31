@@ -5,6 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import { listMaintenanceTables, batchExportTables } from '../../api/dataMaintenance';
 import type { MaintenanceTable } from '../../api/dataMaintenance';
 import { listDatasources, getDatasourceDatabases } from '../../api/datasource';
+import { buildDatasourceOptions } from '../../utils/datasourceOptions';
+import { useDatasourceOnline } from '../../context/DatasourceOnlineContext';
 import type { Datasource } from '../../api/datasource';
 import { formatBeijingTime } from '../../utils/formatTime';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +14,7 @@ import { findFirstHealthyDs } from '../../utils/datasourceHelper';
 
 export default function MaintenanceList() {
   const { t } = useTranslation();
+  const { onlineStatus } = useDatasourceOnline();
   const [data, setData] = useState<MaintenanceTable[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -32,7 +35,7 @@ export default function MaintenanceList() {
       setDatasources(list);
       // 默认选中第1个连接正常的数据源
       if (list.length > 0 && !datasourceId) {
-        const healthy = findFirstHealthyDs(list);
+        const healthy = findFirstHealthyDs(list, onlineStatus);
         if (healthy) setDatasourceId(healthy.id);
       }
     }).catch(() => {});
@@ -159,9 +162,9 @@ export default function MaintenanceList() {
           placeholder={t('maintenance.selectDatasource')}
           allowClear
           value={datasourceId}
-          onChange={(v) => { setDatasourceId(v); setDbName(undefined); }}
+          onChange={(v) => { setDatasourceId(v); setDbName(undefined); setDatabases([]); }}
           style={{ width: 200 }}
-          options={datasources.map(ds => ({ label: ds.datasource_name, value: ds.id }))}
+          options={buildDatasourceOptions(datasources, onlineStatus)}
         />
         {datasourceId && databases.length > 0 && (
           <Select
