@@ -68,6 +68,15 @@ FIELD_NAME_MAP: dict[str, str] = {
     "source": "来源", "channel": "渠道", "platform": "平台",
     "region": "区域", "area": "区域", "zone": "分区",
     "longitude": "经度", "latitude": "纬度", "lng": "经度", "lat": "纬度",
+    # Additional common words for split matching
+    "start": "开始", "end": "结束", "begin": "开始",
+    "date": "日期", "time": "时间", "year": "年份", "month": "月份", "day": "日",
+    "order": "订单", "user": "用户", "item": "项目", "unit": "单位",
+    "trans": "交易", "pay": "支付", "contract": "合同", "treaty": "协议",
+    "channel": "渠道", "project": "项目", "task": "任务", "plan": "计划",
+    "apply": "申请", "audit": "审核", "check": "检查", "review": "审查",
+    "report": "报告", "log": "日志", "record": "记录", "history": "历史",
+    "max": "最大", "min": "最小", "avg": "平均",
 }
 
 # ── Pattern-based semantic name rules (regex → display_name) ──
@@ -117,19 +126,47 @@ _READONLY_PATTERNS = [
 def suggest_semantic_name(field_name: str) -> Optional[str]:
     """Try to map a field name to a Chinese semantic name using built-in rules."""
     fn = field_name.lower().strip()
-    # Exact match
+    # 1. Exact match
     if fn in FIELD_NAME_MAP:
         return FIELD_NAME_MAP[fn]
-    # Try without common prefixes/suffixes
+    # 2. Try without common prefixes/suffixes
     for prefix in ("t_", "f_", "c_", "sys_", "biz_"):
         if fn.startswith(prefix):
             stripped = fn[len(prefix):]
             if stripped in FIELD_NAME_MAP:
                 return FIELD_NAME_MAP[stripped]
-    # Pattern-based matching
+    # 3. Pattern-based matching
     for pattern, name in _PATTERN_SEMANTIC_RULES:
         if re.match(pattern, fn):
             return name
+    # 4. Split by underscore and translate each part, then combine
+    parts = fn.split("_")
+    if len(parts) >= 2:
+        translated = []
+        has_match = False
+        for p in parts:
+            if p in FIELD_NAME_MAP:
+                translated.append(FIELD_NAME_MAP[p])
+                has_match = True
+            elif p in ("index", "idx"):
+                translated.append("索引")
+                has_match = True
+            elif p in ("info", "detail"):
+                translated.append("信息")
+                has_match = True
+            elif p in ("list", "items"):
+                translated.append("列表")
+                has_match = True
+            elif p in ("no", "sn"):
+                translated.append("编号")
+                has_match = True
+            elif p in ("min", "max", "avg", "sum"):
+                translated.append({"min": "最小", "max": "最大", "avg": "平均", "sum": "合计"}[p])
+                has_match = True
+            else:
+                translated.append(p)
+        if has_match:
+            return "".join(translated)
     return None
 
 

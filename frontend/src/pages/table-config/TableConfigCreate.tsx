@@ -105,7 +105,7 @@ export default function TableConfigCreate() {
     setSelectedTable(tbl);
     form.setFieldsValue({
       table_name: tbl.table_name,
-      table_alias: tbl.table_name,
+      table_alias: tbl.table_comment || '',  // Use DB comment as alias hint, let backend AI suggest if empty
       table_comment: tbl.table_comment || '',
       primary_key_fields: undefined,
     });

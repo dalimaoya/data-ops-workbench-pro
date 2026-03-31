@@ -992,9 +992,10 @@ async def import_template(
     # Auto-increment PK detection: single int PK → auto-fill empty PKs
     _pk_is_auto_int = False
     _auto_pk_counter = 0
+    _field_by_name = {f.field_name: f for f in fields}
     if len(pk_fields) == 1:
         _pk_fname = list(pk_fields)[0]
-        _pk_fc = field_map.get(_pk_fname)
+        _pk_fc = _field_by_name.get(_pk_fname)
         if _pk_fc and any(dt in (_pk_fc.db_data_type or "").lower() for dt in ("int", "bigint", "smallint", "serial")):
             _pk_is_auto_int = True
             # Find current max PK value from existing data rows + remote DB
