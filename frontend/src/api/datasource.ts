@@ -63,8 +63,8 @@ export const createDatasource = (data: DatasourceCreate) =>
 export const updateDatasource = (id: number, data: Partial<DatasourceCreate>) =>
   api.put<Datasource>(`/datasource/${id}`, data);
 
-export const deleteDatasource = (id: number) =>
-  api.delete(`/datasource/${id}`);
+export const deleteDatasource = (id: number, cascade?: boolean) =>
+  api.delete(`/datasource/${id}`, { params: cascade ? { cascade: true } : undefined });
 
 export const testConnection = (data: TestConnectionReq) =>
   api.post<{ success: boolean; message: string }>('/datasource/test-connection', data);

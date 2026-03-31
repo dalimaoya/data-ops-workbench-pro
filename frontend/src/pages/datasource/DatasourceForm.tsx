@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Form, Input, InputNumber, Select, Button, Card, Space, message, Switch,
+  Form, Input, InputNumber, Select, Button, Card, Space, message, Switch, Modal,
 } from 'antd';
 import {
   getDatasource, createDatasource, updateDatasource, testConnection, testExistingDatasource,
 } from '../../api/datasource';
+import { api } from '../../api/request';
 import { useTranslation } from 'react-i18next';
 
 const dbTypeKeys: { key: string; value: string }[] = [
@@ -109,11 +110,40 @@ export default function DatasourceForm() {
       if (isEdit) {
         await updateDatasource(Number(id), payload);
         message.success(t('datasource.updateSuccess'));
+        navigate('/datasource');
       } else {
+        // Check for restorable deleted datasource with same connection
+        try {
+          const checkRes = await api.post<{ found: boolean; datasource_id?: number; datasource_name?: string; managed_count?: number }>('/datasource/check-restore', {
+            db_type: vals.db_type, host: vals.host, port: vals.port,
+            database_name: vals.database_name || null,
+            username: vals.username, password: vals.password || '',
+          });
+          if (checkRes.data.found && checkRes.data.datasource_id) {
+            const { datasource_id, datasource_name, managed_count } = checkRes.data;
+            Modal.confirm({
+              title: t('datasource.restoreFoundTitle'),
+              content: t('datasource.restoreFoundContent', { name: datasource_name, count: managed_count || 0 }),
+              okText: t('datasource.restoreAction'),
+              cancelText: t('datasource.createNewAnyway'),
+              onOk: async () => {
+                await api.post(`/datasource/${datasource_id}/restore`);
+                message.success(t('datasource.restoreSuccess'));
+                navigate('/datasource');
+              },
+              onCancel: async () => {
+                await createDatasource(payload);
+                message.success(t('datasource.createSuccess'));
+                navigate('/datasource');
+              },
+            });
+            return;
+          }
+        } catch { /* ignore, proceed with create */ }
         await createDatasource(payload);
         message.success(t('datasource.createSuccess'));
+        navigate('/datasource');
       }
-      navigate('/datasource');
     } catch {
       // validation error
     } finally {

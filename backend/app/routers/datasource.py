@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import DatasourceConfig, _now_bjt
+from app.models import DatasourceConfig, TableConfig, FieldConfig, _now_bjt
 from app.schemas.datasource import (
     DatasourceCreate, DatasourceUpdate, DatasourceOut,
     TestConnectionRequest, TestConnectionResponse,
@@ -170,8 +170,22 @@ def update_datasource(ds_id: int, body: DatasourceUpdate, db: Session = Depends(
     return row
 
 
+@router.get("/{ds_id}/managed-count")
+def get_managed_table_count(ds_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(get_current_user)):
+    """查询数据源下的纳管表数量（用于删除前确认）。"""
+    count = db.query(TableConfig).filter(
+        TableConfig.datasource_id == ds_id, TableConfig.is_deleted == 0
+    ).count()
+    return {"count": count}
+
+
 @router.delete("/{ds_id}")
-def delete_datasource(ds_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(require_role("admin"))):
+def delete_datasource(
+    ds_id: int,
+    cascade: bool = Query(False, description="是否级联删除纳管表"),
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
     row = db.query(DatasourceConfig).filter(
         DatasourceConfig.id == ds_id, DatasourceConfig.is_deleted == 0
     ).first()
@@ -179,13 +193,73 @@ def delete_datasource(ds_id: int, db: Session = Depends(get_db), user: UserAccou
         raise HTTPException(404, t("datasource.not_found"))
     row.is_deleted = 1
     row.updated_at = _now_bjt()
+
+    deleted_tables = 0
+    if cascade:
+        # Cascade soft-delete all managed tables and their fields
+        tcs = db.query(TableConfig).filter(
+            TableConfig.datasource_id == ds_id, TableConfig.is_deleted == 0
+        ).all()
+        for tc in tcs:
+            tc.is_deleted = 1
+            db.query(FieldConfig).filter(
+                FieldConfig.table_config_id == tc.id, FieldConfig.is_deleted == 0
+            ).update({"is_deleted": 1})
+            deleted_tables += 1
+
     log_operation(db, "数据源管理", "删除数据源", "success",
                   target_id=row.id, target_code=row.datasource_code,
                   target_name=row.datasource_name,
-                  message=f"删除数据源 {row.datasource_name}",
+                  message=f"删除数据源 {row.datasource_name}" + (f"，级联删除 {deleted_tables} 张纳管表" if cascade else ""),
                   operator=user.username)
     db.commit()
-    return {"detail": t("datasource.deleted")}
+    return {"detail": t("datasource.deleted"), "deleted_tables": deleted_tables}
+
+
+@router.post("/check-restore")
+def check_restore_datasource(
+    body: TestConnectionRequest,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
+    """检查是否存在可恢复的已删除数据源（相同 host:port:database）。"""
+    match = db.query(DatasourceConfig).filter(
+        DatasourceConfig.host == body.host.strip(),
+        DatasourceConfig.port == body.port,
+        DatasourceConfig.database_name == (body.database_name or None),
+        DatasourceConfig.is_deleted == 1,
+    ).first()
+    if match:
+        managed_count = db.query(TableConfig).filter(
+            TableConfig.datasource_id == match.id, TableConfig.is_deleted == 0
+        ).count()
+        return {
+            "found": True,
+            "datasource_id": match.id,
+            "datasource_name": match.datasource_name,
+            "managed_count": managed_count,
+        }
+    return {"found": False}
+
+
+@router.post("/{ds_id}/restore")
+def restore_datasource(ds_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(require_role("admin"))):
+    """恢复已删除的数据源。"""
+    row = db.query(DatasourceConfig).filter(
+        DatasourceConfig.id == ds_id, DatasourceConfig.is_deleted == 1
+    ).first()
+    if not row:
+        raise HTTPException(404, t("datasource.not_found"))
+    row.is_deleted = 0
+    row.updated_at = _now_bjt()
+    row.updated_by = user.username
+    log_operation(db, "数据源管理", "恢复数据源", "success",
+                  target_id=row.id, target_code=row.datasource_code,
+                  target_name=row.datasource_name,
+                  message=f"恢复已删除数据源 {row.datasource_name}",
+                  operator=user.username)
+    db.commit()
+    return {"detail": "数据源已恢复", "id": row.id}
 
 
 @router.get("/{ds_id}/databases")

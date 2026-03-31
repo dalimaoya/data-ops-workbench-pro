@@ -15,6 +15,31 @@ const CACHE_MS = 30_000;
  *   if (!ok) return;
  *   // proceed with AI action
  */
+/**
+ * Silent check — returns boolean without showing any modal.
+ * Use this for pre-checking on page mount to control button visibility.
+ */
+export async function isAIAvailable(): Promise<boolean> {
+  try {
+    const configRes = await getAIConfig();
+    if (!configRes.data.ai_enabled) return false;
+  } catch {
+    return false;
+  }
+  const now = Date.now();
+  if (_cachedOnline === null || now - _lastCheck > CACHE_MS) {
+    try {
+      const res = await getNetworkStatus();
+      _cachedOnline = res.data.online;
+      _lastCheck = Date.now();
+    } catch {
+      _cachedOnline = false;
+      _lastCheck = Date.now();
+    }
+  }
+  return _cachedOnline !== false;
+}
+
 export async function checkAIAvailable(): Promise<boolean> {
   // 1. Check if AI is configured
   try {

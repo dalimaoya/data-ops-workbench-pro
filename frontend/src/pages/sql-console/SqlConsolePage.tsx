@@ -398,7 +398,7 @@ export default function SqlConsolePage() {
   const modeOptions = [
     { label: t('sqlConsole.modeManual'), value: 'manual' },
     { label: t('sqlConsole.modeVisual'), value: 'visual' },
-    ...(aiAvailable ? [{ label: t('sqlConsole.modeAi'), value: 'ai' }] : []),
+    { label: aiAvailable ? t('sqlConsole.modeAi') : `${t('sqlConsole.modeAi')}（${t('sqlConsole.aiNotConfigured')})`, value: 'ai', disabled: !aiAvailable },
   ];
 
   const exportMenuItems = [

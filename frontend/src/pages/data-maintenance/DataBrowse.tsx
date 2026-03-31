@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Table, Card, Input, Button, Space, message, Select, Row, Col, Descriptions, Tag, Modal, Radio, Checkbox,
+  Table, Card, Input, Button, Space, message, Select, Row, Col, Descriptions, Tag, Modal, Radio, Checkbox, Alert,
 } from 'antd';
 import {
   SearchOutlined, DownloadOutlined, UploadOutlined, ReloadOutlined, ArrowLeftOutlined,
@@ -13,9 +13,9 @@ import AIQueryPanel from './AIQueryPanel';
 import AIBatchFillPanel from './AIBatchFillPanel';
 import AISmartFillModal from './AISmartFillModal';
 import type { NLQueryFilter } from '../../api/aiNlQuery';
-import { checkAIAvailable } from '../../utils/aiGuard';
+import { checkAIAvailable, isAIAvailable } from '../../utils/aiGuard';
 import type { ColumnMeta, InlineChange } from '../../api/dataMaintenance';
-import { getTableConfig } from '../../api/tableConfig';
+import { getTableConfig, checkStructure } from '../../api/tableConfig';
 import { useAuth } from '../../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 
@@ -67,6 +67,12 @@ export default function DataBrowse() {
   // Diff preview modal
   const [diffModalOpen, setDiffModalOpen] = useState(false);
   const [diffData, setDiffData] = useState<Array<{ pk_key: string; field_name: string; field_alias: string; old_value: string | null; new_value: string | null }>>([]);
+
+  // Structure change detection
+  const [structureChanged, setStructureChanged] = useState(false);
+
+  // AI availability (pre-check once on mount)
+  const [aiEnabled, setAiEnabled] = useState(false);
 
   // v3.0: AI NL Query
   const [aiQueryOpen, setAiQueryOpen] = useState(false);
@@ -134,6 +140,12 @@ export default function DataBrowse() {
       setTableInfo(d);
       setAllowInsert(!!(d as { allow_insert_rows?: number }).allow_insert_rows);
     }).catch(() => {});
+    // Silent structure check
+    checkStructure(tableConfigId).then(res => {
+      if (res.data.status === 'changed') setStructureChanged(true);
+    }).catch(() => {});
+    // Pre-check AI availability (silent, no modal)
+    isAIAvailable().then(ok => setAiEnabled(ok)).catch(() => {});
     fetchData();
   }, [tableConfigId]);
 
@@ -378,7 +390,21 @@ export default function DataBrowse() {
     }
   };
 
+  // Smart column width based on field type
+  const getColWidth = (col: ColumnMeta): number => {
+    if (col.is_primary_key) return 100;
+    const dt = (col.db_data_type || '').toLowerCase();
+    if (/^(int|bigint|smallint|tinyint|serial|float|double|decimal|numeric|number|real)/.test(dt)) return 100;
+    if (/^(date|time|datetime|timestamp)/.test(dt)) return 165;
+    if (/^(text|longtext|mediumtext|clob|json|ntext)/.test(dt)) return 220;
+    // varchar(n) — check length
+    const m = dt.match(/\((\d+)\)/);
+    if (m && parseInt(m[1]) > 100) return 200;
+    return 140;
+  };
+
   const tableColumns = columns.map((col) => {
+    const colWidth = getColWidth(col);
     const baseCol = {
       title: col.is_primary_key
         ? <span>{col.field_alias} <Tag color="blue" style={{ fontSize: 10 }}>PK</Tag></span>
@@ -386,10 +412,12 @@ export default function DataBrowse() {
       dataIndex: col.field_name,
       key: col.field_name,
       fixed: col.is_primary_key ? 'left' as const : undefined,
-      width: col.is_primary_key ? 120 : 150,
+      width: colWidth,
+      ellipsis: !editMode,
     };
 
     if (editMode) {
+      const isLongText = /text|clob|json/i.test(col.db_data_type || '');
       return {
         ...baseCol,
         render: (v: string | null, record: Record<string, string | null>) => {
@@ -399,7 +427,25 @@ export default function DataBrowse() {
           const modified = isCellModified(pkKey, col.field_name);
 
           if (!isEditable) {
-            return <span style={{ color: '#999', background: '#f5f5f5', padding: '2px 6px', borderRadius: 2 }}>{v ?? <span style={{ color: '#ccc' }}>NULL</span>}</span>;
+            return <span style={{ color: '#999', background: '#f5f5f5', padding: '1px 4px', borderRadius: 2, fontSize: 13 }}>{v ?? <span style={{ color: '#ccc' }}>NULL</span>}</span>;
+          }
+
+          const inputStyle = {
+            background: modified ? '#fffbe6' : undefined,
+            borderColor: modified ? '#faad14' : undefined,
+            fontSize: 13,
+          };
+
+          if (isLongText) {
+            return (
+              <Input.TextArea
+                size="small"
+                autoSize={{ minRows: 1, maxRows: 3 }}
+                value={currentValue ?? ''}
+                onChange={(e) => handleCellChange(pkKey, col.field_name, e.target.value || null)}
+                style={inputStyle}
+              />
+            );
           }
 
           return (
@@ -407,10 +453,7 @@ export default function DataBrowse() {
               size="small"
               value={currentValue ?? ''}
               onChange={(e) => handleCellChange(pkKey, col.field_name, e.target.value || null)}
-              style={{
-                background: modified ? '#fffbe6' : undefined,
-                borderColor: modified ? '#faad14' : undefined,
-              }}
+              style={inputStyle}
             />
           );
         },
@@ -519,6 +562,20 @@ export default function DataBrowse() {
 
   return (
     <div>
+      {structureChanged && (
+        <Alert
+          type="warning"
+          showIcon
+          closable
+          style={{ marginBottom: 12 }}
+          message={t('dataBrowse.structureChangedWarning')}
+          action={
+            <Button size="small" onClick={() => navigate(`/table-config/detail/${tableConfigId}`)}>
+              {t('dataBrowse.goSyncFields')}
+            </Button>
+          }
+        />
+      )}
       <Card
         title={
           <Space>
@@ -582,14 +639,16 @@ export default function DataBrowse() {
                 )}
                 <Button icon={<SearchOutlined />} type="primary" onClick={handleSearch}>{t('common.search')}</Button>
                 <Button icon={<ReloadOutlined />} onClick={() => { setKeyword(''); setFilterField(undefined); setFilterValue(''); setAiFilters([]); setPage(1); setTimeout(fetchData, 0); }}>{t('common.reset')}</Button>
-                <Button
-                  icon={<RobotOutlined />}
-                  type={aiQueryOpen ? 'primary' : 'default'}
-                  onClick={async () => { if (!aiQueryOpen && !(await checkAIAvailable())) return; setAiQueryOpen(!aiQueryOpen); }}
-                  style={aiQueryOpen ? {} : { borderColor: '#1677ff', color: '#1677ff' }}
-                >
-                  🤖 AI 查询
-                </Button>
+                {aiEnabled && (
+                  <Button
+                    icon={<RobotOutlined />}
+                    type={aiQueryOpen ? 'primary' : 'default'}
+                    onClick={() => setAiQueryOpen(!aiQueryOpen)}
+                    style={aiQueryOpen ? {} : { borderColor: '#1677ff', color: '#1677ff' }}
+                  >
+                    🤖 AI 查询
+                  </Button>
+                )}
               </Space>
             ) : (
               <Space>
@@ -637,19 +696,19 @@ export default function DataBrowse() {
                   )}
                   {canOperate && <Button icon={<DownloadOutlined />} onClick={handleExportClick}>{t('dataBrowse.exportTemplate')}</Button>}
                   {canOperate && <Button icon={<UploadOutlined />} onClick={() => navigate(`/data-maintenance/import/${tableConfigId}`)}>{t('dataBrowse.uploadTemplate')}</Button>}
-                  {canOperate && (
+                  {canOperate && aiEnabled && (
                     <Button
                       icon={<RobotOutlined />}
-                      onClick={async () => { if (!(await checkAIAvailable())) return; setBatchFillOpen(true); }}
+                      onClick={() => setBatchFillOpen(true)}
                       style={{ borderColor: '#722ed1', color: '#722ed1' }}
                     >
                       🤖 AI 批量修改
                     </Button>
                   )}
-                  {canOperate && (
+                  {canOperate && aiEnabled && (
                     <Button
                       icon={<BulbOutlined />}
-                      onClick={async () => { if (!(await checkAIAvailable())) return; setSmartFillOpen(true); }}
+                      onClick={() => setSmartFillOpen(true)}
                       style={{ borderColor: '#13c2c2', color: '#13c2c2' }}
                     >
                       🧠 AI 智能填充
@@ -698,8 +757,9 @@ export default function DataBrowse() {
           columns={tableColumns}
           dataSource={rows}
           loading={loading}
+          size="small"
           rowSelection={rowSelection}
-          scroll={{ x: Math.max(columns.length * 150, 800) }}
+          scroll={{ x: Math.max(columns.reduce((sum, c) => sum + getColWidth(c), 0), 800) }}
           pagination={{
             current: page,
             pageSize,

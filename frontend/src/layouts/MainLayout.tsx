@@ -141,7 +141,8 @@ const monitorPluginDefs: PluginMenuDef[] = [
 // ── Group 5: 集成与通知 ──
 const integrationPluginDefs: PluginMenuDef[] = [
   { pluginName: 'plugin-notification-push', menuItem: { key: '/notification-push', icon: <SendOutlined />, labelKey: 'menu.notificationPush', roles: ['admin'] } },
-  { pluginName: 'plugin-template-market', menuItem: { key: '/template-market', icon: <ShopOutlined />, labelKey: 'menu.templateMarket', roles: ['admin'] } },
+  // 模板市场暂时隐藏，后续完善后开放
+  // { pluginName: 'plugin-template-market', menuItem: { key: '/template-market', icon: <ShopOutlined />, labelKey: 'menu.templateMarket', roles: ['admin'] } },
 ];
 
 // ── Group 6: 系统 ──
