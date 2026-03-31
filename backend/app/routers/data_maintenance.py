@@ -1022,6 +1022,30 @@ async def import_template(
             except Exception:
                 _auto_pk_counter = _existing_max
 
+    # ── v5.3: Build format map from DB sample data for adaptive conversion ──
+    from app.utils.format_engine import clean_global, clean_thousands, build_format_map, apply_format
+    _format_map = {}
+    try:
+        _sample_conn = _connect(ds.db_type, ds.host, ds.port, ds.username, pwd,
+                                tc.db_name, tc.schema_name, ds.charset, ds.connect_timeout_seconds or 10)
+        _sample_cur = _sample_conn.cursor()
+        _qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
+        _sample_cols = ", ".join(_quote_col(ds.db_type, f.field_name) for f in fields)
+        _exec(_sample_cur, ds.db_type, f"SELECT {_sample_cols} FROM {_qt}", [])
+        _sample_rows = _sample_cur.fetchmany(20)
+        _sample_conn.close()
+        # Build sample_data dict: {field_name: [val1, val2, ...]}
+        _sample_data: Dict[str, List[str]] = {}
+        for f in fields:
+            _sample_data[f.field_name] = []
+        for row in _sample_rows:
+            for i, f in enumerate(fields):
+                if i < len(row) and row[i] is not None:
+                    _sample_data[f.field_name].append(str(row[i]))
+        _format_map = build_format_map(fields, _sample_data)
+    except Exception:
+        pass  # Format detection is optional, don't block import
+
     for row_idx in range(2, data_ws.max_row + 1):
         # Read all columns from the real header (including _操作)
         _all_cells_count = len(_real_header)
@@ -1047,6 +1071,23 @@ async def import_template(
         for col_i, fname in mapped_cols.items():
             val = row_cells[col_i] if col_i < len(row_cells) else None
             str_val = str(val).strip() if val is not None else None
+
+            # v5.3: Global cleaning
+            str_val = clean_global(str_val) if str_val is not None else None
+
+            # v5.3: Format adaptive conversion (date/amount/percent/bool)
+            if str_val is not None and fname in _format_map:
+                converted = apply_format(str_val, _format_map[fname])
+                if converted is not None:
+                    str_val = converted
+
+            # v5.3: Thousands separator cleanup for numeric fields
+            fc_check = field_name_map.get(fname)
+            if str_val and fc_check and fc_check.db_data_type:
+                dt = fc_check.db_data_type.lower()
+                if any(n in dt for n in ("int", "decimal", "numeric", "float", "double")):
+                    str_val = clean_thousands(str_val)
+
             row_data[fname] = str_val
             fc = field_name_map.get(fname)
             if not fc:
