@@ -13,7 +13,7 @@ import AIQueryPanel from './AIQueryPanel';
 import AIBatchFillPanel from './AIBatchFillPanel';
 import AISmartFillModal from './AISmartFillModal';
 import type { NLQueryFilter } from '../../api/aiNlQuery';
-import { checkAIAvailable, isAIAvailable } from '../../utils/aiGuard';
+import { isAIAvailable } from '../../utils/aiGuard';
 import type { ColumnMeta, InlineChange } from '../../api/dataMaintenance';
 import { getTableConfig, checkStructure } from '../../api/tableConfig';
 import { useAuth } from '../../context/AuthContext';
@@ -769,7 +769,6 @@ export default function DataBrowse() {
             onChange: (p, ps) => { setPage(p); setPageSize(ps); },
             showTotal: (total) => t('common.total', { count: total }),
           }}
-          size="small"
         />
       </Card>
 
