@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, String, case
 
@@ -48,12 +48,18 @@ def dashboard_stats(
         WritebackLog.created_at >= today_start
     ).scalar() or 0
 
+    structure_abnormal = db.query(func.count(TableConfig.id)).filter(
+        TableConfig.is_deleted == 0,
+        TableConfig.structure_check_status == "changed",
+    ).scalar() or 0
+
     return {
         "datasource_count": ds_count,
         "table_count": tc_count,
         "today_export": export_today,
         "today_import": import_today,
         "today_writeback": writeback_today,
+        "structure_abnormal": structure_abnormal,
     }
 
 
@@ -203,27 +209,26 @@ def dashboard_alerts(
 
 @router.get("/trends")
 def dashboard_trends(
+    days: int = Query(7, ge=1, le=365),
     user: UserAccount = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """最近 7 天操作趋势：每天的导出、导入、回写次数。"""
+    """操作趋势：每天的导出、导入、回写次数。支持自定义天数。"""
     now = _now_bjt()
-    # 7 天前的 00:00:00
-    start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+    start = (now - timedelta(days=days - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # 预填 7 天数据
-    days = []  # type: List[Dict[str, Any]]
-    for i in range(7):
+    # 预填数据
+    day_list = []  # type: List[Dict[str, Any]]
+    for i in range(days):
         d = start + timedelta(days=i)
-        days.append({
+        day_list.append({
             "date": d.strftime("%m-%d"),
             "export": 0,
             "import": 0,
             "writeback": 0,
         })
 
-    # 辅助：date string -> index
-    date_idx = {d["date"]: i for i, d in enumerate(days)}
+    date_idx = {d["date"]: i for i, d in enumerate(day_list)}
 
     # 导出趋势
     export_rows = (
@@ -237,7 +242,7 @@ def dashboard_trends(
     )
     for row in export_rows:
         if row.day in date_idx:
-            days[date_idx[row.day]]["export"] = row.cnt
+            day_list[date_idx[row.day]]["export"] = row.cnt
 
     # 导入趋势
     import_rows = (
@@ -251,7 +256,7 @@ def dashboard_trends(
     )
     for row in import_rows:
         if row.day in date_idx:
-            days[date_idx[row.day]]["import"] = row.cnt
+            day_list[date_idx[row.day]]["import"] = row.cnt
 
     # 回写趋势
     wb_rows = (
@@ -265,9 +270,9 @@ def dashboard_trends(
     )
     for row in wb_rows:
         if row.day in date_idx:
-            days[date_idx[row.day]]["writeback"] = row.cnt
+            day_list[date_idx[row.day]]["writeback"] = row.cnt
 
-    return days
+    return day_list
 
 
 @router.get("/datasource-health")
@@ -305,12 +310,14 @@ def datasource_health(
 
 @router.get("/top-tables")
 def dashboard_top_tables(
+    days: int = Query(7, ge=1, le=365),
+    limit: int = Query(10, ge=1, le=50),
     user: UserAccount = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """最近 7 天操作最频繁的表 Top 5。"""
+    """最近 N 天操作最频繁的表 Top N。"""
     now = _now_bjt()
-    week_ago = now - timedelta(days=7)
+    week_ago = now - timedelta(days=days)
 
     # 从 SystemOperationLog 统计，target_id 对应 table_config_id
     rows = (
@@ -325,7 +332,7 @@ def dashboard_top_tables(
         )
         .group_by(SystemOperationLog.target_id)
         .order_by(func.count(SystemOperationLog.id).desc())
-        .limit(5)
+        .limit(limit)
         .all()
     )
 
@@ -344,3 +351,40 @@ def dashboard_top_tables(
             "op_count": row.op_count,
         })
     return result
+
+
+@router.get("/top-fields")
+def dashboard_top_fields(
+    days: int = Query(30, ge=1, le=365),
+    limit: int = Query(10, ge=1, le=50),
+    user: UserAccount = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """最近 N 天最常被修改的字段 Top N（从操作日志 JSON 中解析 changed_fields）。"""
+    import json as _json
+    now = _now_bjt()
+    start = now - timedelta(days=days)
+
+    logs = (
+        db.query(SystemOperationLog.operation_message)
+        .filter(
+            SystemOperationLog.created_at >= start,
+            SystemOperationLog.operation_message.isnot(None),
+        )
+        .all()
+    )
+
+    field_counts: Dict[str, int] = {}
+    for (msg,) in logs:
+        if not msg:
+            continue
+        try:
+            data = _json.loads(msg)
+            for field in data.get("changed_fields", []):
+                fname = field if isinstance(field, str) else str(field)
+                field_counts[fname] = field_counts.get(fname, 0) + 1
+        except (_json.JSONDecodeError, TypeError, AttributeError):
+            continue
+
+    sorted_fields = sorted(field_counts.items(), key=lambda x: -x[1])[:limit]
+    return [{"field": f, "count": c} for f, c in sorted_fields]

@@ -392,15 +392,14 @@ export default function DataBrowse() {
 
   // Smart column width based on field type
   const getColWidth = (col: ColumnMeta): number => {
-    if (col.is_primary_key) return 100;
+    if (col.is_primary_key) return 80;
     const dt = (col.db_data_type || '').toLowerCase();
-    if (/^(int|bigint|smallint|tinyint|serial|float|double|decimal|numeric|number|real)/.test(dt)) return 100;
-    if (/^(date|time|datetime|timestamp)/.test(dt)) return 165;
+    if (/^(int|bigint|smallint|tinyint|serial|float|double|decimal|numeric|number|real)/.test(dt)) return 90;
+    if (/^(date|time|datetime|timestamp)/.test(dt)) return 160;
     if (/^(text|longtext|mediumtext|clob|json|ntext)/.test(dt)) return 220;
-    // varchar(n) — check length
     const m = dt.match(/\((\d+)\)/);
     if (m && parseInt(m[1]) > 100) return 200;
-    return 140;
+    return 130;
   };
 
   const tableColumns = columns.map((col) => {
@@ -417,7 +416,6 @@ export default function DataBrowse() {
     };
 
     if (editMode) {
-      const isLongText = /text|clob|json/i.test(col.db_data_type || '');
       return {
         ...baseCol,
         render: (v: string | null, record: Record<string, string | null>) => {
@@ -427,33 +425,21 @@ export default function DataBrowse() {
           const modified = isCellModified(pkKey, col.field_name);
 
           if (!isEditable) {
-            return <span style={{ color: '#999', background: '#f5f5f5', padding: '1px 4px', borderRadius: 2, fontSize: 13 }}>{v ?? <span style={{ color: '#ccc' }}>NULL</span>}</span>;
-          }
-
-          const inputStyle = {
-            background: modified ? '#fffbe6' : undefined,
-            borderColor: modified ? '#faad14' : undefined,
-            fontSize: 13,
-          };
-
-          if (isLongText) {
-            return (
-              <Input.TextArea
-                size="small"
-                autoSize={{ minRows: 1, maxRows: 3 }}
-                value={currentValue ?? ''}
-                onChange={(e) => handleCellChange(pkKey, col.field_name, e.target.value || null)}
-                style={inputStyle}
-              />
-            );
+            return <span style={{ color: '#999', background: '#f5f5f5', padding: '1px 4px', borderRadius: 2, fontSize: 12 }}>{v ?? <span style={{ color: '#ccc' }}>NULL</span>}</span>;
           }
 
           return (
-            <Input
+            <Input.TextArea
               size="small"
+              autoSize={{ minRows: 1, maxRows: 4 }}
               value={currentValue ?? ''}
               onChange={(e) => handleCellChange(pkKey, col.field_name, e.target.value || null)}
-              style={inputStyle}
+              style={{
+                background: modified ? '#fffbe6' : undefined,
+                borderColor: modified ? '#faad14' : undefined,
+                fontSize: 12,
+                padding: '2px 4px',
+              }}
             />
           );
         },

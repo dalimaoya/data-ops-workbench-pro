@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db, DATA_DIR, DATABASE_URL
 from app.models import (
     DatasourceConfig, TableConfig, FieldConfig, UserAccount,
-    SystemSetting, AIConfig, SystemOperationLog,
+    SystemSetting, AIConfig, SystemOperationLog, Notification,
     TrialActivation, ActivationRecord, PluginStatus,
 )
 from app.plugins.plugin_notification_push.routers import (
@@ -321,6 +321,23 @@ def create_backup(
         with open(os.path.join(config_dir, "notification_logs.json"), "w", encoding="utf-8") as f:
             json.dump(nlog_list, f, ensure_ascii=False, indent=2, default=str)
 
+        # In-app notifications (v5.2)
+        notif_rows = db.query(Notification).order_by(Notification.id).all()
+        notif_list = []
+        for n in notif_rows:
+            notif_list.append({
+                "id": n.id,
+                "user_id": n.user_id,
+                "title": n.title,
+                "message": n.message,
+                "type": n.type,
+                "is_read": n.is_read,
+                "related_url": n.related_url,
+                "created_at": str(n.created_at) if n.created_at else None,
+            })
+        with open(os.path.join(config_dir, "notifications.json"), "w", encoding="utf-8") as f:
+            json.dump(notif_list, f, ensure_ascii=False, indent=2, default=str)
+
         # 2. Copy platform.db
         db_src = os.path.join(DATA_DIR, "platform.db")
         if os.path.exists(db_src):
@@ -378,6 +395,7 @@ def create_backup(
                 "notification_channels": len(nch_list),
                 "notification_subscriptions": len(nsub_list),
                 "notification_logs": len(nlog_list),
+                "notifications": len(notif_list),
                 "log_entries": len(log_list) if req.include_logs else 0,
             },
             "checksums": {},
@@ -945,6 +963,24 @@ def _restore_overwrite(db: Session, extract_dir: str, contents: dict):
             ))
         db.commit()
 
+    # Restore in-app notifications (v5.2)
+    notif_file = os.path.join(config_dir, "notifications.json")
+    if os.path.isfile(notif_file):
+        with open(notif_file, "r", encoding="utf-8") as f:
+            notif_data = json.load(f)
+        db.query(Notification).delete()
+        for n in notif_data:
+            db.add(Notification(
+                user_id=n["user_id"],
+                title=n["title"],
+                message=n.get("message"),
+                type=n.get("type", "info"),
+                is_read=n.get("is_read", 0),
+                related_url=n.get("related_url"),
+                created_at=n.get("created_at"),
+            ))
+        db.commit()
+
 
 def _restore_merge(db: Session, extract_dir: str, contents: dict):
     """Merge mode: import without clearing, conflict resolution favours backup."""
@@ -1213,5 +1249,22 @@ def _restore_merge(db: Session, extract_dir: str, contents: dict):
                 status=nl.get("status", "pending"),
                 error_message=nl.get("error_message"),
                 sent_at=nl.get("sent_at"),
+            ))
+        db.commit()
+
+    # Merge in-app notifications (append all, immutable)
+    notif_file = os.path.join(config_dir, "notifications.json")
+    if os.path.isfile(notif_file):
+        with open(notif_file, "r", encoding="utf-8") as f:
+            notif_data = json.load(f)
+        for n in notif_data:
+            db.add(Notification(
+                user_id=n["user_id"],
+                title=n["title"],
+                message=n.get("message"),
+                type=n.get("type", "info"),
+                is_read=n.get("is_read", 0),
+                related_url=n.get("related_url"),
+                created_at=n.get("created_at"),
             ))
         db.commit()

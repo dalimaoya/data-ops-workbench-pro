@@ -6,6 +6,7 @@ export interface DashboardStats {
   today_export: number;
   today_import: number;
   today_writeback: number;
+  structure_abnormal: number;
 }
 
 export interface RecentOperation {
@@ -57,6 +58,11 @@ export interface TopTable {
   op_count: number;
 }
 
+export interface TopField {
+  field: string;
+  count: number;
+}
+
 export const getDashboardStats = () =>
   api.get<DashboardStats>('/dashboard/stats');
 
@@ -66,11 +72,14 @@ export const getRecentOperations = () =>
 export const getAlerts = () =>
   api.get<Alert[]>('/dashboard/alerts');
 
-export const getDashboardTrends = () =>
-  api.get<TrendDay[]>('/dashboard/trends');
+export const getDashboardTrends = (days?: number) =>
+  api.get<TrendDay[]>('/dashboard/trends', { params: days ? { days } : undefined });
 
 export const getDatasourceHealth = () =>
   api.get<DatasourceHealth[]>('/dashboard/datasource-health');
 
-export const getTopTables = () =>
-  api.get<TopTable[]>('/dashboard/top-tables');
+export const getTopTables = (days?: number, limit?: number) =>
+  api.get<TopTable[]>('/dashboard/top-tables', { params: { ...(days ? { days } : {}), ...(limit ? { limit } : {}) } });
+
+export const getTopFields = (days?: number, limit?: number) =>
+  api.get<TopField[]>('/dashboard/top-fields', { params: { ...(days ? { days } : {}), ...(limit ? { limit } : {}) } });

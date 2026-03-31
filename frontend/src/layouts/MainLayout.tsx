@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Dropdown, Button, Space, Tag, Modal, Form, Input, message, Badge, List, Typography, Popover, Empty } from 'antd';
+import { Dropdown, Button, Space, Tag, Modal, Form, Input, message, Badge, List, Typography, Popover, Empty, Tabs } from 'antd';
 const { Text: TypoText } = Typography;
 import {
   DatabaseOutlined,
@@ -17,7 +17,7 @@ import {
   AuditOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  BellOutlined,
+  BellOutlined, WarningOutlined, RightOutlined,
   CheckOutlined,
   GlobalOutlined,
   RobotOutlined,
@@ -42,6 +42,8 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../api/request';
 import { changeMyPassword, updateMyProfile } from '../api/users';
 import { listNotifications, markNotificationRead, markAllNotificationsRead } from '../api/notifications';
+import { getAlerts } from '../api/dashboard';
+import type { Alert } from '../api/dashboard';
 import type { NotificationItem } from '../api/notifications';
 import { useTranslation } from 'react-i18next';
 
@@ -133,7 +135,8 @@ const smartPluginDefs: PluginMenuDef[] = [
 // ── Group 4: 运维监控 ──
 const monitorPluginDefs: PluginMenuDef[] = [
   { pluginName: 'plugin-health-check', menuItem: { key: '/health-check', icon: <MedicineBoxOutlined />, labelKey: 'menu.healthCheck', roles: ['admin'] } },
-  { pluginName: 'plugin-data-trend', menuItem: { key: '/data-trend', icon: <LineChartOutlined />, labelKey: 'menu.dataTrend', roles: ['admin', 'operator'] } },
+  // 数据趋势已合并到工作台总览
+  // { pluginName: 'plugin-data-trend', menuItem: { key: '/data-trend', icon: <LineChartOutlined />, labelKey: 'menu.dataTrend', roles: ['admin', 'operator'] } },
   { pluginName: 'plugin-scheduler', menuItem: { key: '/scheduler', icon: <ScheduleOutlined />, labelKey: 'menu.scheduler', roles: ['admin'] } },
   { pluginName: 'plugin-backup', menuItem: { key: '/platform-backup', icon: <CloudServerOutlined />, labelKey: 'menu.platformBackup', roles: ['admin'] } },
 ];
@@ -321,12 +324,17 @@ export default function MainLayout() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [pendingAlerts, setPendingAlerts] = useState<Alert[]>([]);
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const res = await listNotifications({ page_size: 10 });
-      setNotifications(Array.isArray(res.data.items) ? res.data.items : (Array.isArray(res.data) ? res.data : []));
-      setUnreadCount(res.data.unread_count ?? 0);
+      const [notifRes, alertRes] = await Promise.all([
+        listNotifications({ page_size: 10 }),
+        getAlerts(),
+      ]);
+      setNotifications(Array.isArray(notifRes.data.items) ? notifRes.data.items : (Array.isArray(notifRes.data) ? notifRes.data : []));
+      setUnreadCount(notifRes.data.unread_count ?? 0);
+      setPendingAlerts(Array.isArray(alertRes.data) ? alertRes.data : []);
     } catch { /* ignore */ }
   }, []);
 
@@ -831,48 +839,77 @@ export default function MainLayout() {
                 </div>
               }
               content={
-                <div style={{ width: 340, maxHeight: 400, overflow: 'auto' }}>
-                  {notifications.length === 0 ? (
-                    <Empty description={t('header.noNotifications')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-                  ) : (
-                    <List
-                      size="small"
-                      dataSource={notifications}
-                      renderItem={(item) => (
-                        <List.Item
-                          style={{
-                            cursor: item.related_url ? 'pointer' : 'default',
-                            background: item.is_read === 0 ? '#f6ffed' : 'transparent',
-                            padding: '8px 4px',
-                          }}
-                          onClick={() => handleNotifClick(item)}
-                        >
-                          <List.Item.Meta
-                            title={
-                              <Space>
-                                {item.is_read === 0 && <Badge status="processing" />}
-                                <TypoText strong={item.is_read === 0} style={{ fontSize: 13 }}>
-                                  {item.title}
-                                </TypoText>
-                              </Space>
-                            }
-                            description={
-                              <div>
-                                <div style={{ fontSize: 12, color: '#666' }}>{item.message}</div>
-                                <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>
-                                  {item.created_at ? new Date(item.created_at).toLocaleString(i18n.language === 'zh' ? 'zh-CN' : 'en-US') : ''}
-                                </div>
-                              </div>
-                            }
-                          />
-                        </List.Item>
-                      )}
-                    />
-                  )}
+                <div style={{ width: 380 }}>
+                  <Tabs
+                    size="small"
+                    items={[
+                      {
+                        key: 'notifications',
+                        label: <span>{t('header.notifications')} {unreadCount > 0 && <Badge count={unreadCount} size="small" />}</span>,
+                        children: (
+                          <div style={{ maxHeight: 350, overflow: 'auto' }}>
+                            {notifications.length === 0 ? (
+                              <Empty description={t('header.noNotifications')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                            ) : (
+                              <List
+                                size="small"
+                                dataSource={notifications}
+                                renderItem={(item) => (
+                                  <List.Item
+                                    style={{ cursor: item.related_url ? 'pointer' : 'default', background: item.is_read === 0 ? '#f6ffed' : 'transparent', padding: '6px 4px' }}
+                                    onClick={() => handleNotifClick(item)}
+                                  >
+                                    <List.Item.Meta
+                                      title={<Space>{item.is_read === 0 && <Badge status="processing" />}<TypoText strong={item.is_read === 0} style={{ fontSize: 13 }}>{item.title}</TypoText></Space>}
+                                      description={<div><div style={{ fontSize: 12, color: '#666' }}>{item.message}</div><div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{item.created_at ? new Date(item.created_at).toLocaleString(i18n.language === 'zh' ? 'zh-CN' : 'en-US') : ''}</div></div>}
+                                    />
+                                  </List.Item>
+                                )}
+                              />
+                            )}
+                          </div>
+                        ),
+                      },
+                      {
+                        key: 'alerts',
+                        label: <span>{t('header.pendingAlerts')} {pendingAlerts.length > 0 && <Badge count={pendingAlerts.length} size="small" color="orange" />}</span>,
+                        children: (
+                          <div style={{ maxHeight: 350, overflow: 'auto' }}>
+                            {pendingAlerts.length === 0 ? (
+                              <Empty description={t('header.noAlerts')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                            ) : (
+                              <List
+                                size="small"
+                                dataSource={pendingAlerts}
+                                renderItem={(item) => (
+                                  <List.Item
+                                    style={{ cursor: 'pointer', padding: '6px 4px' }}
+                                    onClick={() => {
+                                      if (item.type === 'structure_changed') navigate(`/table-config/detail/${item.target_id}`);
+                                      else if (item.table_config_id) navigate(`/data-maintenance/browse/${item.table_config_id}`);
+                                      else navigate('/data-maintenance');
+                                      setNotifOpen(false);
+                                    }}
+                                  >
+                                    <List.Item.Meta
+                                      avatar={<WarningOutlined style={{ color: item.level === 'error' ? '#ff4d4f' : '#faad14', fontSize: 16 }} />}
+                                      title={<TypoText style={{ fontSize: 13 }}>{item.title}</TypoText>}
+                                      description={<div style={{ fontSize: 12, color: '#666' }}>{item.message}</div>}
+                                    />
+                                    <RightOutlined style={{ color: '#999', fontSize: 12 }} />
+                                  </List.Item>
+                                )}
+                              />
+                            )}
+                          </div>
+                        ),
+                      },
+                    ]}
+                  />
                 </div>
               }
             >
-              <Badge count={unreadCount} size="small" offset={[-2, 2]}>
+              <Badge count={unreadCount + pendingAlerts.length} size="small" offset={[-2, 2]}>
                 <Button type="text" icon={<BellOutlined style={{ fontSize: 18 }} />} />
               </Badge>
             </Popover>
