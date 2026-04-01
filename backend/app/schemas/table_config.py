@@ -44,8 +44,8 @@ class TableConfigCreate(BaseModel):
     allow_export_current: int = 1
     allow_export_all: int = 1
     allow_import_writeback: int = 1
-    allow_insert_rows: int = 0
-    allow_delete_rows: int = 0
+    allow_insert_rows: int = 1
+    allow_delete_rows: int = 1
     template_reserved_blank_rows: int = 200
     backup_keep_count: int = 3
     strict_template_version: int = 1
