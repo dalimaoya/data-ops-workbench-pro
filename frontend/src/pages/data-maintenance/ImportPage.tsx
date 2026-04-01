@@ -55,6 +55,10 @@ export default function ImportPage() {
       setResult(res.data);
       if (res.data.validation_status === 'failed') {
         message.error(t('importPage.validationFailedMsg'));
+      } else if (res.data.failed === 0) {
+        message.success(t('importPage.validationComplete'));
+        navigate(`/data-maintenance/diff/${res.data.task_id}`);
+        return;
       } else {
         message.success(t('importPage.validationComplete'));
       }

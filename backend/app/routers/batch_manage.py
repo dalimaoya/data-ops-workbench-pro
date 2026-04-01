@@ -676,7 +676,7 @@ def batch_export(
                 sheet=True, password=_PROTECTION_PWD,
                 selectLockedCells=False, selectUnlockedCells=False,
                 formatColumns=False, formatRows=False, formatCells=False,
-                insertRows=True, deleteRows=True, deleteColumns=True, insertColumns=True,
+                insertRows=False, deleteRows=True, deleteColumns=True, insertColumns=True,
                 sort=False, autoFilter=False,
             )
 
