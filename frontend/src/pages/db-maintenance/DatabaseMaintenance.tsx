@@ -3,13 +3,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Card, Select, Table, Input, Button, Checkbox, Space, Progress, Tag, message,
   Typography, Tooltip, Steps, Divider, Radio, Result, Spin, Modal, Descriptions,
-  Alert,
+  Alert, Upload,
 } from 'antd';
 import {
   SearchOutlined, RocketOutlined, CheckCircleOutlined,
   LeftOutlined, RightOutlined, DownloadOutlined, DatabaseOutlined,
   ReloadOutlined, CheckOutlined, EyeOutlined, EditOutlined,
-  ImportOutlined,
+  ImportOutlined, UploadOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { listDatasources, getDatasourceDatabases, type Datasource } from '../../api/datasource';
@@ -18,7 +18,7 @@ import { useDatasourceOnline } from '../../context/DatasourceOnlineContext';
 import { getRemoteTables, listTableConfigs, type RemoteTableInfo, type TableConfig } from '../../api/tableConfig';
 import { findFirstHealthyDs } from '../../utils/datasourceHelper';
 import {
-  batchManageTables, batchConfirm, batchExport,
+  batchManageTables, batchConfirm, batchExport, batchImportValidate, batchImportConfirm,
   type BatchTableResult,
   type TableConfirmItem,
 } from '../../api/batchManage';
@@ -105,6 +105,16 @@ export default function DatabaseMaintenance() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [managedSearch, setManagedSearch] = useState('');
   const [exporting, setExporting] = useState(false);
+
+  // Batch import state
+  const [batchImportOpen, setBatchImportOpen] = useState(false);
+  const [batchImportStep, setBatchImportStep] = useState(0); // 0=upload, 1=validation result, 2=execution result
+  const [batchImportFile, setBatchImportFile] = useState<File | null>(null);
+  const [batchImportValidating, setBatchImportValidating] = useState(false);
+  const [batchImportResult, setBatchImportResult] = useState<any>(null);
+  const [batchImportSelectedIds, setBatchImportSelectedIds] = useState<number[]>([]);
+  const [batchImportConfirming, setBatchImportConfirming] = useState(false);
+  const [batchImportFinalResult, setBatchImportFinalResult] = useState<any>(null);
 
   // Load datasources and restore from URL params
   useEffect(() => {
@@ -1109,6 +1119,12 @@ export default function DatabaseMaintenance() {
                 >
                   {t('dbMaintenance.batchExport', { count: managedSelectedIds.length })}
                 </Button>
+                <Button
+                  icon={<UploadOutlined />}
+                  onClick={() => { setBatchImportOpen(true); setBatchImportStep(0); setBatchImportFile(null); setBatchImportResult(null); setBatchImportFinalResult(null); }}
+                >
+                  {t('dbMaintenance.batchImport')}
+                </Button>
               </Space>
 
               {/* Batch Export Modal */}
@@ -1139,6 +1155,116 @@ export default function DatabaseMaintenance() {
                   <Descriptions.Item label={t('dbMaintenance.exportTableCount')}>{managedSelectedIds.length}</Descriptions.Item>
                   <Descriptions.Item label={t('dbMaintenance.exportFormat')}>{exportFormat === 'zip' ? 'ZIP' : t('dbMaintenance.multiSheet')}</Descriptions.Item>
                 </Descriptions>
+              </Modal>
+
+              {/* Batch Import Modal */}
+              <Modal
+                title={t('dbMaintenance.batchImport')}
+                open={batchImportOpen}
+                onCancel={() => setBatchImportOpen(false)}
+                footer={null}
+                width={700}
+                destroyOnClose
+              >
+                {batchImportStep === 0 && (
+                  <div>
+                    <Upload.Dragger
+                      accept=".zip,.xlsx"
+                      beforeUpload={(file) => { setBatchImportFile(file); return false; }}
+                      maxCount={1}
+                      fileList={batchImportFile ? [batchImportFile as any] : []}
+                    >
+                      <p>{t('dbMaintenance.batchImportDragHint')}</p>
+                    </Upload.Dragger>
+                    <div style={{ marginTop: 16, textAlign: 'right' }}>
+                      <Button type="primary" disabled={!batchImportFile} loading={batchImportValidating}
+                        onClick={async () => {
+                          if (!batchImportFile || !selectedDsId) return;
+                          setBatchImportValidating(true);
+                          try {
+                            const res = await batchImportValidate(batchImportFile, selectedDsId);
+                            setBatchImportResult(res.data.data || res.data);
+                            const matched = (res.data.data?.tables || res.data.tables || []).filter((tbl: any) => tbl.status === 'matched');
+                            setBatchImportSelectedIds(matched.map((tbl: any) => tbl.table_config_id));
+                            setBatchImportStep(1);
+                          } catch (e: any) {
+                            message.error(e?.response?.data?.detail || '校验失败');
+                          } finally {
+                            setBatchImportValidating(false);
+                          }
+                        }}>
+                        {t('dbMaintenance.startValidate')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {batchImportStep === 1 && batchImportResult && (
+                  <div>
+                    <div style={{ marginBottom: 12 }}>
+                      <Text>{t('dbMaintenance.batchImportMatched', { total: batchImportResult.tables?.length || 0, matched: batchImportResult.tables?.filter((tbl: any) => tbl.status === 'matched').length || 0 })}</Text>
+                    </div>
+                    {(batchImportResult.tables || []).map((tbl: any, idx: number) => (
+                      <div key={idx} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Checkbox
+                          checked={batchImportSelectedIds.includes(tbl.table_config_id)}
+                          disabled={tbl.status !== 'matched'}
+                          onChange={e => {
+                            if (e.target.checked) setBatchImportSelectedIds(prev => [...prev, tbl.table_config_id]);
+                            else setBatchImportSelectedIds(prev => prev.filter(id => id !== tbl.table_config_id));
+                          }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <Text strong>{tbl.table_alias || tbl.table_name || tbl.source_name}</Text>
+                          {tbl.table_name && <Text type="secondary"> ({tbl.table_name})</Text>}
+                          <br />
+                          <Text type="secondary" style={{ fontSize: 12 }}>{tbl.source_name} · {tbl.row_count || 0} 行</Text>
+                        </div>
+                        <Tag color={tbl.status === 'matched' ? 'success' : tbl.status === 'error' ? 'error' : 'warning'}>
+                          {tbl.status === 'matched' ? '已匹配' : tbl.status === 'error' ? '错误' : '未匹配'}
+                        </Tag>
+                        {tbl.message && <Text type="danger" style={{ fontSize: 12 }}>{tbl.message}</Text>}
+                      </div>
+                    ))}
+                    <div style={{ marginTop: 16, textAlign: 'right' }}>
+                      <Space>
+                        <Button onClick={() => setBatchImportStep(0)}>{t('smartImport.prev')}</Button>
+                        <Button type="primary" disabled={batchImportSelectedIds.length === 0} loading={batchImportConfirming}
+                          onClick={async () => {
+                            setBatchImportConfirming(true);
+                            try {
+                              const res = await batchImportConfirm(batchImportResult.batch_import_id, batchImportSelectedIds);
+                              setBatchImportFinalResult(res.data.data || res.data);
+                              setBatchImportStep(2);
+                            } catch (e: any) {
+                              message.error(e?.response?.data?.detail || '导入失败');
+                            } finally {
+                              setBatchImportConfirming(false);
+                            }
+                          }}>
+                          {t('dbMaintenance.batchImportConfirm', { count: batchImportSelectedIds.length })}
+                        </Button>
+                      </Space>
+                    </div>
+                  </div>
+                )}
+
+                {batchImportStep === 2 && batchImportFinalResult && (
+                  <Result
+                    status={batchImportFinalResult.failed === 0 ? 'success' : 'warning'}
+                    title={t('dbMaintenance.batchImportDone', { success: batchImportFinalResult.succeeded || 0, failed: batchImportFinalResult.failed || 0 })}
+                    extra={<Button type="primary" onClick={() => { setBatchImportOpen(false); if (selectedDsId) loadTables(selectedDsId, selectedDb); }}>{t('common.close')}</Button>}
+                  >
+                    {(batchImportFinalResult.results || []).map((r: any, i: number) => (
+                      <div key={i} style={{ padding: '4px 0' }}>
+                        <Tag color={r.status === 'success' ? 'success' : 'error'}>{r.status === 'success' ? '✅' : '❌'}</Tag>
+                        <Text>{r.table_name}</Text>
+                        {r.status === 'success' && <Text type="secondary"> — {r.message || '导入成功'}</Text>}
+                        {r.status !== 'success' && <Text type="danger"> — {r.error || '失败'}</Text>}
+                      </div>
+                    ))}
+                  </Result>
+                )}
               </Modal>
 
               <Table

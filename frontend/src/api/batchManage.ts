@@ -115,3 +115,21 @@ export const batchConfirm = (data: BatchConfirmRequest) =>
 // Batch export
 export const batchExport = (data: BatchExportRequest) =>
   api.post('/batch-manage/export', data, { responseType: 'blob' });
+
+// Batch import - validate uploaded file
+export const batchImportValidate = (file: File, datasourceId: number) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('datasource_id', String(datasourceId));
+  return api.post('/batch-manage/import/validate', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+  });
+};
+
+// Batch import - confirm selected tables
+export const batchImportConfirm = (batchImportId: string, tableConfigIds: number[]) =>
+  api.post('/batch-manage/import/confirm', {
+    batch_import_id: batchImportId,
+    table_config_ids: tableConfigIds,
+  }, { timeout: 120000 });

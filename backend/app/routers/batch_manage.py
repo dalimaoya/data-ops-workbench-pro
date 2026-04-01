@@ -7,10 +7,11 @@ import re
 import time
 import zipfile
 import uuid
+import shutil
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -731,6 +732,28 @@ def batch_export(
 
             _apply_sheet_style(ws, fields, data_row_count, tc, not skip_protection)
 
+        # Add _batch_meta sheet for batch import matching
+        batch_meta_ws = wb.create_sheet("_batch_meta")
+        batch_meta = {
+            "datasource_id": ds.id,
+            "export_time": _now_bjt().isoformat(),
+            "tables": {}
+        }
+        for tc in table_configs:
+            sheet_name = (tc.table_alias or tc.table_name)[:31]
+            fields_for_tc = db.query(FieldConfig).filter(
+                FieldConfig.table_config_id == tc.id, FieldConfig.is_deleted == 0
+            ).order_by(FieldConfig.field_order_no).all()
+            batch_meta["tables"][sheet_name] = {
+                "table_config_id": tc.id,
+                "config_version": tc.config_version,
+                "primary_key_fields": [f.strip() for f in (tc.primary_key_fields or "").split(",") if f.strip()],
+                "field_codes": [f.field_name for f in fields_for_tc],
+                "field_aliases": [f.field_alias or f.field_name for f in fields_for_tc],
+            }
+        batch_meta_ws.cell(row=1, column=1, value=json.dumps(batch_meta, ensure_ascii=False))
+        batch_meta_ws.sheet_state = "hidden"
+
         buf = io.BytesIO()
         wb.save(buf)
         buf.seek(0)
@@ -822,3 +845,395 @@ def batch_export(
             media_type="application/zip",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
+
+
+# ── Batch Import ──
+
+_IMPORT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "imports")
+
+
+class BatchImportConfirmRequest(BaseModel):
+    batch_import_id: str
+    table_config_ids: List[int]
+
+
+@router.post("/import/validate")
+async def batch_import_validate(
+    file: UploadFile = File(...),
+    datasource_id: int = Form(...),
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
+    """Upload a zip or xlsx file, validate table matching for batch import."""
+    import openpyxl
+
+    content = await file.read()
+    file_name = file.filename or "upload.xlsx"
+    batch_import_id = uuid.uuid4().hex
+
+    # Determine file type (xlsx files are also PK zip archives, so check extension first)
+    is_xlsx = file_name.lower().endswith(".xlsx")
+    is_zip = not is_xlsx and (file_name.lower().endswith(".zip") or content[:4] == b"PK\x03\x04")
+    file_type = "zip" if is_zip else "xlsx"
+
+    # Save uploaded file
+    save_dir = os.path.join(_IMPORT_DIR, batch_import_id)
+    os.makedirs(save_dir, exist_ok=True)
+    save_path = os.path.join(save_dir, os.path.basename(file_name))
+    with open(save_path, "wb") as f:
+        f.write(content)
+
+    tables_result = []
+
+    if is_zip:
+        # Extract zip, process each xlsx
+        try:
+            with zipfile.ZipFile(io.BytesIO(content), "r") as zf:
+                for name in zf.namelist():
+                    if not name.lower().endswith(".xlsx") or name.startswith("__MACOSX"):
+                        continue
+                    xlsx_data = zf.read(name)
+                    xlsx_path = os.path.join(save_dir, os.path.basename(name))
+                    with open(xlsx_path, "wb") as xf:
+                        xf.write(xlsx_data)
+                    try:
+                        wb = openpyxl.load_workbook(io.BytesIO(xlsx_data), data_only=True)
+                        entry = _extract_table_info_from_workbook(
+                            wb, os.path.basename(name), datasource_id, db
+                        )
+                        tables_result.extend(entry)
+                    except Exception as e:
+                        tables_result.append({
+                            "table_config_id": None,
+                            "table_name": "",
+                            "table_alias": "",
+                            "source_name": os.path.basename(name),
+                            "row_count": 0,
+                            "status": "error",
+                            "message": str(e)[:200],
+                        })
+        except zipfile.BadZipFile:
+            raise HTTPException(400, "无效的ZIP文件")
+    else:
+        # Single xlsx (possibly multi-sheet)
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+            tables_result = _extract_table_info_from_workbook(
+                wb, file_name, datasource_id, db
+            )
+        except Exception as e:
+            raise HTTPException(400, f"文件解析失败: {str(e)[:200]}")
+
+    return {
+        "success": True,
+        "data": {
+            "batch_import_id": batch_import_id,
+            "file_type": file_type,
+            "tables": tables_result,
+        },
+    }
+
+
+def _extract_table_info_from_workbook(
+    wb, source_name: str, datasource_id: int, db: Session
+) -> List[dict]:
+    """Extract table matching info from a workbook. Returns list of table entries."""
+    results = []
+
+    # Try _meta sheet first (single-table export from platform)
+    if "_meta" in wb.sheetnames:
+        meta_ws = wb["_meta"]
+        meta_raw = meta_ws.cell(row=1, column=1).value
+        if meta_raw:
+            try:
+                meta = json.loads(meta_raw)
+                tc_id = meta.get("table_config_id")
+                entry = _match_table_config(tc_id, datasource_id, db)
+                # Count data rows (first non-meta sheet)
+                data_sheets = [s for s in wb.sheetnames if s not in ("_meta", "_batch_meta")]
+                row_count = 0
+                if data_sheets:
+                    ws = wb[data_sheets[0]]
+                    row_count = max(0, ws.max_row - 1) if ws.max_row else 0
+                entry["source_name"] = source_name
+                entry["row_count"] = row_count
+                results.append(entry)
+                return results
+            except (json.JSONDecodeError, Exception):
+                pass
+
+    # Try _batch_meta sheet (multi-sheet export from platform)
+    if "_batch_meta" in wb.sheetnames:
+        meta_ws = wb["_batch_meta"]
+        meta_raw = meta_ws.cell(row=1, column=1).value
+        if meta_raw:
+            try:
+                batch_meta = json.loads(meta_raw)
+                tables_meta = batch_meta.get("tables", {})
+                for sheet_name, info in tables_meta.items():
+                    tc_id = info.get("table_config_id")
+                    entry = _match_table_config(tc_id, datasource_id, db)
+                    entry["source_name"] = sheet_name
+                    if sheet_name in wb.sheetnames:
+                        ws = wb[sheet_name]
+                        entry["row_count"] = max(0, ws.max_row - 1) if ws.max_row else 0
+                    else:
+                        entry["row_count"] = 0
+                    results.append(entry)
+                return results
+            except (json.JSONDecodeError, Exception):
+                pass
+
+    # Fallback: treat each non-system sheet as a potential table
+    for sheet_name in wb.sheetnames:
+        if sheet_name.startswith("_"):
+            continue
+        ws = wb[sheet_name]
+        row_count = max(0, ws.max_row - 1) if ws.max_row else 0
+        # Try to match by sheet name (alias)
+        tc = db.query(TableConfig).filter(
+            TableConfig.datasource_id == datasource_id,
+            TableConfig.is_deleted == 0,
+            (TableConfig.table_alias == sheet_name) | (TableConfig.table_name == sheet_name),
+        ).first()
+        if tc:
+            results.append({
+                "table_config_id": tc.id,
+                "table_name": tc.table_name,
+                "table_alias": tc.table_alias or tc.table_name,
+                "source_name": sheet_name,
+                "row_count": row_count,
+                "status": "matched",
+                "message": "",
+            })
+        else:
+            results.append({
+                "table_config_id": None,
+                "table_name": "",
+                "table_alias": "",
+                "source_name": sheet_name,
+                "row_count": row_count,
+                "status": "unmatched",
+                "message": f"未找到匹配的表配置: {sheet_name}",
+            })
+
+    return results
+
+
+def _match_table_config(tc_id: Optional[int], datasource_id: int, db: Session) -> dict:
+    """Look up a table_config_id and return a match entry."""
+    if tc_id is None:
+        return {
+            "table_config_id": None,
+            "table_name": "",
+            "table_alias": "",
+            "source_name": "",
+            "row_count": 0,
+            "status": "unmatched",
+            "message": "元数据中缺少 table_config_id",
+        }
+    tc = db.query(TableConfig).filter(
+        TableConfig.id == tc_id, TableConfig.is_deleted == 0,
+    ).first()
+    if not tc:
+        return {
+            "table_config_id": tc_id,
+            "table_name": "",
+            "table_alias": "",
+            "source_name": "",
+            "row_count": 0,
+            "status": "unmatched",
+            "message": f"table_config_id={tc_id} 不存在",
+        }
+    if tc.datasource_id != datasource_id:
+        return {
+            "table_config_id": tc_id,
+            "table_name": tc.table_name,
+            "table_alias": tc.table_alias or tc.table_name,
+            "source_name": "",
+            "row_count": 0,
+            "status": "unmatched",
+            "message": f"表不属于当前数据源(datasource_id={datasource_id})",
+        }
+    return {
+        "table_config_id": tc.id,
+        "table_name": tc.table_name,
+        "table_alias": tc.table_alias or tc.table_name,
+        "source_name": "",
+        "row_count": 0,
+        "status": "matched",
+        "message": "",
+    }
+
+
+@router.post("/import/confirm")
+async def batch_import_confirm(
+    body: BatchImportConfirmRequest,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin")),
+):
+    """Confirm batch import: execute import for each selected table."""
+    from app.routers.data_maintenance import import_template
+
+    save_dir = os.path.join(_IMPORT_DIR, body.batch_import_id)
+    if not os.path.isdir(save_dir):
+        raise HTTPException(404, "批量导入会话不存在或已过期")
+
+    # Collect all xlsx files in the import directory
+    xlsx_files = [f for f in os.listdir(save_dir) if f.lower().endswith(".xlsx")]
+    if not xlsx_files:
+        raise HTTPException(400, "未找到可导入的文件")
+
+    import openpyxl
+
+    # Build a map: table_config_id -> (xlsx_bytes, sheet_name_or_none)
+    # by re-parsing the files to find which table_config_id maps to which data
+    tc_id_to_source: dict = {}
+    for xlsx_name in xlsx_files:
+        xlsx_path = os.path.join(save_dir, xlsx_name)
+        with open(xlsx_path, "rb") as f:
+            xlsx_bytes = f.read()
+        wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes), data_only=True)
+
+        # Single-table with _meta
+        if "_meta" in wb.sheetnames:
+            meta_raw = wb["_meta"].cell(row=1, column=1).value
+            if meta_raw:
+                try:
+                    meta = json.loads(meta_raw)
+                    tc_id = meta.get("table_config_id")
+                    if tc_id in body.table_config_ids:
+                        tc_id_to_source[tc_id] = {"type": "file", "path": xlsx_path, "bytes": xlsx_bytes}
+                except Exception:
+                    pass
+            continue
+
+        # Multi-sheet with _batch_meta
+        if "_batch_meta" in wb.sheetnames:
+            meta_raw = wb["_batch_meta"].cell(row=1, column=1).value
+            if meta_raw:
+                try:
+                    batch_meta = json.loads(meta_raw)
+                    tables_meta = batch_meta.get("tables", {})
+                    for sheet_name, info in tables_meta.items():
+                        tc_id = info.get("table_config_id")
+                        if tc_id in body.table_config_ids and sheet_name in wb.sheetnames:
+                            tc_id_to_source[tc_id] = {
+                                "type": "sheet",
+                                "wb_bytes": xlsx_bytes,
+                                "sheet_name": sheet_name,
+                                "meta_info": info,
+                            }
+                except Exception:
+                    pass
+            continue
+
+    # Execute import for each selected table
+    results = []
+    for tc_id in body.table_config_ids:
+        source = tc_id_to_source.get(tc_id)
+        if not source:
+            results.append({
+                "table_config_id": tc_id,
+                "status": "error",
+                "message": "未找到对应的导入数据",
+            })
+            continue
+
+        try:
+            if source["type"] == "file":
+                # Directly use the saved xlsx file
+                file_bytes = source["bytes"]
+            else:
+                # Extract single sheet into a standalone xlsx with _meta
+                # Look up datasource_id from table config
+                tc_obj = db.query(TableConfig).filter(TableConfig.id == tc_id).first()
+                ds_id = tc_obj.datasource_id if tc_obj else None
+                file_bytes = _extract_sheet_as_xlsx(
+                    source["wb_bytes"], source["sheet_name"], tc_id, source["meta_info"],
+                    datasource_id=ds_id,
+                )
+
+            # Create a fake UploadFile to call import_template
+            fake_file = UploadFile(
+                filename=f"import_{tc_id}.xlsx",
+                file=io.BytesIO(file_bytes),
+            )
+            result = await import_template(
+                table_config_id=tc_id,
+                file=fake_file,
+                db=db,
+                user=user,
+            )
+            results.append({
+                "table_config_id": tc_id,
+                "status": "success",
+                "detail": result,
+            })
+        except HTTPException as e:
+            results.append({
+                "table_config_id": tc_id,
+                "status": "error",
+                "message": e.detail if isinstance(e.detail, str) else str(e.detail),
+            })
+        except Exception as e:
+            results.append({
+                "table_config_id": tc_id,
+                "status": "error",
+                "message": str(e)[:200],
+            })
+
+    success_count = sum(1 for r in results if r["status"] == "success")
+    failed_count = len(results) - success_count
+
+    log_operation(
+        db, "数据维护", "批量导入", "success" if failed_count == 0 else "partial",
+        message=f"批量导入 {success_count}/{len(results)} 张表",
+        operator=user.username,
+    )
+    db.commit()
+
+    return {
+        "success": True,
+        "data": {
+            "total": len(results),
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "results": results,
+        },
+    }
+
+
+def _extract_sheet_as_xlsx(
+    wb_bytes: bytes, sheet_name: str, table_config_id: int, meta_info: dict,
+    datasource_id: Optional[int] = None,
+) -> bytes:
+    """Extract a single sheet from a multi-sheet workbook into a standalone xlsx with _meta."""
+    import openpyxl
+
+    src_wb = openpyxl.load_workbook(io.BytesIO(wb_bytes), data_only=True)
+    src_ws = src_wb[sheet_name]
+
+    new_wb = openpyxl.Workbook()
+    # Data sheet
+    new_ws = new_wb.active
+    new_ws.title = "数据"
+    for row in src_ws.iter_rows(values_only=True):
+        new_ws.append(list(row))
+
+    # _meta sheet — include datasource_id for import_template validation
+    meta_ws = new_wb.create_sheet("_meta")
+    meta = {
+        "table_config_id": table_config_id,
+        "config_version": meta_info.get("config_version", 1),
+        "primary_key_fields": meta_info.get("primary_key_fields", []),
+        "field_codes": meta_info.get("field_codes", []),
+        "field_aliases": meta_info.get("field_aliases", []),
+    }
+    if datasource_id is not None:
+        meta["datasource_id"] = datasource_id
+    meta_ws.cell(row=1, column=1, value=json.dumps(meta, ensure_ascii=False))
+
+    buf = io.BytesIO()
+    new_wb.save(buf)
+    return buf.getvalue()
