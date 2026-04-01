@@ -195,6 +195,7 @@ export const importTemplate = (tableConfigId: number, file: File) => {
   formData.append('file', file);
   return api.post<ImportResult>(`/data-maintenance/${tableConfigId}/import`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
   });
 };
 
@@ -215,6 +216,10 @@ export const deleteRows = (tableConfigId: number, pkValues: string[]) =>
   api.delete<DeleteRowsResult>(`/data-maintenance/${tableConfigId}/rows`, {
     data: { pk_values: pkValues },
   });
+
+// 清空表
+export const clearTable = (tableConfigId: number) =>
+  api.delete<{ deleted_count: number }>(`/data-maintenance/${tableConfigId}/clear`);
 
 // v2.1: 在线编辑 — 行内更新
 export interface InlineChange {

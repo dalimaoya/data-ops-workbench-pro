@@ -8,7 +8,7 @@ import {
   DeleteOutlined, ExclamationCircleOutlined, EditOutlined, PlusOutlined, SaveOutlined, CloseOutlined,
   RobotOutlined, BulbOutlined,
 } from '@ant-design/icons';
-import { browseTableData, getExportInfo, exportTemplate, deleteRows, inlineUpdate, batchInsert, asyncExport } from '../../api/dataMaintenance';
+import { browseTableData, getExportInfo, exportTemplate, deleteRows, clearTable, inlineUpdate, batchInsert, asyncExport } from '../../api/dataMaintenance';
 import AIQueryPanel from './AIQueryPanel';
 import AIBatchFillPanel from './AIBatchFillPanel';
 import AISmartFillModal from './AISmartFillModal';
@@ -50,6 +50,9 @@ export default function DataBrowse() {
   const [exportInfo, setExportInfo] = useState<Record<string, unknown>>({});
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [clearModalOpen, setClearModalOpen] = useState(false);
+  const [clearConfirmInput, setClearConfirmInput] = useState('');
 
   // PK fields for building pk_key
   const [pkFieldNames, setPkFieldNames] = useState<string[]>([]);
@@ -541,7 +544,23 @@ export default function DataBrowse() {
     });
   };
 
-  const rowSelection = (!editMode && canOperate && allowDelete) ? {
+  const handleClearTable = async () => {
+    setClearing(true);
+    try {
+      const res = await clearTable(tableConfigId);
+      message.success(t('dataBrowse.clearTableSuccess', { count: res.data.deleted_count }));
+      setClearModalOpen(false);
+      setClearConfirmInput('');
+      fetchData();
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      message.error(err?.response?.data?.detail || t('dataBrowse.deleteFailed'));
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const rowSelection = (canOperate && allowDelete) ? {
     selectedRowKeys,
     onChange: (keys: React.Key[]) => setSelectedRowKeys(keys as string[]),
   } : undefined;
@@ -681,6 +700,16 @@ export default function DataBrowse() {
                       {t('dataBrowse.deleteSelectedRows', { count: selectedRowKeys.length })}
                     </Button>
                   )}
+                  {canOperate && allowDelete && !editMode && (
+                    <Button
+                      icon={<DeleteOutlined />}
+                      danger
+                      loading={clearing}
+                      onClick={() => { setClearConfirmInput(''); setClearModalOpen(true); }}
+                    >
+                      {t('dataBrowse.clearTable')}
+                    </Button>
+                  )}
                   {canOperate && <Button icon={<DownloadOutlined />} onClick={handleExportClick}>{t('dataBrowse.exportTemplate')}</Button>}
                   {canOperate && <Button icon={<UploadOutlined />} onClick={() => navigate(`/data-maintenance/import/${tableConfigId}`)}>{t('dataBrowse.uploadTemplate')}</Button>}
                   {canOperate && aiEnabled && (
@@ -793,6 +822,25 @@ export default function DataBrowse() {
         <p style={{ marginTop: 12, color: '#999', fontSize: 12 }}>
           {t('dataBrowse.exportNote')}
         </p>
+      </Modal>
+
+      {/* Clear Table Modal */}
+      <Modal
+        title={t('dataBrowse.clearTable')}
+        open={clearModalOpen}
+        onCancel={() => setClearModalOpen(false)}
+        onOk={handleClearTable}
+        confirmLoading={clearing}
+        okText={t('common.confirm')}
+        okType="danger"
+        okButtonProps={{ disabled: clearConfirmInput !== ((tableInfo as { table_name?: string }).table_name || '') }}
+      >
+        <p style={{ marginBottom: 12 }}>{t('dataBrowse.clearTableConfirm')}</p>
+        <Input
+          placeholder={t('dataBrowse.clearTableInputPlaceholder')}
+          value={clearConfirmInput}
+          onChange={e => setClearConfirmInput(e.target.value)}
+        />
       </Modal>
 
       {/* Batch Insert Modal (v2.1.2) */}

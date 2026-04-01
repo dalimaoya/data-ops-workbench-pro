@@ -463,7 +463,11 @@
     "addMoreRows": "添加更多行（+5）",
     "pasteSuccess": "已粘贴 {{count}} 行数据",
     "configVersionLabel": "配置版本",
-    "structureStatusLabel": "结构状态"
+    "structureStatusLabel": "结构状态",
+    "clearTable": "清空表",
+    "clearTableConfirm": "此操作将删除表中所有数据且不可恢复，请输入表名确认",
+    "clearTableSuccess": "已清空 {{count}} 行数据",
+    "clearTableInputPlaceholder": "请输入表名"
   },
   "importPage": {
     "title": "模板导入",

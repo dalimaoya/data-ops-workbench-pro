@@ -281,8 +281,8 @@ def list_maintenance_tables(
             "config_version": row.config_version,
             "structure_check_status": row.structure_check_status,
             "field_count": field_count,
-            "allow_insert_rows": row.allow_insert_rows if user.role in ("admin", "operator") else 0,
-            "allow_delete_rows": row.allow_delete_rows if user.role in ("admin", "operator") else 0,
+            "allow_insert_rows": row.allow_insert_rows if user.role in ("superadmin", "admin", "operator") else 0,
+            "allow_delete_rows": row.allow_delete_rows if user.role in ("superadmin", "admin", "operator") else 0,
             "updated_by": row.updated_by,
             "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         })
@@ -482,8 +482,8 @@ def browse_table_data(
             "total": total,
             "page": page,
             "page_size": page_size,
-            "allow_insert_rows": tc.allow_insert_rows if user.role in ("admin", "operator") else 0,
-            "allow_delete_rows": tc.allow_delete_rows if user.role in ("admin", "operator") else 0,
+            "allow_insert_rows": tc.allow_insert_rows if user.role in ("superadmin", "admin", "operator") else 0,
+            "allow_delete_rows": tc.allow_delete_rows if user.role in ("superadmin", "admin", "operator") else 0,
         }
     except Exception as e:
         raise HTTPException(500, t("data_maintenance.query_failed", error=str(e)))
@@ -669,25 +669,30 @@ def export_template(
             else:
                 cell.protection = locked_cell
 
-    # v3.10: Add "_操作" column only when delete is allowed
+    # _操作列：隐藏列，用于模板批量删除标记
     if tc.allow_delete_rows:
         op_col = len(export_fields) + 1
-        op_header = ws.cell(row=1, column=op_col, value="_操作")
+        op_col_letter = get_column_letter(op_col)
+        # 列头为空，通过注释说明用途
+        op_header = ws.cell(row=1, column=op_col, value="")
         op_header.font = header_font
         op_header.fill = header_fill
         op_header.protection = locked_cell
         op_header.border = _header_border
-        op_header.comment = XlComment("填 DELETE 标记删除", "系统")
+        op_header.comment = XlComment("批量删除标记列：取消隐藏后填写 DELETE 可标记删除该行", "系统")
+        # Data rows
         for row_idx in range(2, 2 + data_row_count):
             cell = ws.cell(row=row_idx, column=op_col, value="")
             cell.protection = unlocked_cell
-            cell.fill = editable_fill
             cell.border = _thin_border
+        # Blank rows
         for row_idx in range(blank_start, blank_start + RESERVED_BLANK_ROWS):
             cell = ws.cell(row=row_idx, column=op_col, value="")
             cell.protection = unlocked_cell
-            cell.fill = blank_zone_fill
             cell.border = _dashed_border
+        # 隐藏该列
+        ws.column_dimensions[op_col_letter].width = 8
+        ws.column_dimensions[op_col_letter].hidden = True
 
     # Enable worksheet protection — v3.5: with password, stricter settings
     # v3.9 fix: insertRows=True 允许用户在空白区域以外追加行
@@ -735,9 +740,6 @@ def export_template(
     for i, f in enumerate(export_fields, 1):
         col_letter = get_column_letter(i)
         ws.column_dimensions[col_letter].width = max(12, len(f.field_alias or f.field_name) * 2 + 4)
-    # v3.10: auto-width for operation column (only if added)
-    if tc.allow_delete_rows:
-        ws.column_dimensions[get_column_letter(len(export_fields) + 1)].width = 12
 
     file_name = f"{tc.table_alias or tc.table_name}_{batch_no}.xlsx"
     file_path = os.path.join(EXPORT_DIR, file_name)
@@ -1024,6 +1026,15 @@ async def import_template(
 
     # ── v5.3: Build format map from DB sample data for adaptive conversion ──
     from app.utils.format_engine import clean_global, clean_thousands, build_format_map, apply_format
+    # ── v6.0: Load cleaning rules toggle from SystemSetting ──
+    _cleaning_rules = None
+    try:
+        _cr_row = db.query(SystemSetting).filter(SystemSetting.setting_key == "cleaning_rules").first()
+        if _cr_row:
+            import json as _json_cr
+            _cleaning_rules = _json_cr.loads(_cr_row.setting_value)
+    except Exception:
+        pass  # Default: all rules enabled
     _format_map = {}
     try:
         _sample_conn = _connect(ds.db_type, ds.host, ds.port, ds.username, pwd,
@@ -1072,21 +1083,23 @@ async def import_template(
             val = row_cells[col_i] if col_i < len(row_cells) else None
             str_val = str(val).strip() if val is not None else None
 
-            # v5.3: Global cleaning
-            str_val = clean_global(str_val) if str_val is not None else None
+            # v5.3: Global cleaning (v6.0: respects cleaning_rules toggles)
+            str_val = clean_global(str_val, _cleaning_rules) if str_val is not None else None
 
             # v5.3: Format adaptive conversion (date/amount/percent/bool)
             if str_val is not None and fname in _format_map:
-                converted = apply_format(str_val, _format_map[fname])
-                if converted is not None:
-                    str_val = converted
+                if _cleaning_rules is None or _cleaning_rules.get("format_conversion", True):
+                    converted = apply_format(str_val, _format_map[fname])
+                    if converted is not None:
+                        str_val = converted
 
             # v5.3: Thousands separator cleanup for numeric fields
             fc_check = field_name_map.get(fname)
             if str_val and fc_check and fc_check.db_data_type:
                 dt = fc_check.db_data_type.lower()
                 if any(n in dt for n in ("int", "decimal", "numeric", "float", "double")):
-                    str_val = clean_thousands(str_val)
+                    if _cleaning_rules is None or _cleaning_rules.get("thousands_separator", True):
+                        str_val = clean_thousands(str_val)
 
             row_data[fname] = str_val
             fc = field_name_map.get(fname)
@@ -3230,23 +3243,26 @@ def _run_async_export(task_id: str, table_config_id: int, export_type: str,
                 else:
                     cell.protection = locked_cell
 
-        # "_操作" column
+        # _操作列：隐藏列，用于模板批量删除标记
         if tc.allow_delete_rows:
             op_col = len(export_fields) + 1
-            op_header = ws.cell(row=1, column=op_col, value="_操作")
+            op_col_letter = get_column_letter(op_col)
+            op_header = ws.cell(row=1, column=op_col, value="")
             op_header.font = header_font
             op_header.fill = header_fill
             op_header.protection = locked_cell
             op_header.border = _hdr_border
-            op_header.comment = XlComment("填 DELETE 标记删除", "系统")
-            for ri in range(2, 2 + data_row_count):
-                cell = ws.cell(row=ri, column=op_col, value="")
+            op_header.comment = XlComment("批量删除标记列：取消隐藏后填写 DELETE 可标记删除该行", "系统")
+            for row_idx in range(2, 2 + data_row_count):
+                cell = ws.cell(row=row_idx, column=op_col, value="")
                 cell.protection = unlocked_cell
                 cell.border = _thin
-            for ri in range(blank_start, blank_start + RESERVED_BLANK_ROWS):
-                cell = ws.cell(row=ri, column=op_col, value="")
+            for row_idx in range(blank_start, blank_start + RESERVED_BLANK_ROWS):
+                cell = ws.cell(row=row_idx, column=op_col, value="")
                 cell.protection = unlocked_cell
                 cell.border = _dashed
+            ws.column_dimensions[op_col_letter].width = 8
+            ws.column_dimensions[op_col_letter].hidden = True
 
         if unlocked != "1":
             ws.protection = SheetProtection(
@@ -3850,3 +3866,87 @@ def _generate_pdf_report(tc, task, diff_rows, update_count, insert_count, delete
         media_type="application/pdf",
         filename=report_name,
     )
+
+
+# ─────────────────────────────────────────────
+# 清空表
+# ─────────────────────────────────────────────
+
+@router.delete("/{table_config_id}/clear")
+def clear_table(
+    table_config_id: int,
+    db: Session = Depends(get_db),
+    user: UserAccount = Depends(require_role("admin", "operator")),
+):
+    """清空表中所有数据（写前备份）。"""
+    tc = _get_tc(db, table_config_id, user)
+    if not tc.allow_delete_rows:
+        raise HTTPException(403, t("data_maintenance.delete_not_enabled"))
+
+    ds = _get_ds(db, tc.datasource_id)
+    pwd = decrypt_password(ds.password_encrypted)
+
+    conn = _connect(
+        ds.db_type, ds.host, ds.port, ds.username, pwd,
+        tc.db_name, tc.schema_name, ds.charset, ds.connect_timeout_seconds or 10,
+    )
+    try:
+        cur = conn.cursor()
+        qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
+
+        # Step 1: Backup
+        bk_batch = _gen_batch("BK")
+        started_at = _now_bjt()
+        ts = _now_bjt().strftime("%Y%m%d_%H%M%S")
+        rand_suffix = uuid.uuid4().hex[:4].upper()
+        backup_table_name = f"{tc.table_name}_bak_{ts}_{rand_suffix}"
+
+        _create_backup_table(cur, ds.db_type, qt, backup_table_name, tc.schema_name)
+
+        bk_qt = _qualified_table(ds.db_type, backup_table_name, tc.schema_name)
+        cur.execute(f"SELECT COUNT(*) FROM {bk_qt}")
+        backup_count = cur.fetchone()[0]
+        conn.commit()
+
+        backup_rec = TableBackupVersion(
+            backup_version_no=bk_batch,
+            table_config_id=tc.id,
+            datasource_id=tc.datasource_id,
+            backup_table_name=backup_table_name,
+            source_table_name=tc.table_name,
+            source_db_name=tc.db_name,
+            source_schema_name=tc.schema_name,
+            trigger_type="triggered_by_clear",
+            related_writeback_batch_no=None,
+            record_count=backup_count,
+            storage_status="valid",
+            can_rollback=1,
+            backup_started_at=started_at,
+            backup_finished_at=_now_bjt(),
+            operator_user=_get_username(user),
+        )
+        db.add(backup_rec)
+        db.flush()
+
+        # Step 2: Count then delete all rows
+        cur.execute(f"SELECT COUNT(*) FROM {qt}")
+        row_count = cur.fetchone()[0]
+
+        cur.execute(f"DELETE FROM {qt}")
+        conn.commit()
+
+        # Step 3: Log
+        log_operation(db, "数据维护", "清空表", "success",
+                      target_id=tc.id, target_name=tc.table_name,
+                      message=f"清空表 {tc.table_name}，删除 {row_count} 行，备份表 {backup_table_name}",
+                      operator=_get_username(user))
+        db.commit()
+
+        return {"deleted_count": row_count}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, f"清空表失败: {str(e)}")
+    finally:
+        conn.close()

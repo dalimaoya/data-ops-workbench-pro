@@ -96,6 +96,23 @@ export const getAIValidateConfig = () =>
 export const updateAIValidateConfig = (data: AIValidateConfigUpdate) =>
   api.put<AIValidateConfig>('/ai/validate-config', data);
 
+// ── Cleaning Rules ──
+
+export interface CleaningRules {
+  fullwidth_to_halfwidth: boolean;
+  trim_whitespace: boolean;
+  normalize_linebreaks: boolean;
+  null_standardization: boolean;
+  format_conversion: boolean;
+  thousands_separator: boolean;
+}
+
+export const getCleaningRules = () =>
+  api.get<CleaningRules>('/ai/cleaning-rules');
+
+export const updateCleaningRules = (data: Partial<CleaningRules>) =>
+  api.put<CleaningRules>('/ai/cleaning-rules', data);
+
 // ── AI Data Validate ──
 
 export interface AIWarning {

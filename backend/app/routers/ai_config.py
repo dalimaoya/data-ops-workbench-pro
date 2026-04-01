@@ -60,6 +60,25 @@ class AIValidateConfigUpdate(BaseModel):
     skip_fields: Optional[List[str]] = None
 
 
+class CleaningRulesUpdate(BaseModel):
+    fullwidth_to_halfwidth: Optional[bool] = None
+    trim_whitespace: Optional[bool] = None
+    normalize_linebreaks: Optional[bool] = None
+    null_standardization: Optional[bool] = None
+    format_conversion: Optional[bool] = None
+    thousands_separator: Optional[bool] = None
+
+
+DEFAULT_CLEANING_RULES = {
+    "fullwidth_to_halfwidth": True,
+    "trim_whitespace": True,
+    "normalize_linebreaks": True,
+    "null_standardization": True,
+    "format_conversion": True,
+    "thousands_separator": True,
+}
+
+
 # ── Endpoints ──
 
 @router.get("/config")
@@ -172,6 +191,58 @@ def get_validate_config(
                 config[key] = row.setting_value
 
     return config
+
+
+@router.get("/cleaning-rules")
+def get_cleaning_rules(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Get current cleaning rules configuration."""
+    rules = DEFAULT_CLEANING_RULES.copy()
+    row = db.query(SystemSetting).filter(SystemSetting.setting_key == "cleaning_rules").first()
+    if row:
+        try:
+            saved = json.loads(row.setting_value)
+            rules.update(saved)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return rules
+
+
+@router.put("/cleaning-rules")
+def put_cleaning_rules(
+    body: CleaningRulesUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_role("admin")),
+):
+    """Update cleaning rules configuration (admin only)."""
+    from app.models import _now_bjt
+
+    # Load existing
+    rules = DEFAULT_CLEANING_RULES.copy()
+    row = db.query(SystemSetting).filter(SystemSetting.setting_key == "cleaning_rules").first()
+    if row:
+        try:
+            saved = json.loads(row.setting_value)
+            rules.update(saved)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Merge updates
+    updates = body.model_dump(exclude_none=True)
+    rules.update(updates)
+
+    store_value = json.dumps(rules, ensure_ascii=False)
+    if row:
+        row.setting_value = store_value
+        row.updated_at = _now_bjt()
+    else:
+        row = SystemSetting(setting_key="cleaning_rules", setting_value=store_value)
+        db.add(row)
+
+    db.commit()
+    return rules
 
 
 @router.put("/validate-config")

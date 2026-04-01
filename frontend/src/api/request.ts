@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export const api = axios.create({ baseURL: '/api' });
+export const api = axios.create({ baseURL: '/api', timeout: 30000 });
 
 // Request interceptor: attach JWT token and Accept-Language header
 api.interceptors.request.use((config) => {

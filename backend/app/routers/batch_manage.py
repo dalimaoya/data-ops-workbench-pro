@@ -674,6 +674,7 @@ def batch_export(
         if apply_protection:
             ws.protection = _SheetProtection(
                 sheet=True, password=_PROTECTION_PWD,
+                selectLockedCells=False, selectUnlockedCells=False,
                 formatColumns=False, formatRows=False, formatCells=False,
                 insertRows=True, deleteRows=True, deleteColumns=True, insertColumns=True,
                 sort=False, autoFilter=False,

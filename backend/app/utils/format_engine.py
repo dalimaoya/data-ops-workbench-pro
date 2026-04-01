@@ -22,27 +22,40 @@ from datetime import datetime
 _NULL_VALUES = {"无", "暂无", "N/A", "n/a", "NA", "na", "NULL", "null", "None", "none", "-", "/", "—", ""}
 
 
-def clean_global(val: str) -> Optional[str]:
-    """Apply global cleaning rules. Returns None for null-equivalent values."""
+def clean_global(val: str, rules: Optional[Dict[str, bool]] = None) -> Optional[str]:
+    """Apply global cleaning rules. Returns None for null-equivalent values.
+
+    Args:
+        val: input string
+        rules: optional dict of rule toggles. Keys:
+            fullwidth_to_halfwidth, trim_whitespace, normalize_linebreaks, null_standardization.
+            When None, all rules are applied (backward compatible).
+    """
     if val is None:
         return None
+    cleaned = val
     # Fullwidth → halfwidth (except Chinese characters)
-    cleaned = ""
-    for ch in val:
-        cp = ord(ch)
-        if 0xFF01 <= cp <= 0xFF5E:  # fullwidth ASCII
-            cleaned += chr(cp - 0xFEE0)
-        elif cp == 0x3000:  # fullwidth space
-            cleaned += " "
-        else:
-            cleaned += ch
+    if rules is None or rules.get("fullwidth_to_halfwidth", True):
+        buf = ""
+        for ch in cleaned:
+            cp = ord(ch)
+            if 0xFF01 <= cp <= 0xFF5E:  # fullwidth ASCII
+                buf += chr(cp - 0xFEE0)
+            elif cp == 0x3000:  # fullwidth space
+                buf += " "
+            else:
+                buf += ch
+        cleaned = buf
     # Strip whitespace
-    cleaned = cleaned.strip()
+    if rules is None or rules.get("trim_whitespace", True):
+        cleaned = cleaned.strip()
     # Normalize line breaks / tabs → space
-    cleaned = re.sub(r"[\r\n\t]+", " ", cleaned)
+    if rules is None or rules.get("normalize_linebreaks", True):
+        cleaned = re.sub(r"[\r\n\t]+", " ", cleaned)
     # Null equivalents
-    if cleaned in _NULL_VALUES:
-        return None
+    if rules is None or rules.get("null_standardization", True):
+        if cleaned in _NULL_VALUES:
+            return None
     return cleaned
 
 

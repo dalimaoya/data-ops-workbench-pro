@@ -6,13 +6,15 @@ import {
 import {
   RobotOutlined, ApiOutlined, CheckCircleOutlined, CloseCircleOutlined,
   LoadingOutlined, EyeOutlined, EyeInvisibleOutlined,
-  SaveOutlined, UndoOutlined, SafetyCertificateOutlined,
+  SaveOutlined, UndoOutlined, SafetyCertificateOutlined, ClearOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import {
   getAIConfig, updateAIConfig, testAIConnection,
   getAIValidateConfig, updateAIValidateConfig,
+  getCleaningRules, updateCleaningRules,
   type AIConfigData, type AIConfigUpdateData, type AIValidateConfig,
+  type CleaningRules,
 } from '../../api/aiConfig';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 
@@ -81,6 +83,15 @@ const PLATFORM_PRESETS: PlatformPreset[] = [
   },
 ];
 
+const CLEANING_RULE_KEYS = [
+  { key: 'fullwidth_to_halfwidth', zhLabel: '全角转半角', enLabel: 'Fullwidth to Halfwidth' },
+  { key: 'trim_whitespace', zhLabel: '去除首尾空格', enLabel: 'Trim Whitespace' },
+  { key: 'normalize_linebreaks', zhLabel: '换行符标准化', enLabel: 'Normalize Line Breaks' },
+  { key: 'null_standardization', zhLabel: '空值标准化', enLabel: 'Null Standardization' },
+  { key: 'format_conversion', zhLabel: '格式自适应转换', enLabel: 'Format Adaptive Conversion' },
+  { key: 'thousands_separator', zhLabel: '千分位清理', enLabel: 'Thousands Separator Cleanup' },
+];
+
 const FEATURE_KEYS = [
   { key: 'field_suggest', zhLabel: '智能字段配置', enLabel: 'Smart Field Config' },
   { key: 'data_validate', zhLabel: '智能校验', enLabel: 'Smart Validation' },
@@ -103,6 +114,8 @@ export default function AIConfigPage() {
   const { online: networkOnline, loading: networkLoading, refresh: refreshNetwork } = useNetworkStatus();
   const [config, setConfig] = useState<AIConfigData | null>(null);
   const [validateConfig, setValidateConfig] = useState<AIValidateConfig | null>(null);
+  const [cleaningRules, setCleaningRules] = useState<CleaningRules | null>(null);
+  const [savingCleaning, setSavingCleaning] = useState(false);
   const [form] = Form.useForm();
   const [showLocalApiKey, setShowLocalApiKey] = useState(false);
   const [showCloudApiKey, setShowCloudApiKey] = useState(false);
@@ -139,6 +152,12 @@ export default function AIConfigPage() {
       try {
         const vcRes = await getAIValidateConfig();
         setValidateConfig(vcRes.data);
+      } catch {
+        // ignore
+      }
+      try {
+        const crRes = await getCleaningRules();
+        setCleaningRules(crRes.data);
       } catch {
         // ignore
       }
@@ -258,6 +277,22 @@ export default function AIConfigPage() {
     setLocalApiKeyInput('');
     setCloudApiKeyInput('');
     setTestResult(null);
+  };
+
+  const handleCleaningRuleToggle = async (key: string, checked: boolean) => {
+    if (!cleaningRules) return;
+    const updated = { ...cleaningRules, [key]: checked };
+    setCleaningRules(updated);
+    setSavingCleaning(true);
+    try {
+      const res = await updateCleaningRules({ [key]: checked });
+      setCleaningRules(res.data);
+    } catch (err: any) {
+      message.error(err?.response?.data?.detail || t('common.failed'));
+      setCleaningRules(cleaningRules); // revert
+    } finally {
+      setSavingCleaning(false);
+    }
   };
 
   const handleFeatureToggle = (key: string, checked: boolean) => {
@@ -545,6 +580,34 @@ export default function AIConfigPage() {
                 />
               </div>
             ))}
+
+            {/* ── Cleaning Rules Config (v6.0) ── */}
+            {cleaningRules && (
+              <>
+                <Divider />
+                <Title level={5} style={{ marginTop: 0 }}>
+                  <Space>
+                    <ClearOutlined />
+                    {isZh ? '数据清洗规则' : 'Data Cleaning Rules'}
+                  </Space>
+                </Title>
+                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
+                  {isZh
+                    ? '控制数据导入时的自动清洗步骤，关闭后对应清洗不再执行'
+                    : 'Toggle automatic cleaning steps during data import. Disabled rules will be skipped.'}
+                </Text>
+                {CLEANING_RULE_KEYS.map(r => (
+                  <div key={r.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+                    <Text>{isZh ? r.zhLabel : r.enLabel}</Text>
+                    <Switch
+                      checked={cleaningRules[r.key as keyof CleaningRules] ?? true}
+                      onChange={(checked) => handleCleaningRuleToggle(r.key, checked)}
+                      loading={savingCleaning}
+                    />
+                  </div>
+                ))}
+              </>
+            )}
 
             {/* ── AI Validate Config (v3.0) ── */}
             {config?.feature_flags?.data_validate && validateConfig && (

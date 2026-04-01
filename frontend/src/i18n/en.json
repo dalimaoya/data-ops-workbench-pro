@@ -463,7 +463,11 @@
     "addMoreRows": "Add More Rows (+5)",
     "pasteSuccess": "Pasted {{count}} rows",
     "configVersionLabel": "Config Version",
-    "structureStatusLabel": "Structure"
+    "structureStatusLabel": "Structure",
+    "clearTable": "Clear Table",
+    "clearTableConfirm": "This will delete all data. Type table name to confirm",
+    "clearTableSuccess": "Cleared {{count}} rows",
+    "clearTableInputPlaceholder": "Type table name"
   },
   "importPage": {
     "title": "Template Import",
