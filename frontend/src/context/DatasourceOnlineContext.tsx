@@ -23,6 +23,8 @@ export function DatasourceOnlineProvider({ children }: { children: ReactNode }) 
   const [loading, setLoading] = useState(false);
 
   const fetchStatus = useCallback(async () => {
+    const token = localStorage.getItem('token') || localStorage.getItem('access_token');
+    if (!token) return;
     setLoading(true);
     try {
       const res = await api.get<{ status: Record<string, boolean> }>('/datasource/online-status');
