@@ -297,7 +297,7 @@ export default function DatabaseMaintenance() {
         }
       }, 500);
     } catch (err: any) {
-      message.error(err?.response?.data?.detail || '批量纳管失败');
+      message.error(err?.response?.data?.detail || t('dbMaintenance.batchManageFailed'));
       setProcessing(false);
       // If we have partial results, still show them
       if (allResults.length > 0) {
@@ -371,11 +371,11 @@ export default function DatabaseMaintenance() {
       });
       const data = (res.data as any).data || res.data;
       setSaveResult(data);
-      message.success(`成功纳管 ${data.created} 张表`);
+      message.success(t('dbMaintenance.batchSaveSuccess', { count: data.created }));
       // Refresh managed tables
       if (selectedDsId) loadTables(selectedDsId);
     } catch (err: any) {
-      message.error(err?.response?.data?.detail || '批量保存失败');
+      message.error(err?.response?.data?.detail || t('dbMaintenance.batchSaveFailed'));
       setSaveResult({ error: true });
     } finally {
       setSaving(false);
@@ -847,7 +847,7 @@ export default function DatabaseMaintenance() {
                       defaultPageSize: 20,
                       showSizeChanger: true,
                       pageSizeOptions: ['10', '20', '50', '100'],
-                      showTotal: total => `共 ${total} 张表`,
+                      showTotal: total => t('dbMaintenance.tableTotal', { total }),
                     }}
                     loading={loadingTables}
                   />
@@ -1188,7 +1188,7 @@ export default function DatabaseMaintenance() {
                             setBatchImportSelectedIds(matched.map((tbl: any) => tbl.table_config_id));
                             setBatchImportStep(1);
                           } catch (e: any) {
-                            message.error(e?.response?.data?.detail || '校验失败');
+                            message.error(e?.response?.data?.detail || t('dbMaintenance.validateFailed'));
                           } finally {
                             setBatchImportValidating(false);
                           }
@@ -1218,10 +1218,10 @@ export default function DatabaseMaintenance() {
                           <Text strong>{tbl.table_alias || tbl.table_name || tbl.source_name}</Text>
                           {tbl.table_name && <Text type="secondary"> ({tbl.table_name})</Text>}
                           <br />
-                          <Text type="secondary" style={{ fontSize: 12 }}>{tbl.source_name} · {tbl.row_count || 0} 行</Text>
+                          <Text type="secondary" style={{ fontSize: 12 }}>{tbl.source_name} · {t('dbMaintenance.rows', { count: tbl.row_count || 0 })}</Text>
                         </div>
                         <Tag color={tbl.status === 'matched' ? 'success' : tbl.status === 'error' ? 'error' : 'warning'}>
-                          {tbl.status === 'matched' ? '已匹配' : tbl.status === 'error' ? '错误' : '未匹配'}
+                          {tbl.status === 'matched' ? t('dbMaintenance.statusMatched') : tbl.status === 'error' ? t('dbMaintenance.statusError') : t('dbMaintenance.statusUnmatched')}
                         </Tag>
                         {tbl.message && <Text type="danger" style={{ fontSize: 12 }}>{tbl.message}</Text>}
                       </div>
@@ -1237,7 +1237,7 @@ export default function DatabaseMaintenance() {
                               setBatchImportFinalResult(res.data.data || res.data);
                               setBatchImportStep(2);
                             } catch (e: any) {
-                              message.error(e?.response?.data?.detail || '导入失败');
+                              message.error(e?.response?.data?.detail || t('dbMaintenance.importFailed'));
                             } finally {
                               setBatchImportConfirming(false);
                             }
@@ -1259,8 +1259,8 @@ export default function DatabaseMaintenance() {
                       <div key={i} style={{ padding: '4px 0' }}>
                         <Tag color={r.status === 'success' ? 'success' : 'error'}>{r.status === 'success' ? '✅' : '❌'}</Tag>
                         <Text>{r.table_name}</Text>
-                        {r.status === 'success' && <Text type="secondary"> — {r.message || '导入成功'}</Text>}
-                        {r.status !== 'success' && <Text type="danger"> — {r.error || '失败'}</Text>}
+                        {r.status === 'success' && <Text type="secondary"> — {r.message || t('dbMaintenance.importSuccess')}</Text>}
+                        {r.status !== 'success' && <Text type="danger"> — {r.error || t('dbMaintenance.failed')}</Text>}
                       </div>
                     ))}
                   </Result>

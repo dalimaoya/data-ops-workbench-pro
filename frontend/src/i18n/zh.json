@@ -253,9 +253,7 @@
     "testing": "测试连接中...",
     "deleteSuccess": "删除成功",
     "deleteConfirmTitle": "删除数据源",
-    "deleteHasTables": "数据源「{{name}}」下有 {{count}} 张纳管表，请选择处理方式：",
-    "deleteKeepTables": "仅删除数据源（纳管表保留，标记为数据源已失效）",
-    "deleteCascadeTables": "一并删除所有纳管表及其字段配置",
+    "deleteCascadeConfirm": "确认删除数据源「{{name}}」？该数据源下的所有纳管表和字段配置将一并删除，此操作不可恢复。",
     "restoreFoundTitle": "发现历史数据源",
     "restoreFoundContent": "检测到已删除的数据源「{{name}}」使用相同的连接信息，其下有 {{count}} 张纳管表配置。是否恢复该数据源？",
     "restoreAction": "恢复历史数据源",
@@ -388,12 +386,6 @@
     "batchExportEmpty": "请先勾选要导出的表",
     "batchExportSuccess": "已导出 {{count}} 张表",
     "batchExportFailed": "批量导出失败",
-    "batchImport": "批量导入",
-    "batchImportDragHint": "拖拽文件到此处，或点击选择文件（支持 .zip / .xlsx）",
-    "startValidate": "开始校验",
-    "batchImportMatched": "识别到 {{total}} 张表，匹配成功 {{matched}} 张",
-    "batchImportConfirm": "提交选中的 {{count}} 张表",
-    "batchImportDone": "批量导入完成：成功 {{success}} 张，失败 {{failed}} 张",
     "structureNormal": "正常",
     "structureChanged": "已变化",
     "structureError": "检查失败",
@@ -473,7 +465,9 @@
     "clearTable": "清空表",
     "clearTableConfirm": "此操作将删除表中所有数据且不可恢复，请输入表名确认",
     "clearTableSuccess": "已清空 {{count}} 行数据",
-    "clearTableInputPlaceholder": "请输入表名"
+    "clearTableInputPlaceholder": "请输入表名",
+    "aiFilterActive": "AI 筛选中：",
+    "clearAIFilter": "清除筛选"
   },
   "importPage": {
     "title": "模板导入",
@@ -700,7 +694,8 @@
     "pluginPermHint": "勾选用户可访问的扩展功能模块。试用期内所有扩展插件自动开放。内置插件始终可用。",
     "noExtensionPlugin": "暂无扩展插件",
     "listFailed": "获取用户列表失败",
-    "lastLoginAt": "最后登录"
+    "lastLoginAt": "最后登录",
+    "superadminRoleReadonly": "超级管理员角色不可修改"
   },
   "approval": {
     "title": "审批中心",
@@ -889,7 +884,25 @@
     "exportTableCount": "导出表数",
     "eachTableOneFile": "每张表一个文件",
     "allTablesOneFile": "所有表合并一个文件",
-    "batchExport": "📥 批量导出（{{count}}）"
+    "batchExport": "📥 批量导出（{{count}}）",
+    "batchManageFailed": "批量纳管失败",
+    "batchSaveSuccess": "成功纳管 {{count}} 张表",
+    "batchSaveFailed": "批量保存失败",
+    "tableTotal": "共 {{total}} 张表",
+    "validateFailed": "校验失败",
+    "rows": "{{count}} 行",
+    "statusMatched": "已匹配",
+    "statusError": "错误",
+    "statusUnmatched": "未匹配",
+    "importFailed": "导入失败",
+    "importSuccess": "导入成功",
+    "failed": "失败",
+    "batchImport": "批量导入",
+    "batchImportDragHint": "拖拽文件到此处，或点击选择文件（支持 .zip / .xlsx）",
+    "startValidate": "开始校验",
+    "batchImportMatched": "识别到 {{total}} 张表，匹配成功 {{matched}} 张",
+    "batchImportConfirm": "提交选中的 {{count}} 张表",
+    "batchImportDone": "批量导入完成：成功 {{success}} 张，失败 {{failed}} 张"
   },
   "aiLog": {
     "tabTitle": "AI 分析",

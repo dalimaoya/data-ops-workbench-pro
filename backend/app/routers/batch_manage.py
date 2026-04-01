@@ -645,7 +645,9 @@ def batch_export(
     _header_font = XlFont(bold=True, color="FFFFFF", size=11)
     _readonly_fill = PatternFill(start_color="F0F0F0", end_color="F0F0F0", fill_type="solid")
     _editable_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+    _blank_fill = PatternFill(start_color="FFFFF0", end_color="FFFFF0", fill_type="solid")
     _PROTECTION_PWD = "DOW_tpl_v35_sec"
+    _RESERVED_BLANK = 200
 
     def _apply_sheet_style(ws, fields, data_row_count, tc, apply_protection):
         """Apply header style, cell lock/unlock, and optional sheet protection."""
@@ -730,6 +732,14 @@ def batch_export(
             except Exception:
                 ws.cell(row=2, column=1, value="数据获取失败")
 
+            # Reserved blank rows for new records
+            blank_start = data_row_count + 2
+            for ri in range(blank_start, blank_start + _RESERVED_BLANK):
+                for ci in range(1, len(fields) + 1):
+                    cell = ws.cell(row=ri, column=ci, value="")
+                    cell.fill = _blank_fill
+                    cell.protection = _unlocked_cell
+
             _apply_sheet_style(ws, fields, data_row_count, tc, not skip_protection)
 
         # Add _batch_meta sheet for batch import matching
@@ -750,6 +760,7 @@ def batch_export(
                 "primary_key_fields": [f.strip() for f in (tc.primary_key_fields or "").split(",") if f.strip()],
                 "field_codes": [f.field_name for f in fields_for_tc],
                 "field_aliases": [f.field_alias or f.field_name for f in fields_for_tc],
+                "reserved_blank_rows": _RESERVED_BLANK,
             }
         batch_meta_ws.cell(row=1, column=1, value=json.dumps(batch_meta, ensure_ascii=False))
         batch_meta_ws.sheet_state = "hidden"
@@ -820,6 +831,14 @@ def batch_export(
                 except Exception:
                     ws.cell(row=2, column=1, value="数据获取失败")
                     data_row_count = 0
+
+                # Reserved blank rows for new records
+                blank_start = data_row_count + 2
+                for ri in range(blank_start, blank_start + _RESERVED_BLANK):
+                    for ci in range(1, len(fields) + 1):
+                        cell = ws.cell(row=ri, column=ci, value="")
+                        cell.fill = _blank_fill
+                        cell.protection = _unlocked_cell
 
                 _apply_sheet_style(ws, fields, data_row_count, tc, not skip_protection)
 

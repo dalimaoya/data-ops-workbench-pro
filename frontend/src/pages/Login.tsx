@@ -204,9 +204,9 @@ export default function Login() {
   ];
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'linear-gradient(135deg, #0B1530 0%, #142952 50%, #0A234A 100%)', backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0)', backgroundSize: '40px 40px' }}>
       <Card style={{ width: 460, boxShadow: '0 8px 32px rgba(0,0,0,0.15)', borderRadius: 16 }}>
-        <div style={{ textAlign: 'center', marginBottom: 16 }}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <img src="/logo.png" alt="DataOps Workbench" style={{ height: 96 }} />
         </div>
 

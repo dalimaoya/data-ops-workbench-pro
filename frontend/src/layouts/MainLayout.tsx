@@ -799,22 +799,17 @@ export default function MainLayout() {
         {/* Header */}
         <div
           style={{
-            height: 56,
+            height: 60,
             background: '#fff',
             padding: '0 24px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderBottom: '1px solid #f0f0f0',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
             flexShrink: 0,
           }}
         >
-          <span style={{ fontSize: 14, color: '#666' }}>
-            欢迎回来，{user?.display_name || user?.username || ''}
-            <Tag style={{ marginLeft: 8 }} color={user?.role === 'admin' ? 'blue' : user?.role === 'operator' ? 'green' : 'default'}>
-              {t(`role.${user?.role || ''}`)}
-            </Tag>
-          </span>
+          <div />
           <Space size={8}>
             {/* Language Switcher */}
             <Dropdown menu={{ items: languageMenuItems, selectedKeys: [i18n.language] }} placement="bottomRight">
@@ -922,7 +917,7 @@ export default function MainLayout() {
         </div>
 
         {/* Content */}
-        <div style={{ margin: 16, flex: 1 }}>
+        <div style={{ padding: 24, minHeight: '100%', background: '#F5F7FA', flex: 1 }}>
           <Outlet />
         </div>
       </div>

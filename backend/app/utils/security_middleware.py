@@ -114,7 +114,7 @@ RATE_LIMITS = {
     "captcha": {"window": 60, "max": 10},     # 10 per minute per IP
     "export": {"window": 60, "max": 10},      # 10 per minute per user
     "writeback": {"window": 60, "max": 5},    # 5 per minute per user
-    "general": {"window": 60, "max": 60},     # 60 per minute per user
+    "general": {"window": 60, "max": 200},     # 200 per minute per user
 }
 
 

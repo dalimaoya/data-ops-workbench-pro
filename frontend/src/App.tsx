@@ -3,6 +3,7 @@ import { ConfigProvider, Spin } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import enUS from 'antd/locale/en_US';
 import { useTranslation } from 'react-i18next';
+import { themeConfig } from './styles/theme';
 import { useAuth } from './context/AuthContext';
 import MainLayout from './layouts/MainLayout';
 import Loading from './pages/Loading';
@@ -70,7 +71,7 @@ function App() {
   const antdLocale = antdLocaleMap[i18n.language] || zhCN;
 
   return (
-    <ConfigProvider locale={antdLocale}>
+    <ConfigProvider locale={antdLocale} theme={themeConfig}>
       <Routes>
         <Route path="/loading" element={<Loading />} />
         <Route path="/login" element={<Login />} />

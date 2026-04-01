@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Table, Button, Space, Tag, Input, Select, message, Modal, Card, Radio,
+  Table, Button, Space, Tag, Input, Select, message, Modal, Card,
 } from 'antd';
 import { PlusOutlined, SearchOutlined, ReloadOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -9,7 +9,7 @@ import {
   listDatasources, countDatasources, deleteDatasource,
   testExistingDatasource,
 } from '../../api/datasource';
-import { api } from '../../api/request';
+
 import type { Datasource } from '../../api/datasource';
 import { useTranslation } from 'react-i18next';
 import { useDatasourceOnline } from '../../context/DatasourceOnlineContext';
@@ -69,50 +69,18 @@ export default function DatasourceList() {
   const handleSearch = () => { setPage(1); fetchData(); };
 
   const handleDelete = async (record: Datasource) => {
-    // Check managed table count first
-    let managedCount = 0;
-    try {
-      const res = await api.get<{ count: number }>(`/datasource/${record.id}/managed-count`);
-      managedCount = res.data.count;
-    } catch { /* ignore */ }
-
-    if (managedCount > 0) {
-      let cascade = false;
-      Modal.confirm({
-        title: t('datasource.deleteConfirmTitle'),
-        icon: <ExclamationCircleOutlined />,
-        content: (
-          <div>
-            <p>{t('datasource.deleteHasTables', { name: record.datasource_name, count: managedCount })}</p>
-            <Radio.Group defaultValue="keep" onChange={e => { cascade = e.target.value === 'cascade'; }}>
-              <Radio value="keep" style={{ display: 'block', marginBottom: 8 }}>
-                {t('datasource.deleteKeepTables')}
-              </Radio>
-              <Radio value="cascade" style={{ display: 'block' }}>
-                {t('datasource.deleteCascadeTables')}
-              </Radio>
-            </Radio.Group>
-          </div>
-        ),
-        okText: t('common.confirm'),
-        okType: 'danger',
-        onOk: async () => {
-          await deleteDatasource(record.id, cascade);
-          message.success(t('datasource.deleteSuccess'));
-          fetchData();
-        },
-      });
-    } else {
-      Modal.confirm({
-        title: t('common.confirmDelete'),
-        icon: <ExclamationCircleOutlined />,
-        onOk: async () => {
-          await deleteDatasource(record.id);
-          message.success(t('datasource.deleteSuccess'));
-          fetchData();
-        },
-      });
-    }
+    Modal.confirm({
+      title: t('datasource.deleteConfirmTitle'),
+      icon: <ExclamationCircleOutlined />,
+      content: t('datasource.deleteCascadeConfirm', { name: record.datasource_name }),
+      okText: t('common.confirm'),
+      okType: 'danger',
+      onOk: async () => {
+        await deleteDatasource(record.id, true);
+        message.success(t('datasource.deleteSuccess'));
+        fetchData();
+      },
+    });
   };
 
   const handleTest = async (id: number) => {

@@ -760,11 +760,11 @@ export default function DataBrowse() {
             flexWrap: 'wrap',
           }}>
             <RobotOutlined style={{ color: '#1677ff' }} />
-            <span style={{ fontSize: 13, color: '#333' }}>AI 筛选中：</span>
+            <span style={{ fontSize: 13, color: '#333' }}>{t('dataBrowse.aiFilterActive')}</span>
             {aiFilters.map((f, i) => (
               <Tag key={i} color="blue" style={{ fontSize: 12 }}>{f.display}</Tag>
             ))}
-            <Button type="link" size="small" onClick={handleClearAIFilters} danger>清除筛选</Button>
+            <Button type="link" size="small" onClick={handleClearAIFilters} danger>{t('dataBrowse.clearAIFilter')}</Button>
           </div>
         )}
 

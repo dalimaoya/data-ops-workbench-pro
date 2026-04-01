@@ -382,7 +382,7 @@ export default function UserManagement() {
             />
           </Form.Item>
           {editingUser?.role === 'superadmin' && (
-            <div style={{ color: '#999', fontSize: 12, marginTop: -12, marginBottom: 12 }}>超级管理员角色不可修改</div>
+            <div style={{ color: '#999', fontSize: 12, marginTop: -12, marginBottom: 12 }}>{t('userManagement.superadminRoleReadonly')}</div>
           )}
         </Form>
       </Modal>

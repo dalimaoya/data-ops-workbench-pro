@@ -253,9 +253,7 @@
     "testing": "Testing connection...",
     "deleteSuccess": "Deleted",
     "deleteConfirmTitle": "Delete Datasource",
-    "deleteHasTables": "Datasource \"{{name}}\" has {{count}} managed table(s). Choose how to handle:",
-    "deleteKeepTables": "Delete datasource only (keep tables, mark as datasource lost)",
-    "deleteCascadeTables": "Delete all managed tables and field configs together",
+    "deleteCascadeConfirm": "Delete datasource \"{{name}}\"? All managed tables and field configs will be deleted. This cannot be undone.",
     "restoreFoundTitle": "Historical Datasource Found",
     "restoreFoundContent": "A deleted datasource \"{{name}}\" with the same connection was found, with {{count}} managed table(s). Restore it?",
     "restoreAction": "Restore Datasource",
@@ -388,12 +386,6 @@
     "batchExportEmpty": "Please select tables to export",
     "batchExportSuccess": "Exported {{count}} tables",
     "batchExportFailed": "Batch export failed",
-    "batchImport": "Batch Import",
-    "batchImportDragHint": "Drag file here, or click to select (.zip / .xlsx)",
-    "startValidate": "Start Validate",
-    "batchImportMatched": "Found {{total}} tables, {{matched}} matched",
-    "batchImportConfirm": "Submit {{count}} tables",
-    "batchImportDone": "Batch import done: {{success}} succeeded, {{failed}} failed",
     "structureNormal": "Normal",
     "structureChanged": "Changed",
     "structureError": "Check Failed",
@@ -473,7 +465,9 @@
     "clearTable": "Clear Table",
     "clearTableConfirm": "This will delete all data. Type table name to confirm",
     "clearTableSuccess": "Cleared {{count}} rows",
-    "clearTableInputPlaceholder": "Type table name"
+    "clearTableInputPlaceholder": "Type table name",
+    "aiFilterActive": "AI Filter Active:",
+    "clearAIFilter": "Clear Filter"
   },
   "importPage": {
     "title": "Template Import",
@@ -700,7 +694,8 @@
     "pluginPermHint": "Select extension plugins this user can access. All extensions are available during trial period. Builtin plugins are always accessible.",
     "noExtensionPlugin": "No extension plugins available",
     "listFailed": "Failed to load user list",
-    "lastLoginAt": "Last Login"
+    "lastLoginAt": "Last Login",
+    "superadminRoleReadonly": "Superadmin role cannot be changed"
   },
   "approval": {
     "title": "Approval Center",
@@ -889,7 +884,25 @@
     "exportTableCount": "Tables to export",
     "eachTableOneFile": "One file per table",
     "allTablesOneFile": "All tables in one file",
-    "batchExport": "📥 Batch Export ({{count}})"
+    "batchExport": "📥 Batch Export ({{count}})",
+    "batchManageFailed": "Batch manage failed",
+    "batchSaveSuccess": "Successfully managed {{count}} tables",
+    "batchSaveFailed": "Batch save failed",
+    "tableTotal": "Total {{total}} tables",
+    "validateFailed": "Validation failed",
+    "rows": "{{count}} rows",
+    "statusMatched": "Matched",
+    "statusError": "Error",
+    "statusUnmatched": "Unmatched",
+    "importFailed": "Import failed",
+    "importSuccess": "Import succeeded",
+    "failed": "Failed",
+    "batchImport": "Batch Import",
+    "batchImportDragHint": "Drag file here, or click to select (.zip / .xlsx)",
+    "startValidate": "Start Validate",
+    "batchImportMatched": "Found {{total}} tables, {{matched}} matched",
+    "batchImportConfirm": "Submit {{count}} tables",
+    "batchImportDone": "Batch import done: {{success}} succeeded, {{failed}} failed"
   },
   "aiLog": {
     "tabTitle": "AI Analysis",

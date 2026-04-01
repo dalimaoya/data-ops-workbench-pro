@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Row, Col, Statistic, List, Tag, Button, Space, Typography, Empty, Segmented, DatePicker } from 'antd';
+import { Card, Row, Col, Statistic, List, Tag, Space, Typography, Empty, Segmented, DatePicker } from 'antd';
 import {
   DatabaseOutlined, TableOutlined, ExportOutlined, ImportOutlined,
   EditOutlined, PlusOutlined, SettingOutlined,
@@ -93,40 +93,31 @@ export default function Home() {
     return map[tp] || tp;
   };
 
+  const statCards = [
+    { key: 'datasource', color: '#2B5AED', icon: <DatabaseOutlined />, title: t('home.datasourceCount'), value: stats?.datasource_count ?? 0, onClick: () => navigate('/datasource'), hoverable: true },
+    { key: 'table', color: '#7C3AED', icon: <TableOutlined />, title: t('home.tableCount'), value: stats?.table_count ?? 0, onClick: () => navigate('/table-config'), hoverable: true },
+    { key: 'export', color: '#3B82F6', icon: <ExportOutlined />, title: t('home.todayExport'), value: stats?.today_export ?? 0, valueStyle: { color: '#3B82F6' } },
+    { key: 'import', color: '#22C55E', icon: <ImportOutlined />, title: t('home.todayImport'), value: stats?.today_import ?? 0, valueStyle: { color: '#22C55E' } },
+    { key: 'writeback', color: '#F59E0B', icon: <EditOutlined />, title: t('home.todayWriteback'), value: stats?.today_writeback ?? 0, valueStyle: { color: '#F59E0B' } },
+    { key: 'abnormal', color: '#EF4444', icon: <AlertOutlined />, title: t('home.structureAbnormal'), value: stats?.structure_abnormal ?? 0, onClick: () => navigate('/table-config'), hoverable: true, valueStyle: { color: (stats?.structure_abnormal ?? 0) > 0 ? '#EF4444' : '#22C55E' } },
+  ];
+
   return (
-    <Card title={t('home.title')}>
+    <>
       {/* Row 1: Stats */}
       <Row gutter={[16, 12]} style={{ marginBottom: 16 }}>
-        <Col span={4}>
-          <Card hoverable onClick={() => navigate('/datasource')} size="small">
-            <Statistic title={t('home.datasourceCount')} value={stats?.datasource_count ?? 0} prefix={<DatabaseOutlined />} />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card hoverable onClick={() => navigate('/table-config')} size="small">
-            <Statistic title={t('home.tableCount')} value={stats?.table_count ?? 0} prefix={<TableOutlined />} />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card size="small">
-            <Statistic title={t('home.todayExport')} value={stats?.today_export ?? 0} prefix={<ExportOutlined />} valueStyle={{ color: '#1890ff' }} />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card size="small">
-            <Statistic title={t('home.todayImport')} value={stats?.today_import ?? 0} prefix={<ImportOutlined />} valueStyle={{ color: '#52c41a' }} />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card size="small">
-            <Statistic title={t('home.todayWriteback')} value={stats?.today_writeback ?? 0} prefix={<EditOutlined />} valueStyle={{ color: '#faad14' }} />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card size="small" hoverable onClick={() => navigate('/table-config')}>
-            <Statistic title={t('home.structureAbnormal')} value={stats?.structure_abnormal ?? 0} prefix={<AlertOutlined />} valueStyle={{ color: (stats?.structure_abnormal ?? 0) > 0 ? '#ff4d4f' : '#52c41a' }} />
-          </Card>
-        </Col>
+        {statCards.map((card) => (
+          <Col span={4} key={card.key}>
+            <Card
+              hoverable={card.hoverable}
+              onClick={card.onClick}
+              size="small"
+              style={{ borderLeft: `4px solid ${card.color}`, borderRadius: 12 }}
+            >
+              <Statistic title={card.title} value={card.value} prefix={card.icon} valueStyle={card.valueStyle} />
+            </Card>
+          </Col>
+        ))}
       </Row>
 
       {/* Row 2: Trend chart with time range selector */}
@@ -185,11 +176,24 @@ export default function Home() {
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={6}>
           <Card title={t('home.shortcuts')} size="small" style={{ height: '100%' }}>
-            <Space direction="vertical" style={{ width: '100%' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
               {shortcuts.map((s) => (
-                <Button key={s.path} icon={s.icon} block onClick={() => navigate(s.path)} style={{ textAlign: 'left' }}>{s.label}</Button>
+                <div
+                  key={s.path}
+                  onClick={() => navigate(s.path)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    padding: '16px 8px', borderRadius: 8, cursor: 'pointer',
+                    transition: 'background 0.2s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(43,90,237,0.06)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <span style={{ fontSize: 24, color: '#2B5AED', marginBottom: 4 }}>{s.icon}</span>
+                  <span style={{ fontSize: 12, color: '#334155' }}>{s.label}</span>
+                </div>
               ))}
-            </Space>
+            </div>
           </Card>
         </Col>
         <Col span={9}>
@@ -282,6 +286,6 @@ export default function Home() {
           <Empty description={t('home.noOperations')} />
         )}
       </Card>
-    </Card>
+    </>
   );
 }
