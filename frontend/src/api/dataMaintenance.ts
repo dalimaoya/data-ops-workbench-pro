@@ -310,6 +310,10 @@ export const downloadExportTask = (taskId: string) =>
 export const batchExportTables = (tableConfigIds: number[]) =>
   api.post('/data-maintenance/batch-export', { table_config_ids: tableConfigIds }, { responseType: 'blob' });
 
+// 获取主键最大值
+export const getMaxPk = (tableConfigId: number) =>
+  api.get<{ max_value: number | null }>(`/data-maintenance/${tableConfigId}/max-pk`);
+
 // v2.4: Diff report download
 export const downloadDiffReport = (taskId: number) =>
   api.get(`/data-maintenance/import-tasks/${taskId}/diff-report`, { responseType: 'blob' });

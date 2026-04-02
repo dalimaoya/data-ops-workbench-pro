@@ -388,6 +388,33 @@ def list_maintenance_tables(
     return {"total": total, "items": result}
 
 
+@router.get("/{table_config_id}/max-pk")
+def get_max_pk(table_config_id: int, db: Session = Depends(get_db), user: UserAccount = Depends(get_current_user)):
+    tc = _get_tc(db, table_config_id, user)
+    ds = _get_ds(db, tc.datasource_id)
+    pwd = decrypt_password(ds.password_encrypted)
+    pk_fields = [f.strip() for f in tc.primary_key_fields.split(",") if f.strip()]
+    if len(pk_fields) != 1:
+        return {"max_value": None}
+    pk_field = pk_fields[0]
+    fields = _get_fields(db, table_config_id)
+    pk_fc = next((f for f in fields if f.field_name == pk_field), None)
+    if not pk_fc or not any(dt in (pk_fc.db_data_type or '').lower() for dt in ('int', 'bigint', 'smallint', 'serial')):
+        return {"max_value": None}
+    try:
+        conn = _connect(ds.db_type, ds.host, ds.port, ds.username, pwd,
+                        tc.db_name, tc.schema_name, ds.charset, ds.connect_timeout_seconds or 10)
+        cur = conn.cursor()
+        qt = _qualified_table(ds.db_type, tc.table_name, tc.schema_name)
+        _exec(cur, ds.db_type, f"SELECT MAX({_quote_col(ds.db_type, pk_field)}) FROM {qt}", [])
+        result = cur.fetchone()
+        conn.close()
+        max_val = result[0] if result and result[0] is not None else 0
+        return {"max_value": int(max_val)}
+    except Exception:
+        return {"max_value": None}
+
+
 @router.get("/{table_config_id}/data")
 def browse_table_data(
     table_config_id: int,

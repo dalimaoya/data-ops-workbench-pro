@@ -8,7 +8,7 @@ import {
   DeleteOutlined, ExclamationCircleOutlined, EditOutlined, PlusOutlined, SaveOutlined, CloseOutlined,
   RobotOutlined, BulbOutlined,
 } from '@ant-design/icons';
-import { browseTableData, getExportInfo, exportTemplate, deleteRows, clearTable, inlineUpdate, batchInsert, asyncExport } from '../../api/dataMaintenance';
+import { browseTableData, getExportInfo, exportTemplate, deleteRows, clearTable, inlineUpdate, batchInsert, asyncExport, getMaxPk } from '../../api/dataMaintenance';
 import AIQueryPanel from './AIQueryPanel';
 import AIBatchFillPanel from './AIBatchFillPanel';
 import AISmartFillModal from './AISmartFillModal';
@@ -66,6 +66,7 @@ export default function DataBrowse() {
   const [batchInsertOpen, setBatchInsertOpen] = useState(false);
   const [batchRows, setBatchRows] = useState<Record<string, string | null>[]>([]);
   const [insertSaving, setInsertSaving] = useState(false);
+  const [dbMaxPk, setDbMaxPk] = useState(0);
 
   // Diff preview modal
   const [diffModalOpen, setDiffModalOpen] = useState(false);
@@ -297,47 +298,35 @@ export default function DataBrowse() {
   };
 
   // v2.1.2: Batch insert modal
-  const createEmptyRows = (count: number): Record<string, string | null>[] => {
-    return Array.from({ length: count }, () => {
-      const row: Record<string, string | null> = {};
-      for (const col of columns) {
-        row[col.field_name] = null;
-      }
-      return row;
-    });
-  };
-
-  const handleAddRow = () => {
+  const handleAddRow = async () => {
     const pkCol = columns.find(c => c.is_primary_key);
-    const isIntPk = pkCol && /int|bigint|smallint|serial/i.test(pkCol.db_data_type);
-    const newRows = Array.from({ length: 5 }, (_, idx) => {
-      const row: Record<string, string | null> = {};
-      for (const col of columns) {
-        row[col.field_name] = null;
+    if (pkCol && /int|bigint|smallint|serial/i.test(pkCol.db_data_type)) {
+      try {
+        const res = await getMaxPk(tableConfigId);
+        setDbMaxPk(res.data.max_value ?? 0);
+      } catch {
+        setDbMaxPk(Math.max(0, ...rows.map(r => parseInt(r[pkCol.field_name] || '0', 10)).filter(n => !isNaN(n))));
       }
-      if (isIntPk && pkCol) {
-        const existingMax = Math.max(0, ...rows.map(r => parseInt(r[pkCol.field_name] || '0', 10)).filter(n => !isNaN(n)));
-        row[pkCol.field_name] = String(existingMax + 1 + idx);
-      }
-      return row;
-    });
-    setBatchRows(newRows);
+    }
+    setBatchRows([]);
     setBatchInsertOpen(true);
   };
 
-  const handleAddMoreRows = () => {
+  const handleAddMoreRows = (count: number = 1) => {
+    const pkCol = columns.find(c => c.is_primary_key);
+    const isIntPk = pkCol && /int|bigint|smallint|serial/i.test(pkCol.db_data_type);
+
     setBatchRows(prev => {
-      const pkCol = columns.find(c => c.is_primary_key);
-      const isIntPk = pkCol && /int|bigint|smallint|serial/i.test(pkCol.db_data_type);
-      const newRows = Array.from({ length: 5 }, (_, idx) => {
+      const currentMax = isIntPk ? Math.max(
+        dbMaxPk,
+        ...prev.map(r => parseInt(r[pkCol?.field_name || ''] || '0', 10)).filter(n => !isNaN(n))
+      ) : 0;
+
+      const newRows = Array.from({ length: count }, (_, idx) => {
         const row: Record<string, string | null> = {};
-        for (const col of columns) {
-          row[col.field_name] = null;
-        }
+        columns.forEach(c => { row[c.field_name] = null; });
         if (isIntPk && pkCol) {
-          const existingMax = Math.max(0, ...rows.map(r => parseInt(r[pkCol.field_name] || '0', 10)).filter(n => !isNaN(n)));
-          const batchMax = Math.max(0, ...prev.map(r => parseInt(r[pkCol.field_name] || '0', 10)).filter(n => !isNaN(n)));
-          row[pkCol.field_name] = String(Math.max(existingMax, batchMax) + 1 + idx);
+          row[pkCol.field_name] = String(currentMax + 1 + idx);
         }
         return row;
       });
@@ -354,24 +343,54 @@ export default function DataBrowse() {
   };
 
   // Parse paste data, handling merged cells from spreadsheets
-  const parsePasteData = (text: string): string[][] => {
+  const parsePasteData = (text: string, targetFieldCount: number): string[][] => {
     const rowTexts = text.split(/\r?\n/).filter(r => r.trim() !== '');
-    return rowTexts.map(row => {
-      const cells = row.split('\t');
-      const result: string[] = [];
-      for (let i = 0; i < cells.length; i++) {
-        const val = cells[i].trim();
-        if (val !== '') {
-          result.push(val);
-        } else if (i === 0 || cells[i - 1].trim() !== '') {
-          // Empty cell right after a non-empty cell — likely merged cell artifact, skip
-          continue;
-        } else {
-          result.push('');
+    const rawRows = rowTexts.map(row => row.split('\t').map(cell => cell.trim()));
+
+    if (rawRows.length === 0) return rawRows;
+
+    // 第一步：纵向填充（处理纵向合并单元格）
+    const colCount = Math.max(...rawRows.map(r => r.length));
+    if (rawRows.length > 1) {
+      for (let col = 0; col < colCount; col++) {
+        let lastValue = '';
+        for (let row = 0; row < rawRows.length; row++) {
+          const val = (row < rawRows.length && col < rawRows[row].length) ? rawRows[row][col] || '' : '';
+          if (val !== '') {
+            lastValue = val;
+          } else if (lastValue !== '') {
+            if (!rawRows[row]) rawRows[row] = [];
+            rawRows[row][col] = lastValue;
+          }
         }
       }
-      return result;
-    });
+    }
+
+    // 第二步：横向压缩（处理横向合并单元格）
+    // 只在粘贴列数 > 目标字段数时触发
+    if (colCount > targetFieldCount && targetFieldCount > 0) {
+      return rawRows.map(row => {
+        const compressed: string[] = [];
+        let i = 0;
+        while (i < row.length) {
+          const val = row[i] || '';
+          compressed.push(val);
+          if (val !== '') {
+            // 跳过紧随其后的连续空单元格（横向合并产生的）
+            i++;
+            while (i < row.length && (row[i] || '') === '' && compressed.length < targetFieldCount) {
+              i++;
+            }
+          } else {
+            i++;
+          }
+        }
+        // 截断到目标字段数
+        return compressed.slice(0, targetFieldCount);
+      });
+    }
+
+    return rawRows;
   };
 
   const handleBatchPaste = (e: React.ClipboardEvent) => {
@@ -379,12 +398,11 @@ export default function DataBrowse() {
     if (!text || !text.includes('\t')) return;
 
     e.preventDefault();
-    const parsedLines = parsePasteData(text);
-    if (parsedLines.length === 0) return;
-
     const visibleFields = columns
       .filter(c => !c.is_system_field || c.is_primary_key)
       .map(c => c.field_name);
+    const parsedLines = parsePasteData(text, visibleFields.length);
+    if (parsedLines.length === 0) return;
 
     // Determine paste start position from focused input
     let startRow = 0;
@@ -419,6 +437,18 @@ export default function DataBrowse() {
           const val = cells[j].trim();
           newRows[startRow + i] = { ...newRows[startRow + i], [visibleFields[startCol + j]]: val || null };
         }
+      }
+      // Auto-assign incremental PK IDs for pasted rows without PK values
+      const pkCol = columns.find(c => c.is_primary_key);
+      if (pkCol && /int|bigint|smallint|serial/i.test(pkCol.db_data_type)) {
+        let maxPk = Math.max(dbMaxPk, ...newRows.map(r => parseInt(r[pkCol.field_name] || '0', 10)).filter(n => !isNaN(n)));
+        return newRows.map(r => {
+          if (!r[pkCol.field_name] || r[pkCol.field_name] === '') {
+            maxPk++;
+            return { ...r, [pkCol.field_name]: String(maxPk) };
+          }
+          return r;
+        });
       }
       return newRows;
     });
@@ -977,7 +1007,10 @@ export default function DataBrowse() {
           />
         </div>
         <div style={{ marginTop: 12, textAlign: 'center' }}>
-          <Button type="dashed" onClick={handleAddMoreRows} icon={<PlusOutlined />}>
+          <Button type="dashed" onClick={() => handleAddMoreRows(1)} icon={<PlusOutlined />} style={{ marginRight: 8 }}>
+            {t('dataBrowse.addOneRow')}
+          </Button>
+          <Button type="dashed" onClick={() => handleAddMoreRows(5)} icon={<PlusOutlined />}>
             {t('dataBrowse.addMoreRows')}
           </Button>
         </div>
