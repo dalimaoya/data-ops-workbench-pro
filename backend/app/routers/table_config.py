@@ -137,6 +137,7 @@ def preview_remote_table(
             "column_default": c.get("column_default"),
             "ordinal_position": c.get("ordinal_position", 0),
             "is_primary_key": c.get("is_primary_key", False),
+            "column_comment": c.get("column_comment"),
         })
     return {
         "columns": normalized_columns,
@@ -278,7 +279,7 @@ def create_table_config(body: TableConfigCreate, db: Session = Depends(get_db), 
         db_name=use_db,
         schema_name=use_schema,
         table_name=body.table_name,
-        table_alias=body.table_alias if (body.table_alias and body.table_alias != body.table_name) else (suggest_semantic_name(body.table_name) or body.table_alias or body.table_name),
+        table_alias=body.table_alias if (body.table_alias and body.table_alias != body.table_name) else (body.table_comment if (body.table_comment and body.table_comment.strip() and body.table_comment.strip() != body.table_name) else (suggest_semantic_name(body.table_name) or body.table_alias or body.table_name)),
         table_comment=body.table_comment,
         config_version=1,
         structure_version_hash=structure_hash,
@@ -388,7 +389,7 @@ def _merge_fields(db: Session, table_config_id: int, columns: list, pk_fields_st
                 is_primary_key=1 if is_pk else 0,
                 is_unique_key=0,
                 is_system_field=1 if is_sys else 0,
-                include_in_export=0 if is_sys else 1,
+                include_in_export=0 if (is_sys and not is_pk) else 1,
                 include_in_import=0 if is_pk or is_sys else 1,
                 created_by=operator_name,
                 updated_by=operator_name,
@@ -411,8 +412,12 @@ def _auto_generate_fields(db: Session, table_config_id: int, columns: list, pk_f
         is_pk = fname in pk_set or col.get("is_primary_key", False)
         is_sys = is_system_field(fname)
 
-        # Local rule-based alias suggestion
-        alias = suggest_semantic_name(fname) or fname
+        # Alias priority: column_comment (non-empty, different from field_name) → suggest_semantic_name → field_name
+        col_comment = col.get("column_comment")
+        if col_comment and col_comment.strip() and col_comment.strip() != fname:
+            alias = col_comment.strip()
+        else:
+            alias = suggest_semantic_name(fname) or fname
 
         fc = FieldConfig(
             table_config_id=table_config_id,
@@ -427,7 +432,7 @@ def _auto_generate_fields(db: Session, table_config_id: int, columns: list, pk_f
             is_primary_key=1 if is_pk else 0,
             is_unique_key=0,
             is_system_field=1 if is_sys else 0,
-            include_in_export=0 if is_sys else 1,
+            include_in_export=0 if (is_sys and not is_pk) else 1,
             include_in_import=0 if is_pk or is_sys else 1,
             created_by=operator_name,
             updated_by=operator_name,

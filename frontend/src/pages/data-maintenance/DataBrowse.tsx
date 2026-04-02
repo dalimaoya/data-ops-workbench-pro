@@ -308,12 +308,41 @@ export default function DataBrowse() {
   };
 
   const handleAddRow = () => {
-    setBatchRows(createEmptyRows(5));
+    const pkCol = columns.find(c => c.is_primary_key);
+    const isIntPk = pkCol && /int|bigint|smallint|serial/i.test(pkCol.db_data_type);
+    const newRows = Array.from({ length: 5 }, (_, idx) => {
+      const row: Record<string, string | null> = {};
+      for (const col of columns) {
+        row[col.field_name] = null;
+      }
+      if (isIntPk && pkCol) {
+        const existingMax = Math.max(0, ...rows.map(r => parseInt(r[pkCol.field_name] || '0', 10)).filter(n => !isNaN(n)));
+        row[pkCol.field_name] = String(existingMax + 1 + idx);
+      }
+      return row;
+    });
+    setBatchRows(newRows);
     setBatchInsertOpen(true);
   };
 
   const handleAddMoreRows = () => {
-    setBatchRows(prev => [...prev, ...createEmptyRows(5)]);
+    setBatchRows(prev => {
+      const pkCol = columns.find(c => c.is_primary_key);
+      const isIntPk = pkCol && /int|bigint|smallint|serial/i.test(pkCol.db_data_type);
+      const newRows = Array.from({ length: 5 }, (_, idx) => {
+        const row: Record<string, string | null> = {};
+        for (const col of columns) {
+          row[col.field_name] = null;
+        }
+        if (isIntPk && pkCol) {
+          const existingMax = Math.max(0, ...rows.map(r => parseInt(r[pkCol.field_name] || '0', 10)).filter(n => !isNaN(n)));
+          const batchMax = Math.max(0, ...prev.map(r => parseInt(r[pkCol.field_name] || '0', 10)).filter(n => !isNaN(n)));
+          row[pkCol.field_name] = String(Math.max(existingMax, batchMax) + 1 + idx);
+        }
+        return row;
+      });
+      return [...prev, ...newRows];
+    });
   };
 
   const handleBatchCellChange = (rowIndex: number, fieldName: string, value: string | null) => {
@@ -324,37 +353,76 @@ export default function DataBrowse() {
     });
   };
 
+  // Parse paste data, handling merged cells from spreadsheets
+  const parsePasteData = (text: string): string[][] => {
+    const rowTexts = text.split(/\r?\n/).filter(r => r.trim() !== '');
+    return rowTexts.map(row => {
+      const cells = row.split('\t');
+      const result: string[] = [];
+      for (let i = 0; i < cells.length; i++) {
+        const val = cells[i].trim();
+        if (val !== '') {
+          result.push(val);
+        } else if (i === 0 || cells[i - 1].trim() !== '') {
+          // Empty cell right after a non-empty cell — likely merged cell artifact, skip
+          continue;
+        } else {
+          result.push('');
+        }
+      }
+      return result;
+    });
+  };
+
   const handleBatchPaste = (e: React.ClipboardEvent) => {
     const text = e.clipboardData.getData('text/plain');
     if (!text || !text.includes('\t')) return;
 
     e.preventDefault();
-    const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
-    if (lines.length === 0) return;
+    const parsedLines = parsePasteData(text);
+    if (parsedLines.length === 0) return;
 
-    const editableFields = columns
-      .filter(c => !c.is_system_field)
+    const visibleFields = columns
+      .filter(c => !c.is_system_field || c.is_primary_key)
       .map(c => c.field_name);
+
+    // Determine paste start position from focused input
+    let startRow = 0;
+    let startCol = 0;
+    const activeEl = document.activeElement;
+    if (activeEl && activeEl.tagName === 'INPUT') {
+      const inputEl = activeEl as HTMLInputElement;
+      const fieldName = inputEl.getAttribute('data-field');
+      const rowIdx = parseInt(inputEl.getAttribute('data-row') || '0', 10);
+      if (fieldName) {
+        const colIdx = visibleFields.indexOf(fieldName);
+        if (colIdx >= 0) {
+          startRow = rowIdx;
+          startCol = colIdx;
+        }
+      }
+    }
 
     setBatchRows(prev => {
       const newRows = [...prev];
-      while (newRows.length < lines.length) {
+      const neededRows = startRow + parsedLines.length;
+      while (newRows.length < neededRows) {
         const row: Record<string, string | null> = {};
         for (const col of columns) {
           row[col.field_name] = null;
         }
         newRows.push(row);
       }
-      for (let i = 0; i < lines.length; i++) {
-        const cells = lines[i].split('\t');
-        for (let j = 0; j < cells.length && j < editableFields.length; j++) {
+      for (let i = 0; i < parsedLines.length; i++) {
+        const cells = parsedLines[i];
+        for (let j = 0; j < cells.length && (startCol + j) < visibleFields.length; j++) {
           const val = cells[j].trim();
-          newRows[i] = { ...newRows[i], [editableFields[j]]: val || null };
+          newRows[startRow + i] = { ...newRows[startRow + i], [visibleFields[startCol + j]]: val || null };
         }
       }
       return newRows;
     });
-    message.success(t('dataBrowse.pasteSuccess', { count: lines.length }));
+    message.success(t('dataBrowse.pasteSuccess', { count: parsedLines.length }));
   };
 
   const handleConfirmBatchInsert = async () => {
@@ -858,7 +926,7 @@ export default function DataBrowse() {
         confirmLoading={insertSaving}
         okText={t('dataBrowse.batchInsertConfirm')}
         cancelText={t('common.cancel')}
-        width={Math.min(columns.filter(c => !c.is_system_field).length * 160 + 100, 1200)}
+        width={Math.min(columns.filter(c => !c.is_system_field || c.is_primary_key).length * 160 + 100, 1200)}
         destroyOnClose
       >
         <div style={{ marginBottom: 12, color: '#666', fontSize: 13 }}>
@@ -874,7 +942,7 @@ export default function DataBrowse() {
             pagination={false}
             dataSource={batchRows.map((r, i) => ({ ...r, __idx: i }))}
             rowKey="__idx"
-            scroll={{ x: Math.max(columns.filter(c => !c.is_system_field).length * 150, 600) }}
+            scroll={{ x: Math.max(columns.filter(c => !c.is_system_field || c.is_primary_key).length * 150, 600) }}
             columns={[
               {
                 title: '#',
@@ -883,7 +951,7 @@ export default function DataBrowse() {
                 render: (_: unknown, __: unknown, idx: number) => idx + 1,
               },
               ...columns
-                .filter(c => !c.is_system_field)
+                .filter(c => !c.is_system_field || c.is_primary_key)
                 .map(col => ({
                   title: col.is_primary_key
                     ? <span>{col.field_alias} <Tag color="blue" style={{ fontSize: 10 }}>PK</Tag></span>
@@ -899,6 +967,8 @@ export default function DataBrowse() {
                         placeholder={col.is_primary_key ? t('dataBrowse.batchInsertRequired') : ''}
                         value={batchRows[rowIdx]?.[col.field_name] ?? ''}
                         onChange={e => handleBatchCellChange(rowIdx, col.field_name, e.target.value || null)}
+                        data-field={col.field_name}
+                        data-row={rowIdx}
                       />
                     );
                   },

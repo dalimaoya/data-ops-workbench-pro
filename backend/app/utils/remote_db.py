@@ -206,14 +206,15 @@ def list_tables(db_type: str, host: str, port: int, user: str, password: str,
 def list_columns(db_type: str, host: str, port: int, user: str, password: str,
                  table_name: str, database: Optional[str] = None, schema: Optional[str] = None,
                  charset: str = "utf8", timeout: int = 10) -> List[Dict]:
-    """Return list of column dicts with keys: field_name, db_data_type, is_nullable, column_default, is_primary_key, ordinal_position."""
+    """Return list of column dicts with keys: field_name, db_data_type, is_nullable, column_default, is_primary_key, ordinal_position, column_comment."""
     conn = _connect(db_type, host, port, user, password, database, schema, charset, timeout)
     try:
         cur = conn.cursor()
         if db_type == "mysql":
             sql = """
                 SELECT c.COLUMN_NAME, c.COLUMN_TYPE, c.IS_NULLABLE, c.COLUMN_DEFAULT, c.ORDINAL_POSITION,
-                       CASE WHEN kcu.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END AS is_pk
+                       CASE WHEN kcu.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END AS is_pk,
+                       c.COLUMN_COMMENT
                 FROM information_schema.COLUMNS c
                 LEFT JOIN information_schema.KEY_COLUMN_USAGE kcu
                     ON kcu.TABLE_SCHEMA = c.TABLE_SCHEMA
@@ -228,7 +229,11 @@ def list_columns(db_type: str, host: str, port: int, user: str, password: str,
             sch = schema or "public"
             sql = """
                 SELECT c.column_name, c.data_type, c.is_nullable, c.column_default, c.ordinal_position,
-                       CASE WHEN tc.constraint_type = 'PRIMARY KEY' THEN 1 ELSE 0 END AS is_pk
+                       CASE WHEN tc.constraint_type = 'PRIMARY KEY' THEN 1 ELSE 0 END AS is_pk,
+                       col_description(
+                           (SELECT oid FROM pg_class WHERE relname = c.table_name AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = c.table_schema)),
+                           c.ordinal_position
+                       ) AS column_comment
                 FROM information_schema.columns c
                 LEFT JOIN information_schema.key_column_usage kcu
                     ON kcu.table_schema = c.table_schema AND kcu.table_name = c.table_name AND kcu.column_name = c.column_name
@@ -246,13 +251,15 @@ def list_columns(db_type: str, host: str, port: int, user: str, password: str,
                        c.is_nullable,
                        dc.definition AS column_default,
                        c.column_id AS ordinal_position,
-                       CASE WHEN ic.column_id IS NOT NULL THEN 1 ELSE 0 END AS is_pk
+                       CASE WHEN ic.column_id IS NOT NULL THEN 1 ELSE 0 END AS is_pk,
+                       CAST(ep.value AS NVARCHAR(MAX)) AS column_comment
                 FROM sys.columns c
                 JOIN sys.tables t ON t.object_id = c.object_id
                 JOIN sys.schemas s ON s.schema_id = t.schema_id
                 LEFT JOIN sys.default_constraints dc ON dc.object_id = c.default_object_id
                 LEFT JOIN sys.indexes i ON i.object_id = t.object_id AND i.is_primary_key = 1
                 LEFT JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.column_id = c.column_id
+                LEFT JOIN sys.extended_properties ep ON ep.major_id = c.object_id AND ep.minor_id = c.column_id AND ep.name = 'MS_Description'
                 WHERE s.name = ? AND t.name = ?
                 ORDER BY c.column_id
             """
@@ -265,7 +272,8 @@ def list_columns(db_type: str, host: str, port: int, user: str, password: str,
                        col.NULLABLE,
                        col.DATA_DEFAULT,
                        col.COLUMN_ID,
-                       CASE WHEN cc.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END AS is_pk
+                       CASE WHEN cc.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END AS is_pk,
+                       cmt.COMMENTS AS column_comment
                 FROM all_tab_columns col
                 LEFT JOIN (
                     SELECT acc.OWNER, acc.TABLE_NAME, acc.COLUMN_NAME
@@ -273,6 +281,7 @@ def list_columns(db_type: str, host: str, port: int, user: str, password: str,
                     JOIN all_constraints ac ON ac.OWNER = acc.OWNER AND ac.CONSTRAINT_NAME = acc.CONSTRAINT_NAME
                     WHERE ac.CONSTRAINT_TYPE = 'P'
                 ) cc ON cc.OWNER = col.OWNER AND cc.TABLE_NAME = col.TABLE_NAME AND cc.COLUMN_NAME = col.COLUMN_NAME
+                LEFT JOIN all_col_comments cmt ON cmt.OWNER = col.OWNER AND cmt.TABLE_NAME = col.TABLE_NAME AND cmt.COLUMN_NAME = col.COLUMN_NAME
                 WHERE col.OWNER = :1 AND col.TABLE_NAME = :2
                 ORDER BY col.COLUMN_ID
             """
@@ -286,7 +295,8 @@ def list_columns(db_type: str, host: str, port: int, user: str, password: str,
                        col.NULLABLE,
                        col.DATA_DEFAULT,
                        col.COLUMN_ID,
-                       CASE WHEN cc.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END AS is_pk
+                       CASE WHEN cc.COLUMN_NAME IS NOT NULL THEN 1 ELSE 0 END AS is_pk,
+                       cmt.COMMENTS AS column_comment
                 FROM ALL_TAB_COLUMNS col
                 LEFT JOIN (
                     SELECT acc.OWNER, acc.TABLE_NAME, acc.COLUMN_NAME
@@ -294,6 +304,7 @@ def list_columns(db_type: str, host: str, port: int, user: str, password: str,
                     JOIN ALL_CONSTRAINTS ac ON ac.OWNER = acc.OWNER AND ac.CONSTRAINT_NAME = acc.CONSTRAINT_NAME
                     WHERE ac.CONSTRAINT_TYPE = 'P'
                 ) cc ON cc.OWNER = col.OWNER AND cc.TABLE_NAME = col.TABLE_NAME AND cc.COLUMN_NAME = col.COLUMN_NAME
+                LEFT JOIN ALL_COL_COMMENTS cmt ON cmt.OWNER = col.OWNER AND cmt.TABLE_NAME = col.TABLE_NAME AND cmt.COLUMN_NAME = col.COLUMN_NAME
                 WHERE col.OWNER = ? AND col.TABLE_NAME = ?
                 ORDER BY col.COLUMN_ID
             """
@@ -312,6 +323,7 @@ def list_columns(db_type: str, host: str, port: int, user: str, password: str,
                     "column_default": str(r[4]) if r[4] is not None else None,
                     "ordinal_position": r[0] + 1,
                     "is_primary_key": bool(r[5]),
+                    "column_comment": None,
                 })
             return result
 
@@ -325,6 +337,7 @@ def list_columns(db_type: str, host: str, port: int, user: str, password: str,
                 "column_default": str(r[3]) if r[3] is not None else None,
                 "ordinal_position": r[4],
                 "is_primary_key": bool(r[5]),
+                "column_comment": r[6] if len(r) > 6 and r[6] else None,
             })
         return result
     finally:

@@ -106,7 +106,7 @@ _ENUM_RULES: list[tuple[str, list[str]]] = [
 # Patterns for system/readonly fields
 _SYSTEM_PATTERNS = [
     r"^id$", r"^pk$", r"^primary_key$",
-    r".*_id$",
+    r"^(parent_id|pid|fk_.*)$",
     r"^(created?|gmt_create|insert)_(at|time|date|by)$",
     r"^(updated?|gmt_modif|modify)_(at|time|date|by)$",
     r"^(deleted?|remove)_(at|time|date)$",
@@ -115,7 +115,7 @@ _SYSTEM_PATTERNS = [
 
 _READONLY_PATTERNS = [
     r"^id$", r"^pk$", r"^primary_key$",
-    r".*_id$",
+    r"^(parent_id|pid|fk_.*)$",
     r"^(created?|gmt_create|create)_(at|time|date)$",
     r"^(updated?|gmt_modif|modify)_(at|time|date)$",
     r"^(created?|updated?)_by$",

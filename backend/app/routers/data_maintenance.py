@@ -226,6 +226,105 @@ def _drop_table_if_exists(cur, db_type: str, table_qt: str) -> None:
         cur.execute(f"DROP TABLE IF EXISTS {table_qt}")
 
 
+def _validate_row(row_data: Dict[str, Optional[str]], fields: List[FieldConfig],
+                   field_name_map: Dict[str, FieldConfig],
+                   cleaning_rules=None, format_map: Dict = None,
+                   row_idx: int = 0) -> tuple:
+    """Validate and clean a single row of data. Returns (cleaned_row_data, errors, warnings)."""
+    from app.utils.format_engine import clean_global, clean_thousands, apply_format
+    errors: List[dict] = []
+    warnings: List[dict] = []
+    cleaned = {}
+
+    for fname, str_val in row_data.items():
+        # Global cleaning
+        if str_val is not None:
+            str_val = clean_global(str_val, cleaning_rules)
+
+        # Format adaptive conversion
+        if str_val is not None and format_map and fname in format_map:
+            if cleaning_rules is None or cleaning_rules.get("format_conversion", True):
+                converted = apply_format(str_val, format_map[fname])
+                if converted is not None:
+                    str_val = converted
+
+        # Thousands separator cleanup for numeric fields
+        fc = field_name_map.get(fname)
+        if str_val and fc and fc.db_data_type:
+            dt = fc.db_data_type.lower()
+            if any(n in dt for n in ("int", "decimal", "numeric", "float", "double")):
+                if cleaning_rules is None or cleaning_rules.get("thousands_separator", True):
+                    str_val = clean_thousands(str_val)
+
+        cleaned[fname] = str_val
+
+        if not fc:
+            continue
+
+        # Required check (skip PK fields)
+        if fc.is_required and not fc.is_primary_key and (str_val is None or str_val == ""):
+            errors.append({
+                "row": row_idx, "field": fname,
+                "type": "required", "value": str_val,
+                "message": t("data_maintenance.row_field_required", row=row_idx, field=fc.field_alias or fname),
+            })
+
+        # Length check
+        if fc.max_length and str_val and len(str_val) > fc.max_length:
+            errors.append({
+                "row": row_idx, "field": fname,
+                "type": "length", "value": str_val,
+                "message": t("data_maintenance.row_field_too_long", row=row_idx, field=fc.field_alias or fname, max_len=fc.max_length),
+            })
+
+        # Data type check
+        if str_val and fc.db_data_type:
+            dtype = fc.db_data_type.lower()
+            if any(dt in dtype for dt in ("int", "bigint", "smallint", "tinyint")):
+                try:
+                    int(str_val)
+                except ValueError:
+                    errors.append({
+                        "row": row_idx, "field": fname,
+                        "type": "data_type", "value": str_val,
+                        "message": t("data_maintenance.row_field_expect_int", row=row_idx, field=fc.field_alias or fname),
+                    })
+            elif any(dt in dtype for dt in ("decimal", "numeric", "float", "double", "real")):
+                try:
+                    float(str_val)
+                except ValueError:
+                    errors.append({
+                        "row": row_idx, "field": fname,
+                        "type": "data_type", "value": str_val,
+                        "message": t("data_maintenance.row_field_expect_number", row=row_idx, field=fc.field_alias or fname),
+                    })
+            elif any(dt in dtype for dt in ("date", "time", "timestamp", "datetime")):
+                from dateutil import parser as date_parser
+                try:
+                    date_parser.parse(str_val)
+                except (ValueError, OverflowError):
+                    errors.append({
+                        "row": row_idx, "field": fname,
+                        "type": "data_type", "value": str_val,
+                        "message": t("data_maintenance.row_field_expect_date", row=row_idx, field=fc.field_alias or fname, value=str_val),
+                    })
+
+        # Enum check
+        if fc.enum_options_json and str_val:
+            try:
+                options = json.loads(fc.enum_options_json)
+                if isinstance(options, list) and str_val not in options:
+                    errors.append({
+                        "row": row_idx, "field": fname,
+                        "type": "enum", "value": str_val,
+                        "message": t("data_maintenance.row_field_not_in_enum", row=row_idx, field=fc.field_alias or fname),
+                    })
+            except json.JSONDecodeError:
+                pass
+
+    return cleaned, errors, warnings
+
+
 # ─────────────────────────────────────────────
 # P2-1: 数据浏览
 # ─────────────────────────────────────────────
@@ -865,7 +964,24 @@ async def import_template(
     warnings: List[dict] = []
 
     if meta.get("table_config_id") != table_config_id:
-        raise HTTPException(400, t("data_maintenance.table_id_mismatch", expected=table_config_id, actual=meta.get('table_config_id')))
+        # Soft match: try datasource_id + table_name
+        _meta_ds_id = meta.get("datasource_id")
+        _meta_table_name = meta.get("table_name")
+        _soft_match = None
+        if _meta_ds_id and _meta_table_name:
+            _soft_match = db.query(TableConfig).filter(
+                TableConfig.datasource_id == _meta_ds_id,
+                TableConfig.table_name == _meta_table_name,
+                TableConfig.is_deleted == 0,
+            ).first()
+        if _soft_match and _soft_match.id == table_config_id:
+            # The current table_config matches by datasource+table_name, template was from old ID
+            warnings.append({
+                "row": 0, "field": "", "type": "table_id_remapped",
+                "message": f"该模板对应的纳管表已重新配置（旧ID={meta.get('table_config_id')}，新ID={table_config_id}），请重新导出模板",
+            })
+        else:
+            raise HTTPException(400, t("data_maintenance.table_id_mismatch", expected=table_config_id, actual=meta.get('table_config_id')))
 
     if meta.get("datasource_id") != tc.datasource_id:
         raise HTTPException(400, t("data_maintenance.datasource_id_mismatch"))
@@ -909,16 +1025,28 @@ async def import_template(
             t("data_maintenance.col_count_mismatch", expected=expected_col_count, actual=actual_col_count),
         )
 
-    # ── 4.2 列名逐列校验 ──
+    # ── 4.2 列名逐列校验（带回退：field_aliases → field_codes → 报错）──
+    expected_field_codes = meta.get("field_codes") or [f.field_name for f in export_fields]
     mismatched_cols: List[str] = []
+    _use_field_codes = False
     for idx, (expected, actual) in enumerate(zip(expected_aliases, header_row)):
         if expected != actual:
             mismatched_cols.append(t("data_maintenance.col_name_mismatch", col=idx+1, expected=expected, actual=actual))
     if mismatched_cols:
-        raise HTTPException(
-            400,
-            '; '.join(mismatched_cols),
-        )
+        # Fallback: try matching by field_codes (field_name)
+        code_mismatched = []
+        if len(expected_field_codes) == len(header_row):
+            for idx, (expected_code, actual) in enumerate(zip(expected_field_codes, header_row)):
+                if expected_code != actual:
+                    code_mismatched.append(t("data_maintenance.col_name_mismatch", col=idx+1, expected=expected_code, actual=actual))
+            if not code_mismatched:
+                _use_field_codes = True
+                mismatched_cols = []
+        if mismatched_cols:
+            raise HTTPException(
+                400,
+                '; '.join(mismatched_cols),
+            )
 
     # ── 5. Field completeness check ──
     # v3.10: build mapped_cols using the cleaned header_row (without _操作 column)
@@ -2930,6 +3058,32 @@ def batch_insert(
                 fc = next((f for f in fields if f.field_name == pkf), None)
                 pk_alias = fc.field_alias if fc and fc.field_alias else pkf
                 raise HTTPException(400, t("data_maintenance.batch_pk_required", row=idx + 1, field=pk_alias))
+
+    # Load cleaning rules
+    _cleaning_rules = None
+    try:
+        _cr_row = db.query(SystemSetting).filter(SystemSetting.setting_key == "cleaning_rules").first()
+        if _cr_row:
+            _cleaning_rules = json.loads(_cr_row.setting_value)
+    except Exception:
+        pass
+
+    # Validate and clean each row
+    field_name_map = {f.field_name: f for f in fields}
+    all_row_errors: List[dict] = []
+    for idx, row_data in enumerate(valid_rows):
+        cleaned, row_errors, _ = _validate_row(
+            row_data, fields, field_name_map,
+            cleaning_rules=_cleaning_rules, format_map=None,
+            row_idx=idx + 1,
+        )
+        valid_rows[idx] = cleaned
+        all_row_errors.extend(row_errors)
+    if all_row_errors:
+        error_msgs = "; ".join(e["message"] for e in all_row_errors[:5])
+        if len(all_row_errors) > 5:
+            error_msgs += f" ...共{len(all_row_errors)}个错误"
+        raise HTTPException(400, error_msgs)
 
     wb_batch = _gen_batch("BINS")
     bk_batch = _gen_batch("BK")
