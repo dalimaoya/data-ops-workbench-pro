@@ -1184,20 +1184,30 @@ async def batch_import_confirm(
                 db=db,
                 user=user,
             )
+            tc_obj = db.query(TableConfig).filter(TableConfig.id == tc_id).first()
+            tc_label = (tc_obj.table_alias or tc_obj.table_name) if tc_obj else f"TC#{tc_id}"
             results.append({
                 "table_config_id": tc_id,
+                "table_name": tc_label,
                 "status": "success",
+                "message": f"{tc_label} 导入成功",
                 "detail": result,
             })
         except HTTPException as e:
+            tc_obj = db.query(TableConfig).filter(TableConfig.id == tc_id).first()
+            tc_label = (tc_obj.table_alias or tc_obj.table_name) if tc_obj else f"TC#{tc_id}"
             results.append({
                 "table_config_id": tc_id,
+                "table_name": tc_label,
                 "status": "error",
                 "message": e.detail if isinstance(e.detail, str) else str(e.detail),
             })
         except Exception as e:
+            tc_obj = db.query(TableConfig).filter(TableConfig.id == tc_id).first()
+            tc_label = (tc_obj.table_alias or tc_obj.table_name) if tc_obj else f"TC#{tc_id}"
             results.append({
                 "table_config_id": tc_id,
+                "table_name": tc_label,
                 "status": "error",
                 "message": str(e)[:200],
             })
@@ -1216,8 +1226,8 @@ async def batch_import_confirm(
         "success": True,
         "data": {
             "total": len(results),
-            "success_count": success_count,
-            "failed_count": failed_count,
+            "succeeded": success_count,
+            "failed": failed_count,
             "results": results,
         },
     }

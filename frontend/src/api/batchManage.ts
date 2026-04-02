@@ -114,7 +114,7 @@ export const batchConfirm = (data: BatchConfirmRequest) =>
 
 // Batch export
 export const batchExport = (data: BatchExportRequest) =>
-  api.post('/batch-manage/export', data, { responseType: 'blob' });
+  api.post('/batch-manage/export', data, { responseType: 'blob', timeout: 300000 });
 
 // Batch import - validate uploaded file
 export const batchImportValidate = (file: File, datasourceId: number) => {

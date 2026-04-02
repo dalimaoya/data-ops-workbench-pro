@@ -88,7 +88,7 @@ function saveHistory(items: QueryHistoryItem[]) {
 
 function addHistory(item: Omit<QueryHistoryItem, 'id'>) {
   const items = loadHistory();
-  items.unshift({ ...item, id: crypto.randomUUID() });
+  items.unshift({ ...item, id: Date.now().toString(36) + Math.random().toString(36).slice(2, 9) });
   saveHistory(items);
   return items.slice(0, MAX_HISTORY);
 }

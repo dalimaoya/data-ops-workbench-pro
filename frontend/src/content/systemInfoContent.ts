@@ -1,7 +1,7 @@
 const systemInfoContent = `# 数据运维工作台 - 系统说明
 
-> 版本：v5.0
-> 更新日期：2026-03-29
+> 版本：v5.4.2
+> 更新日期：2026-04-02
 > 适用系统版本：v5.0+
 
 ---
@@ -26,44 +26,38 @@ const systemInfoContent = `# 数据运维工作台 - 系统说明
 
 ---
 
-## 二、v5.0 新增功能
+## 二、版本更新
 
-### 2.1 统一认证
+### 2.1 v5.1~v5.4 新增功能
 
-- 微信扫码登录 + 账号密码双登录方式
-- 联网时优先微信扫码（通过统一认证平台），断网时自动降级为本地账号密码
-- 首次微信扫码自动绑定超级管理员
-- JWT 令牌支持在线校验和离线验签两种模式
+| 功能 | 说明 |
+|---|---|
+| **数据格式自适应引擎** | 导入时自动处理全角/半角、空格、空值、换行、千分位清洗；日期/金额/百分比/布尔双向格式转换 |
+| **本地规则引擎增强** | 80+ 字段名精确匹配 + 30+ 业务词汇拆词组合（如 \`order_status\` → \`订单状态\`） |
+| **智能列宽** | 根据字段类型自动调整列宽（主键 80px、整数 90px、日期 160px、文本 220px） |
+| **导出模板增强** | 全边框（数据区 thin / 空白区 dashed）+ 表头冻结 + A1 导入说明 + 隐藏操作列 + Sheet 保护 |
+| **动态主键自增** | 新增行时自动获取远程数据库最大主键值 |
+| **粘贴智能处理** | 自动处理合并单元格（纵向填充 + 横向压缩） |
+| **SQL 操作台** | 手写/可视化/AI 三模式 SQL 查询（只读） |
+| **数据对比** | 跨数据源表数据差异对比，支持 Excel 导出 |
+| **回写影响评估** | AI 风险评估（高/中/低三级），风险分布统计和建议 |
+| **插件权限** | 管理员可为用户分配插件使用权限 |
+| **全局在线检测** | ThreadPoolExecutor 并发检测所有数据源，60 秒缓存，登录页不轮询 |
+| **Dashboard 升级** | Recharts 面积图（7/30/90 天 + 自定义日期）+ 6 统计卡片 + TOP10 柱状图 + 高频字段 |
+| **UI 主题升级** | ConfigProvider 全局主题（主色 #2B5AED、圆角 8/12px、卡片阴影）+ 灰色背景 + hover 动效 |
+| **清空表** | 一键清空全表数据（自动备份） |
+| **批量导出增强** | ZIP/多 Sheet 模式，锁定/不锁定，200 行预留空白行 |
+| **批量导入** | 三步流程（上传 → 校验 → 确认回写） |
 
-### 2.2 四级角色体系
+### 2.2 v5.0 新增功能
 
-| 角色 | 说明 | 权限 |
-|---|---|---|
-| **超级管理员 (superadmin)** | 系统最高权限，微信绑定角色 | 所有功能 + 管理 admin |
-| **管理员 (admin)** | 系统配置和管理 | 配置类功能 + 管理 operator/viewer |
-| **操作员 (operator)** | 日常数据维护 | 数据维护操作 |
-| **只读用户 (viewer)** | 数据查阅 | 只读查看 |
-
-superadmin 自动通过所有角色检查，拥有完整权限。
-
-### 2.3 扩展插件试用期
-
-- 微信首次绑定超级管理员时自动获得 **30 天全插件试用期**
-- 激活码首次激活时也可触发试用期
-- 试用期内所有扩展插件均可使用
-- 试用状态可在「关于系统 → 插件激活」Tab 查看
-
-### 2.4 激活码系统
-
-- 通过统一认证平台生成的 Ed25519 签名激活码解锁插件
-- 关于系统 → 插件激活 → 输入激活码
-- 支持永久授权和限时授权
-
-### 2.5 手动更新检测
-
-- 关于系统 → 检查更新
-- 从 Gitee Releases 获取最新版本信息
-- 显示当前版本与最新版本对比
+| 功能 | 说明 |
+|---|---|
+| **统一认证** | 微信扫码登录 + 账号密码双登录方式，联网/离线自动切换 |
+| **四级角色体系** | superadmin / admin / operator / viewer，层级管理 |
+| **扩展插件试用期** | 微信首次绑定或激活码首次激活，获得 30 天全插件试用 |
+| **激活码系统** | Ed25519 签名激活码，支持永久和限时授权 |
+| **手动更新检测** | 关于系统 → 检查更新，从 Gitee 获取最新版本 |
 
 ---
 
@@ -74,9 +68,8 @@ superadmin 自动通过所有角色检查，拥有完整权限。
 \`\`\`
 ┌──────────────────────────────────────────────────┐
 │                 浏览器（用户端）                      │
-│     React 19 + Ant Design 6 + react-i18next       │
-│     导航: 数据运维/数据管理/智能功能/运维监控/        │
-│           集成与通知/系统                             │
+│     React 19 + Ant Design 6 + Recharts            │
+│     ConfigProvider 全局主题 + react-i18next         │
 └───────────────────┬──────────────────────────────┘
                     │ HTTP API
 ┌───────────────────▼──────────────────────────────┐
@@ -86,6 +79,7 @@ superadmin 自动通过所有角色检查，拥有完整权限。
 │  │ ① 底座层（Platform Base）                      │  │
 │  │   统一认证 · 数据源 · 纳管表 · 数据维护 · 日志  │  │
 │  │   用户管理 · 权限 · 通知 · i18n · 激活码        │  │
+│  │   格式自适应引擎 · 本地规则引擎                  │  │
 │  └─────────────────────────────────────────────┘  │
 │  ┌─────────────────────────────────────────────┐  │
 │  │ ② 内置插件层（7 Builtin Plugins）              │  │
@@ -93,10 +87,10 @@ superadmin 自动通过所有角色检查，拥有完整权限。
 │  │   通知 · 定时任务 · SQL 操作台                  │  │
 │  └─────────────────────────────────────────────┘  │
 │  ┌─────────────────────────────────────────────┐  │
-│  │ ③ 扩展插件层（12 Extension Plugins）           │  │
+│  │ ③ 扩展插件层（11 Extension Plugins）           │  │
 │  │   AI 助手 · AI 预填 · 智能导入 · 审批中心      │  │
 │  │   数据趋势 · 数据对比 · 数据脱敏 · 通知推送    │  │
-│  │   Webhook · 模板市场 · 审计报告 · 报表          │  │
+│  │   Webhook · 模板市场 · 审计报告                │  │
 │  └─────────────────────────────────────────────┘  │
 │                                                   │
 │  ┌─────────┐  ┌──────────────────────────────┐   │
@@ -111,7 +105,7 @@ superadmin 自动通过所有角色检查，拥有完整权限。
 
 | 分组 | 包含模块 |
 |---|---|
-| **数据运维** | 仪表盘、数据源管理、纳管表配置、数据维护组（数据库维护/数据表维护/库表管理/SQL控制台）、数据对比、审批中心 |
+| **数据运维** | 仪表盘、数据源管理、数据配置（单表/库表）、数据维护、数据对比、审批中心 |
 | **数据管理** | 库表管理、SQL 操作台 |
 | **智能功能** | AI 助手、智能导入 |
 | **运维监控** | 健康巡检、数据趋势、定时任务、备份迁移 |
@@ -123,8 +117,8 @@ superadmin 自动通过所有角色检查，拥有完整权限。
 **7 个内置插件（builtin，始终可用）：**
 backup, batch_ops, db_manager, health_check, notification, scheduler, sql_console
 
-**12 个扩展插件（extension，需授权/试用）：**
-ai_assistant, ai_predict, approval, audit_export, data_compare, data_mask, data_trend, notify_push, report, smart_import, template_market, webhook
+**11 个扩展插件（extension，需授权/试用）：**
+ai_assistant, ai_predict, approval, audit_export, data_compare, data_mask, data_trend, notify_push, smart_import, template_market, webhook
 
 ### 3.4 技术栈
 
@@ -132,6 +126,7 @@ ai_assistant, ai_predict, approval, audit_export, data_compare, data_mask, data_
 |---|---|---|
 | **前端框架** | React 19 + TypeScript | 生态成熟，组件丰富 |
 | **UI 库** | Ant Design 6 | 企业级 UI，表格/表单能力强 |
+| **图表** | Recharts | 轻量响应式图表库 |
 | **前端构建** | Vite | 开发快，打包小 |
 | **国际化** | react-i18next + 后端 i18n | 前后端统一多语言 |
 | **后端框架** | Python FastAPI | 异步高性能，自动 API 文档 |
@@ -139,6 +134,10 @@ ai_assistant, ai_predict, approval, audit_export, data_compare, data_mask, data_
 | **平台数据库** | SQLite | 零配置，文件级，拷贝即走 |
 | **认证** | JWT + bcrypt + 统一认证平台 | 双模式登录，RS256 离线验签 |
 | **Excel** | openpyxl | Python Excel 读写 |
+| **数据格式** | format_engine.py | 日期/金额/百分比/布尔双向转换引擎 |
+| **字段别名** | rules_engine.py | 80+ 精确匹配 + 30+ 拆词匹配本地规则引擎 |
+| **打包** | PyInstaller --onedir | Windows/Linux 一键打包 |
+| **CI/CD** | GitHub Actions | 自动编译 + 发布 |
 
 ---
 
@@ -148,14 +147,16 @@ ai_assistant, ai_predict, approval, audit_export, data_compare, data_mask, data_
 
 \`\`\`
 上传模板 → ① 模板合法性校验（是不是平台导出的？）
-         → ② 数据类型/必填/枚举/长度校验
-         → ③ 主键不可变校验
-         → ④ 差异预览（让用户看清改了什么）
-         → ⑤ 确认回写（用户主动确认）
-         → ⑥ 写前全表备份
-         → ⑦ 执行写入
-         → ⑧ 结果反馈 + 日志记录
-         → ⑨ 出问题可版本回退
+         → ② 数据格式自适应清洗（全角/半角、日期、金额等）
+         → ③ 数据类型/必填/枚举/长度校验
+         → ④ 主键不可变校验
+         → ⑤ 差异预览（让用户看清改了什么）
+         → ⑥ AI 影响评估（可选，识别风险项）
+         → ⑦ 确认回写（用户主动确认）
+         → ⑧ 写前全表备份
+         → ⑨ 执行写入
+         → ⑩ 结果反馈 + 日志记录
+         → ⑪ 出问题可版本回退
 \`\`\`
 
 ### 4.2 最小权限原则
@@ -164,6 +165,7 @@ ai_assistant, ai_predict, approval, audit_export, data_compare, data_mask, data_
 |---|---|
 | 四角色分权 | 超级管理员/管理员/操作员/只读，层级管理 |
 | 数据源级权限 | 不同用户只看到授权的数据源 |
+| 插件级权限 | 管理员可控制用户能使用哪些插件 |
 | 字段级权限 | 指定字段只有管理员能编辑 |
 | 连接信息隔离 | 普通用户看不到数据库连接信息 |
 | 可选审批流 | 操作员的回写可以要求管理员审核 |
@@ -182,7 +184,8 @@ ai_assistant, ai_predict, approval, audit_export, data_compare, data_mask, data_
 |---|---|---|
 | **Linux 启动** | 服务器部署 | \`./start.sh\` 一键启动 |
 | **Windows 安装包** | 桌面使用 | \`DataOpsWorkbench.exe\` 双击运行（pywebview 桌面窗口） |
-| **源码运行** | 开发/测试 | 需要 Python 3.9+ 和 Node.js 18+ |
+| **源码运行** | 开发/测试 | 需要 Python 3.11+ 和 Node.js 18+ |
+| **Docker** | 容器化部署 | \`docker-compose up -d\` |
 
 ### 5.2 系统要求
 
@@ -214,6 +217,7 @@ ai_assistant, ai_predict, approval, audit_export, data_compare, data_mask, data_
 | 图形验证码 | 本地登录防暴力破解 |
 | JWT Token | 24 小时有效期，自动生成密钥 |
 | 密码存储 | bcrypt 哈希 |
+| 速率限制 | API 限流 200 次/分钟 |
 
 ### 6.2 权限安全
 
@@ -222,6 +226,7 @@ ai_assistant, ai_predict, approval, audit_export, data_compare, data_mask, data_
 | 前端菜单隔离 | 不同角色看到不同菜单 |
 | 后端 API 拦截 | 每个接口都有角色校验 |
 | 数据源隔离 | 非授权数据源完全不可见 |
+| 插件权限 | 管理员可控制用户的插件使用范围 |
 | 插件授权 | 扩展插件需试用期或激活码 |
 
 ---
@@ -232,15 +237,28 @@ ai_assistant, ai_predict, approval, audit_export, data_compare, data_mask, data_
 
 ---
 
-## 八、版本历史
+## 八、数据库表清单（25 张）
+
+activation_record, ai_config, approval_request, datasource_config, export_task,
+field_change_log, field_config, health_check_config, health_check_result,
+import_task_log, notification, plugin_status, scheduled_task,
+smart_import_mapping_template, system_operation_log, system_setting,
+table_backup_version, table_config, task_execution_log, template_export_log,
+trial_activation, user_account, user_datasource_permission,
+user_plugin_permission, writeback_log
+
+---
+
+## 九、版本历史
 
 | 版本 | 日期 | 主要内容 |
 |---|---|---|
-| v1.0 | 2026-03-20 | MVP：数据源管理、纳管表、模板导出导入、校验回写、日志、版本回退 |
-| v2.0-v2.7 | 2026-03-23~24 | 新增/删除行、审批流、通知中心、多语言、安全加固 |
-| v3.0 | 2026-03-24 | AI 智能化（7 大场景）、数据库维护、备份迁移、健康巡检 |
-| v4.0-v4.8 | 2026-03-25~26 | 插件中心、分层导航、启动画面、用户反馈修复 |
+| v5.1~v5.4 | 2026-03-30~04-02 | 数据格式自适应引擎、规则引擎增强、SQL 操作台、数据对比、影响评估、智能列宽、动态主键、粘贴处理、插件权限、全局在线检测、Dashboard/UI 升级、批量导出导入增强 |
 | v5.0 | 2026-03-29 | 统一认证（微信扫码）、superadmin 四级角色、扩展插件试用期、激活码系统、导航场景化重组、手动更新检测 |
+| v4.0-v4.8 | 2026-03-25~26 | 插件中心、分层导航、启动画面、用户反馈修复 |
+| v3.0 | 2026-03-24 | AI 智能化（7 大场景）、数据库维护、备份迁移、健康巡检 |
+| v2.0-v2.7 | 2026-03-23~24 | 新增/删除行、审批流、通知中心、多语言、安全加固 |
+| v1.0 | 2026-03-20 | MVP：数据源管理、纳管表、模板导出导入、校验回写、日志、版本回退 |
 `;
 
 export default systemInfoContent;

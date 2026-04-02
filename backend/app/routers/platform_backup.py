@@ -19,6 +19,7 @@ from app.models import (
     DatasourceConfig, TableConfig, FieldConfig, UserAccount,
     SystemSetting, AIConfig, SystemOperationLog, Notification,
     TrialActivation, ActivationRecord, PluginStatus, MappingTemplate,
+    UserDatasourcePermission, UserPluginPermission,
 )
 from app.plugins.plugin_notification_push.routers import (
     NotificationChannel, NotificationSubscription, NotificationLog,
@@ -36,10 +37,10 @@ os.makedirs(BACKUP_DIR, exist_ok=True)
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # Current app version – keep in sync with main.py
-APP_VERSION = "5.0.0"
+APP_VERSION = "5.4.2"
 MANIFEST_SCHEMA_VERSION = "1.0"
 # Minimum app version that can import backups created by this version
-COMPATIBLE_VERSIONS = {"5.0.0", "3.0.0", "2.6.0", "2.5.0", "2.4.0", "2.3.0", "2.2.0", "2.1.0", "2.0.0", "1.0"}
+COMPATIBLE_VERSIONS = {"5.4.2", "5.0.0", "3.0.0", "2.6.0", "2.5.0", "2.4.0", "2.3.0", "2.2.0", "2.1.0", "2.0.0", "1.0"}
 
 
 def _now_bjt():
@@ -275,6 +276,17 @@ def create_backup(
         with open(os.path.join(config_dir, "plugin_status.json"), "w", encoding="utf-8") as f:
             json.dump(ps_list, f, ensure_ascii=False, indent=2, default=str)
 
+        # v5.1: User permission tables
+        ds_perm_rows = db.query(UserDatasourcePermission).all()
+        ds_perm_list = [{"id": r.id, "user_id": r.user_id, "datasource_id": r.datasource_id} for r in ds_perm_rows]
+        with open(os.path.join(config_dir, "user_datasource_permissions.json"), "w", encoding="utf-8") as f:
+            json.dump(ds_perm_list, f, ensure_ascii=False, indent=2, default=str)
+
+        plugin_perm_rows = db.query(UserPluginPermission).all()
+        plugin_perm_list = [{"id": r.id, "user_id": r.user_id, "plugin_name": r.plugin_name, "granted_at": str(r.granted_at) if r.granted_at else None} for r in plugin_perm_rows]
+        with open(os.path.join(config_dir, "user_plugin_permissions.json"), "w", encoding="utf-8") as f:
+            json.dump(plugin_perm_list, f, ensure_ascii=False, indent=2, default=str)
+
         # Notification push tables
         nch_rows = db.query(NotificationChannel).all()
         nch_list = []
@@ -410,6 +422,8 @@ def create_backup(
                 "trial_activations": len(trial_list),
                 "activation_records": len(act_list),
                 "plugin_statuses": len(ps_list),
+                "user_datasource_permissions": len(ds_perm_list),
+                "user_plugin_permissions": len(plugin_perm_list),
                 "notification_channels": len(nch_list),
                 "notification_subscriptions": len(nsub_list),
                 "notification_logs": len(nlog_list),
@@ -931,6 +945,26 @@ def _restore_overwrite(db: Session, extract_dir: str, contents: dict):
             ))
         db.commit()
 
+    # v5.1: Restore user_datasource_permissions
+    ds_perm_file = os.path.join(config_dir, "user_datasource_permissions.json")
+    if os.path.isfile(ds_perm_file):
+        with open(ds_perm_file, "r", encoding="utf-8") as f:
+            ds_perm_data = json.load(f)
+        db.query(UserDatasourcePermission).delete()
+        for r in ds_perm_data:
+            db.add(UserDatasourcePermission(user_id=r["user_id"], datasource_id=r["datasource_id"]))
+        db.commit()
+
+    # v5.1: Restore user_plugin_permissions
+    plugin_perm_file = os.path.join(config_dir, "user_plugin_permissions.json")
+    if os.path.isfile(plugin_perm_file):
+        with open(plugin_perm_file, "r", encoding="utf-8") as f:
+            plugin_perm_data = json.load(f)
+        db.query(UserPluginPermission).delete()
+        for r in plugin_perm_data:
+            db.add(UserPluginPermission(user_id=r["user_id"], plugin_name=r["plugin_name"], granted_at=r.get("granted_at")))
+        db.commit()
+
     # Restore notification_channels
     nch_file = os.path.join(config_dir, "notification_channels.json")
     if os.path.isfile(nch_file):
@@ -1230,6 +1264,34 @@ def _restore_merge(db: Session, extract_dir: str, contents: dict):
                     enabled_by=ps.get("enabled_by"),
                     enabled_at=ps.get("enabled_at"),
                 ))
+        db.commit()
+
+    # v5.1: Merge user_datasource_permissions (by user_id + datasource_id)
+    ds_perm_file = os.path.join(config_dir, "user_datasource_permissions.json")
+    if os.path.isfile(ds_perm_file):
+        with open(ds_perm_file, "r", encoding="utf-8") as f:
+            ds_perm_data = json.load(f)
+        for r in ds_perm_data:
+            existing = db.query(UserDatasourcePermission).filter(
+                UserDatasourcePermission.user_id == r["user_id"],
+                UserDatasourcePermission.datasource_id == r["datasource_id"],
+            ).first()
+            if not existing:
+                db.add(UserDatasourcePermission(user_id=r["user_id"], datasource_id=r["datasource_id"]))
+        db.commit()
+
+    # v5.1: Merge user_plugin_permissions (by user_id + plugin_name)
+    plugin_perm_file = os.path.join(config_dir, "user_plugin_permissions.json")
+    if os.path.isfile(plugin_perm_file):
+        with open(plugin_perm_file, "r", encoding="utf-8") as f:
+            plugin_perm_data = json.load(f)
+        for r in plugin_perm_data:
+            existing = db.query(UserPluginPermission).filter(
+                UserPluginPermission.user_id == r["user_id"],
+                UserPluginPermission.plugin_name == r["plugin_name"],
+            ).first()
+            if not existing:
+                db.add(UserPluginPermission(user_id=r["user_id"], plugin_name=r["plugin_name"], granted_at=r.get("granted_at")))
         db.commit()
 
     # Merge notification_channels (by name + channel_type)

@@ -799,8 +799,8 @@ def export_template(
     if tc.allow_delete_rows:
         op_col = len(export_fields) + 1
         op_col_letter = get_column_letter(op_col)
-        # 列头为空，通过注释说明用途
-        op_header = ws.cell(row=1, column=op_col, value="")
+        # 列头必须为"_操作"，导入时依赖此名称识别并剥离该列
+        op_header = ws.cell(row=1, column=op_col, value="_操作")
         op_header.font = header_font
         op_header.fill = header_fill
         op_header.protection = locked_cell
@@ -1023,6 +1023,9 @@ async def import_template(
 
     header_row = [cell.value for cell in data_ws[1]]
     header_row = [h for h in header_row if h is not None]
+    # Strip trailing empty strings (old templates used "" for hidden _操作 column header)
+    while header_row and header_row[-1] == "":
+        header_row.pop()
 
     pk_fields = set(meta.get("primary_key_fields", []))
 
@@ -1832,6 +1835,10 @@ def retry_import_validation(task_id: int, db: Session = Depends(get_db), user: U
     data_ws = wb["数据"] if "数据" in wb.sheetnames else wb.worksheets[0]
     header_row = [cell.value for cell in data_ws[1]]
     header_row = [h for h in header_row if h is not None]
+    # Strip trailing empty strings and _操作 column (compatibility with old/new templates)
+    while header_row and header_row[-1] == "":
+        header_row.pop()
+    header_row = [h for h in header_row if h != "_操作"]
 
     pk_fields = set(meta.get("primary_key_fields", []))
     import_fields = [f for f in fields if f.include_in_import or f.is_primary_key]
@@ -3428,7 +3435,7 @@ def _run_async_export(task_id: str, table_config_id: int, export_type: str,
         if tc.allow_delete_rows:
             op_col = len(export_fields) + 1
             op_col_letter = get_column_letter(op_col)
-            op_header = ws.cell(row=1, column=op_col, value="")
+            op_header = ws.cell(row=1, column=op_col, value="_操作")
             op_header.font = header_font
             op_header.fill = header_fill
             op_header.protection = locked_cell

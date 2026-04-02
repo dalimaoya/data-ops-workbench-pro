@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Card, Select, Table, Input, Button, Checkbox, Space, Progress, Tag, message,
@@ -133,16 +133,22 @@ export default function DatabaseMaintenance() {
   }, []);
 
   // Load remote tables + managed info when datasource changes
+  const loadRequestId = useRef(0);
   const loadTables = useCallback(async (dsId: number, dbName?: string) => {
+    const reqId = ++loadRequestId.current;
     setLoadingTables(true);
     setRemoteTables([]);
     setSelectedTableNames([]);
+    setManagedSelectedIds([]);
     setTableLoadError(null);
     try {
       const [remoteRes, managedRes] = await Promise.all([
         getRemoteTables(dsId, dbName ? { db_name: dbName } : undefined),
         listTableConfigs({ datasource_id: dsId, page_size: 500 }),
       ]);
+
+      // Stale response guard: discard if a newer request has been issued
+      if (reqId !== loadRequestId.current) return;
 
       const managedMap = new Map<string, TableConfig>();
       (managedRes.data as TableConfig[]).forEach(tc => {
@@ -162,11 +168,12 @@ export default function DatabaseMaintenance() {
       });
       setRemoteTables(items);
     } catch (err: any) {
+      if (reqId !== loadRequestId.current) return;
       const detail = err?.response?.data?.detail || err?.message || t('tableConfig.getTablesFailed');
       setTableLoadError(detail);
       message.error(detail);
     } finally {
-      setLoadingTables(false);
+      if (reqId === loadRequestId.current) setLoadingTables(false);
     }
   }, [t]);
 
@@ -407,18 +414,47 @@ export default function DatabaseMaintenance() {
         table_ids: managedSelectedIds,
         format: exportLocked ? exportFormat : exportFormat + '_unlocked',
       });
-      // Download blob
+      // Download blob — use content-disposition filename if available
       const blob = new Blob([res.data as any]);
+      if (blob.size < 100) {
+        // Response too small — likely an error message, not a real file
+        const text = await blob.text();
+        try {
+          const errObj = JSON.parse(text);
+          message.error(errObj.detail || t('maintenance.batchExportFailed'));
+        } catch {
+          message.error(text || t('maintenance.batchExportFailed'));
+        }
+        return;
+      }
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const ext = exportFormat === 'zip' ? 'zip' : 'xlsx';
-      a.download = `batch_export_${new Date().toISOString().slice(0, 10)}.${ext}`;
+      const disposition = res.headers?.['content-disposition'];
+      let filename = `batch_export_${new Date().toISOString().slice(0, 10)}.${exportFormat === 'zip' ? 'zip' : 'xlsx'}`;
+      if (disposition) {
+        const m = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';\n]+)/i);
+        if (m) filename = decodeURIComponent(m[1]);
+      }
+      a.download = filename;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
       message.success(t('maintenance.batchExportSuccess', { count: managedSelectedIds.length }));
-    } catch {
-      message.error(t('maintenance.batchExportFailed'));
+    } catch (e: any) {
+      // blob responseType: error body is a Blob, need to parse it
+      if (e?.response?.data instanceof Blob) {
+        try {
+          const text = await e.response.data.text();
+          const json = JSON.parse(text);
+          message.error(json.detail || t('maintenance.batchExportFailed'));
+        } catch {
+          message.error(t('maintenance.batchExportFailed'));
+        }
+      } else {
+        message.error(e?.response?.data?.detail || t('maintenance.batchExportFailed'));
+      }
     } finally {
       setExporting(false);
     }

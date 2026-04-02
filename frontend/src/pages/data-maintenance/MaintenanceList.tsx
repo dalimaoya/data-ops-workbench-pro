@@ -71,7 +71,9 @@ export default function MaintenanceList() {
     }
   };
 
-  useEffect(() => { fetchData(); }, [page, pageSize, datasourceId, dbName]);
+  useEffect(() => {
+    if (datasourceId) fetchData();
+  }, [page, pageSize, datasourceId, dbName]);
 
   const handleSearch = () => { setPage(1); fetchData(); };
 

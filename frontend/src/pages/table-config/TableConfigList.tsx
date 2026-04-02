@@ -59,7 +59,9 @@ export default function TableConfigList() {
     }
   }, [filters.datasource_id]);
 
-  useEffect(() => { fetchData(); }, [page, pageSize, filters]);
+  useEffect(() => {
+    if (filters.datasource_id) fetchData();
+  }, [page, pageSize, filters]);
 
   const handleCheckStructure = async (id: number) => {
     const res = await checkStructure(id);

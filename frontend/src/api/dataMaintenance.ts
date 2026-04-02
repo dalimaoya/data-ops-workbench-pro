@@ -187,6 +187,7 @@ export const exportTemplate = (tableConfigId: number, params?: Record<string, un
   api.post(`/data-maintenance/${tableConfigId}/export`, null, {
     params,
     responseType: 'blob',
+    timeout: 300000,
   });
 
 // 导入模板
@@ -308,7 +309,7 @@ export const downloadExportTask = (taskId: string) =>
 
 // v2.3: Batch export (multi-table zip)
 export const batchExportTables = (tableConfigIds: number[]) =>
-  api.post('/data-maintenance/batch-export', { table_config_ids: tableConfigIds }, { responseType: 'blob' });
+  api.post('/data-maintenance/batch-export', { table_config_ids: tableConfigIds }, { responseType: 'blob', timeout: 300000 });
 
 // 获取主键最大值
 export const getMaxPk = (tableConfigId: number) =>
